@@ -20,13 +20,13 @@ REM Install critical dependencies
 echo Checking dependencies...
 python -c "import zstandard" 2>nul
 if errorlevel 1 (
-    echo Installing zstandard (required for compression)...
+    echo Installing zstandard - required for compression...
     pip install zstandard
 )
 
 python -c "import ordered_set" 2>nul
 if errorlevel 1 (
-    echo Installing ordered-set (faster compilation)...
+    echo Installing ordered-set - faster compilation...
     pip install ordered-set
 )
 
@@ -35,9 +35,9 @@ echo Starting Nuitka compilation...
 echo.
 echo Build Configuration:
 echo  - Target: passwords.txt.exe
-echo  - Compiler: MinGW64 (auto-download on first build)
+echo  - Compiler: MinGW64 - auto-download on first build
 echo  - Optimizations: Maximum size reduction
-echo  - Expected time: 5-15 minutes (first build)
+echo  - Expected time: 5-15 minutes for first build
 echo  - Expected size: 7-10 MB
 echo.
 
@@ -97,7 +97,7 @@ for %%F in ("dist\passwords.txt.exe") do (
     set /a size_mb=%%~zF/1048576
     set /a size_kb=%%~zF/1024
     echo Output: dist\passwords.txt.exe
-    echo Size: %%~zF bytes (~!size_mb! MB)
+    echo Size: %%~zF bytes - approximately !size_mb! MB
 )
 
 echo.
