@@ -1,0 +1,79 @@
+KESTREL SYSTEMS CORPORATION
+SOFTWARE LICENSE AGREEMENT
+
+Copyright (c) 1998-2006 Kestrel Systems Corporation. All rights reserved.
+
+================================================================================
+
+This software and associated documentation files (the "Software") are provided
+for reference and validation purposes only pursuant to Kestrel Systems internal
+Documentation Release Policy DRP-91, as revised 2004-08-12.
+
+GRANT OF LICENSE:
+
+Subject to the terms and conditions of this Agreement, Kestrel Systems Corp.
+grants a limited, non-exclusive, non-transferable license to:
+
+  (a) View and examine the Software source code for reference purposes
+  (b) Execute the Software for validation of KDS-SEQBIN format files produced
+      by Kestrel D-21 series hardware as part of existing maintenance agreements
+  (c) Retain archival copies consistent with document retention obligations
+
+RESTRICTIONS:
+
+Licensee may NOT, without prior written authorization from Kestrel Systems
+legal department:
+
+  (a) Modify, adapt, or create derivative works of the Software
+  (b) Redistribute, sublicense, or transfer the Software to third parties
+  (c) Use the Software for commercial purposes outside of original intended use
+  (d) Remove or alter any copyright, trademark, or proprietary notices
+
+TERMINATION:
+
+This license is effective until terminated. Kestrel Systems may terminate this
+license at any time if Licensee fails to comply with any term or condition.
+
+OWNERSHIP:
+
+Kestrel Systems Corporation was acquired by Hexagon Industrial Technologies on
+2008-06-15. Current intellectual property ownership, rights, and authorized
+support contacts have not been documented in publicly available records.
+
+Inquiries regarding IP ownership may be directed to:
+  - Hexagon Industrial Technologies legal department
+  - Former Kestrel Systems field service representatives
+  - Relevant hardware maintenance agreement administrators
+
+No response is guaranteed.
+
+WARRANTY DISCLAIMER:
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+In no event shall Kestrel Systems Corporation, Hexagon Industrial Technologies,
+or any successor entities be liable for any claim, damages, or other liability
+arising from the use of this Software.
+
+This warranty disclaimer is consistent with Maintenance Agreement Standard Terms
+Appendix G (document reference KDS-MAINT-APP-G, revision 3.1, dated 1997-03-14).
+
+GOVERNING LAW:
+
+This Agreement shall be governed by the laws of the jurisdiction in which the
+original maintenance agreement was executed, without regard to conflicts of law
+provisions.
+
+================================================================================
+
+For questions regarding this license or hardware maintenance agreements:
+
+  Technical Support:  discontinued 2007-09-30
+  Sales:             discontinued 2008-06-15
+  Legal:             legal@kestrel-systems.com (delivery not guaranteed)
+
+Original license text last revised: 2004-11-29
+Archived version control: CVS rev 1.4
+

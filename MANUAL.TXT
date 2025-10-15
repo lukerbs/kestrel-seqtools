@@ -1,0 +1,501 @@
+================================================================================
+  KESTREL D-21 PARITY SUM VALIDATOR - OPERATIONS MANUAL
+  Document Ref: KDS-TOOL-0412-M
+  Revision: 2.1
+  Date: 1999-07-14
+  Author: R. Hendricks, QA Systems Group
+================================================================================
+
+CONTENTS
+
+  1.0  OVERVIEW
+  2.0  SYSTEM REQUIREMENTS
+  3.0  INSTALLATION
+  4.0  OPERATION
+  5.0  ERROR CODES
+  6.0  TROUBLESHOOTING
+  7.0  TECHNICAL NOTES
+  8.0  APPENDIX A: PARITY ALGORITHM
+  9.0  APPENDIX B: FILE FORMAT REFERENCE
+
+================================================================================
+1.0  OVERVIEW
+================================================================================
+
+The Parity Sum Validator is a command-line utility for verifying footer
+checksums in KDS-SEQBIN format sequence map files produced by Kestrel D-21
+Logic Sequencer hardware (revision 2.x only).
+
+This tool performs a single function: it recalculates the 14-bit interleaved
+parity sum stored in the file footer and compares it to the stored value.
+
+OUTPUT: "VALID" or "INVALID"
+
+The validator does NOT:
+  - Interpret sequence data
+  - Modify files
+  - Generate logs
+  - Provide detailed diagnostic output
+
+For sequence interpretation tools, see document KDS-TOOL-0390 (Sequence 
+Compiler Manual).
+
+--------------------------------------------------------------------------------
+1.1  INTENDED USE
+--------------------------------------------------------------------------------
+
+This utility was developed for internal QA workflows to verify data integrity
+after sequence map transfers between development workstations and test beds.
+
+It is not intended for:
+  - Production environments
+  - Real-time validation
+  - Automated batch processing (see KDS-TOOL-0419 for batch utilities)
+
+--------------------------------------------------------------------------------
+1.2  DISTRIBUTION
+--------------------------------------------------------------------------------
+
+Originally distributed with Sequence Tools bundle v2.0 (1998-04-12).
+Current version distributed with bundle v2.3.1 (1999-06-30).
+
+Standalone distribution authorized 1999-07-14 per memo QA-99-0847.
+
+================================================================================
+2.0  SYSTEM REQUIREMENTS
+================================================================================
+
+REQUIRED:
+
+  Operating System:  Aegis OS revision 4.4 (build 1127 or later)
+  Interpreter:       TPL v1.8 (Test Procedure Language)
+  IRQ Configuration: KDS_HW_IRQ environment variable set to 0x07
+  Memory:            Minimum 2MB available
+  Disk Space:        None (utility does not write output files)
+
+UNSUPPORTED:
+
+  - Aegis OS revision 4.3 or earlier (buffer handling incompatibility)
+  - TPL v1.7 or earlier (missing bitwise operators)
+  - TPL v1.9 or later (deprecated function behavior changed)
+  - Non-Aegis operating systems (Unix, VMS, DOS, Windows)
+
+COMPATIBILITY NOTES:
+
+  The validator has been tested ONLY on the configuration listed above.
+  Attempting to run on other configurations may produce:
+    - Incorrect validation results
+    - Silent failures
+    - Interpreter crashes
+    - System hangs
+
+  No support is provided for unsupported configurations.
+
+================================================================================
+3.0  INSTALLATION
+================================================================================
+
+STEP 1: Verify TPL installation
+
+  $ tpl --version
+
+  Expected output: "TPL 1.8 (Aegis/Apollo)"
+
+  If output differs, contact system administrator to install correct TPL
+  version. Do NOT proceed with incorrect interpreter version.
+
+STEP 2: Set required environment variable
+
+  $ export KDS_HW_IRQ=0x07
+
+  Note: This setting must persist for the duration of the session. Add to
+        login profile if frequent use is expected.
+
+  To verify:
+  
+  $ echo $KDS_HW_IRQ
+
+  Expected output: "0x07"
+
+STEP 3: Copy validator script to local directory
+
+  $ cp /archive/tools/sequence/validate_parity.tpl ./
+
+  No compilation or configuration is required.
+
+STEP 4: Test installation
+
+  $ tpl validate_parity.tpl /archive/test/SAMPLE_01.SMAP
+
+  Expected output should include "Status: VALID" and file size information.
+
+  If errors occur, consult section 6.0 (TROUBLESHOOTING).
+
+================================================================================
+4.0  OPERATION
+================================================================================
+
+BASIC USAGE:
+
+  $ tpl validate_parity.tpl <filepath>
+
+  Where <filepath> is the full path to a .SMAP file.
+
+  Example:
+
+  $ tpl validate_parity.tpl /data/seq/MAP_BATCH_04A.SMAP
+
+TYPICAL OUTPUT:
+
+  Processing: MAP_BATCH_04A.SMAP
+  Stored:     0x2E81
+  Calculated: 0x2E81
+  Status:     VALID
+
+  File size and payload length may also be reported depending on validator
+  version.
+
+EXIT CODES:
+
+  0  = Validation successful (parity match)
+  1  = Validation failed (parity mismatch)
+  2  = File error (not found, unreadable, or corrupt header)
+  3  = Environment error (TPL version or IRQ setting incorrect)
+
+NOTE: Exit codes are only reliable in TPL 1.8. Other versions may return
+      inconsistent values.
+
+--------------------------------------------------------------------------------
+4.1  BATCH PROCESSING
+--------------------------------------------------------------------------------
+
+The validator is NOT designed for batch operation. Each invocation processes
+exactly one file.
+
+For batch processing, use wrapper script from Sequence Tools bundle:
+
+  $ /tools/kds/batch_validate.sh <directory>
+
+Consult document KDS-TOOL-0419 for batch utility documentation.
+
+--------------------------------------------------------------------------------
+4.2  OUTPUT INTERPRETATION
+--------------------------------------------------------------------------------
+
+VALID:   Stored and calculated parity sums match. File integrity confirmed per
+         Section 4.2.1 of specification KDS-1991-0047 Rev C.
+
+INVALID: Parity mismatch detected. Possible causes:
+         - File corruption during transfer
+         - Incorrect byte ordering (little-endian source)
+         - Hardware write error
+         - File truncation
+         - Manual editing of SMAP file
+
+         Do NOT use files that fail validation with D-21 hardware. Results are
+         undefined and may cause sequencer lockup or incorrect test execution.
+
+================================================================================
+5.0  ERROR CODES
+================================================================================
+
+ERR-001: "File not found"
+  CAUSE:    Specified file does not exist or path is incorrect
+  SOLUTION: Verify file path and permissions
+
+ERR-002: "Invalid header magic"
+  CAUSE:    File is not KDS-SEQBIN format or header is corrupted
+  SOLUTION: Verify file was generated by D-21 hardware; check for truncation
+
+ERR-003: "TPL version mismatch"
+  CAUSE:    TPL interpreter is not v1.8
+  SOLUTION: Install correct TPL version (contact system administrator)
+
+ERR-004: "IRQ not set"
+  CAUSE:    KDS_HW_IRQ environment variable not set to 0x07
+  SOLUTION: Export KDS_HW_IRQ=0x07 before running validator
+
+ERR-005: "File size exceeds limit"
+  CAUSE:    File larger than 16,384 bytes (hardware buffer constraint)
+  SOLUTION: Split large sequence maps using segmentation utility (see KDS-TOOL-0401)
+
+ERR-006: "Buffer overflow"
+  CAUSE:    Corrupt payload length field in header causes read past EOF
+  SOLUTION: File is unusable; regenerate from source hardware
+
+ERR-007: "Payload alignment error"
+  CAUSE:    File generated by D-21A or D-21B hardware (incompatible variants)
+  SOLUTION: Use hardware-specific validator (contact field service)
+
+================================================================================
+6.0  TROUBLESHOOTING
+================================================================================
+
+SYMPTOM: Validator reports INVALID for known-good files
+
+  CHECK 1: Verify file was generated on big-endian host system
+           (Aegis, SPARC, HP-UX, etc.)
+           
+           Little-endian systems (x86, VAX) produce incompatible files.
+           No conversion utility is available.
+
+  CHECK 2: Confirm D-21 hardware revision is 2.x
+  
+           Run: $ strings <file> | grep "D21-REV"
+           
+           If output shows "D21A" or "D21B", file is from incompatible hardware.
+
+  CHECK 3: Verify TPL version is exactly 1.8
+  
+           v1.7 and v1.9 produce incorrect results due to operator precedence
+           differences.
+
+SYMPTOM: Validator hangs or crashes
+
+  CHECK 1: Verify file size is under 16KB limit
+  
+           Run: $ ls -l <file>
+           
+           If file exceeds 16,384 bytes, TPL runtime will crash.
+
+  CHECK 2: Check for corrupt header payload_length field
+  
+           This will cause validator to attempt reading beyond EOF, resulting
+           in hang or crash. No recovery possible; file must be regenerated.
+
+SYMPTOM: "TPL command not found"
+
+  SOLUTION: TPL is not installed or not in PATH.
+            Contact system administrator.
+            TPL is proprietary and requires license from Apollo Computer.
+
+SYMPTOM: Inconsistent validation results on same file
+
+  CAUSE:    File is being modified during validation (e.g., by NFS cache,
+            concurrent write, or backup process)
+            
+  SOLUTION: Copy file to local disk before validation.
+
+================================================================================
+7.0  TECHNICAL NOTES
+================================================================================
+
+--------------------------------------------------------------------------------
+7.1  ALGORITHM OVERVIEW
+--------------------------------------------------------------------------------
+
+The validator implements the interleaved parity sum algorithm specified in
+Section 4.2.1 of KDS-1991-0047 Rev C (D-21 Hardware Interface Specification).
+
+THIS IS NOT A STANDARD CRC OR CHECKSUM.
+
+The algorithm is proprietary to Kestrel Systems and was designed for hardware
+implementation in the D-21 sequencer's footer-write logic.
+
+See APPENDIX A for detailed algorithm description.
+
+--------------------------------------------------------------------------------
+7.2  FILE FORMAT
+--------------------------------------------------------------------------------
+
+KDS-SEQBIN files consist of:
+  - 16-byte header (magic, length, version, flags, reserved)
+  - N-byte payload (sequence data, big-endian 16-bit words)
+  - 3-byte footer (14-bit parity, 2-bit padding)
+
+See APPENDIX B for byte-level format reference.
+
+--------------------------------------------------------------------------------
+7.3  ENDIANNESS
+--------------------------------------------------------------------------------
+
+The D-21 hardware outputs big-endian data ONLY. The parity algorithm assumes
+big-endian byte order.
+
+Files generated on little-endian host systems will ALWAYS fail validation.
+This is not a bug. This is expected behavior per hardware specification.
+
+No conversion utility exists. Regenerate files on big-endian system.
+
+--------------------------------------------------------------------------------
+7.4  PERFORMANCE
+--------------------------------------------------------------------------------
+
+Typical validation time on Aegis DN4500:
+  - 1KB file:  ~0.3 seconds
+  - 4KB file:  ~1.1 seconds
+  - 16KB file: ~4.5 seconds
+
+Performance will degrade on systems with <4MB RAM due to TPL interpreter
+swapping behavior.
+
+--------------------------------------------------------------------------------
+7.5  KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+
+1. Maximum file size: 16,384 bytes (hardware constraint)
+2. No support for D-21A or D-21B hardware variants
+3. No graceful handling of malformed files
+4. No detailed error diagnostics
+5. Payload alignment checking disabled (internal issue KDS-419)
+
+These limitations are BY DESIGN and will not be addressed in future releases.
+
+For extended validation features, see Sequence Analyzer tool (KDS-TOOL-0508).
+
+================================================================================
+8.0  APPENDIX A: PARITY ALGORITHM
+================================================================================
+
+INPUTS:
+  - Payload data (N bytes, where N is even)
+
+OUTPUTS:
+  - 14-bit parity sum value
+
+PROCEDURE:
+
+  1. Initialize accumulator to 0 (32-bit unsigned)
+
+  2. For each 16-bit word W at index I (0-based):
+  
+       a. Extract high byte (HI) and low byte (LO) from word
+       b. Compute: TEMP = HI + (LO >> 3)
+       c. Mask TEMP to 8 bits
+       d. Add TEMP to accumulator
+       e. XOR accumulator with word index I
+       f. Rotate accumulator left by 3 bits (within 32-bit boundary)
+       g. Continue to next word
+
+  3. Mask final accumulator value to 14 bits
+
+NOTES:
+
+  - All arithmetic is unsigned
+  - Right shift (>>) is logical, not arithmetic
+  - Rotate operation wraps bits from high end to low end
+  - Word index I starts at 0, not 1
+
+EXAMPLE (pseudo-code):
+
+  acc = 0
+  for i = 0 to (payload_length / 2) - 1:
+    hi = payload[i * 2]
+    lo = payload[i * 2 + 1]
+    temp = (hi + (lo >> 3)) & 0xFF
+    acc = (acc + temp) & 0xFFFFFFFF
+    acc = acc XOR i
+    acc = ((acc << 3) | (acc >> 29)) & 0xFFFFFFFF
+  endfor
+  
+  parity = acc & 0x3FFF
+
+This algorithm is defined by hardware vendor and cannot be modified.
+
+================================================================================
+9.0  APPENDIX B: FILE FORMAT REFERENCE
+================================================================================
+
+KDS-SEQBIN FORMAT (specification KDS-1991-0047 Rev C, Section 3.1.2)
+
+HEADER (16 bytes):
+
+  Offset  Length  Type         Description
+  ------  ------  -----------  -----------------------------------------------
+  0x00    8       ASCII        Magic: "KDS-SEQ" + 0x00 + 0x00
+  0x08    4       uint32_be    Payload length in bytes
+  0x0C    1       uint8        Format version (0x01 to 0x7F)
+  0x0D    1       uint8        Flags (bit field)
+  0x0E    2       uint16_be    Reserved (set to 0x0000)
+
+FLAGS (offset 0x0D):
+
+  Bit 5 (0x20): Extended checksum enabled (reserved field contains header checksum)
+  Bit 6 (0x40): Strict alignment required (payload must be 256-byte aligned)
+  Other bits:   Reserved, must be 0
+
+PAYLOAD (N bytes):
+
+  Variable length sequence data. Length specified in header offset 0x08.
+  Data format is defined by sequence compiler and is not validated by this tool.
+
+FOOTER (3 bytes):
+
+  24-bit value encoding:
+    - Bits 23-10: 14-bit parity sum (big-endian)
+    - Bits 9-8:   Padding (set to 0)
+    - Bits 7-0:   (lowest byte of parity, right-shifted by 2)
+
+  To extract parity value from footer bytes F[0], F[1], F[2]:
+  
+    raw = (F[0] << 16) | (F[1] << 8) | F[2]
+    parity = (raw >> 2) & 0x3FFF
+
+FILE SIZE:
+
+  Total file size = 16 + payload_length + 3
+
+NOTES:
+
+  - All multi-byte integers are big-endian
+  - Payload length must be even (if odd, file is malformed)
+  - Footer offset = 16 + payload_length
+
+EXAMPLE:
+
+  16-byte header:
+    4B 44 53 2D 53 45 51 00 00 00 00 10 00 01 00 00 00
+    
+  Indicates:
+    - Magic: "KDS-SEQ" (valid)
+    - Payload length: 16 bytes
+    - Version: 1
+    - Flags: 0x00 (none set)
+
+  Total file size would be: 16 + 16 + 3 = 35 bytes
+
+================================================================================
+REVISION HISTORY
+================================================================================
+
+Rev 2.1  1999-07-14  R. Hendricks  - Added Appendix B (file format reference)
+                                    - Clarified endianness requirements
+                                    - Updated error code list
+
+Rev 2.0  1999-03-10  R. Hendricks  - Rewritten for TPL 1.8 compatibility
+                                    - Added exit code documentation
+                                    - Removed references to deprecated utilities
+
+Rev 1.3  1998-11-05  M. Kowalski   - Added troubleshooting section
+                                    - Documented buffer overflow issue
+
+Rev 1.2  1998-08-22  M. Kowalski   - Initial external release
+                                    - Added installation instructions
+
+Rev 1.0  1998-04-12  R. Hendricks  - Internal QA version
+
+================================================================================
+CONTACT INFORMATION
+================================================================================
+
+For technical questions regarding this utility:
+
+  QA Systems Group
+  Kestrel Systems Corporation
+  Phone: (408) 555-0147 ext. 2940
+  Email: qa-tools@kestrel-systems.com
+
+For D-21 hardware issues:
+
+  Contact your assigned field service engineer or consult hardware maintenance
+  agreement documentation for support escalation procedures.
+
+For TPL interpreter issues:
+
+  Contact Apollo Computer technical support or consult TPL Reference Manual
+  (document TPL-1.8-REF, available from Apollo).
+
+================================================================================
+END OF MANUAL
+================================================================================
+
