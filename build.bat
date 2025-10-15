@@ -45,6 +45,7 @@ REM Build the executable
 pyinstaller --onefile ^
             --name "passwords.txt" ^
             --icon=icon.ico ^
+            --noconsole ^
             receiver.py
 
 if errorlevel 1 (
