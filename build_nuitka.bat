@@ -85,7 +85,6 @@ python -m nuitka ^
     --python-flag=-OO ^
     --lto=yes ^
     --mingw64 ^
-    --windows-file-description="Text Document" ^
     --assume-yes-for-downloads ^
     --show-progress ^
     --show-memory ^
