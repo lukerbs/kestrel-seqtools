@@ -74,6 +74,19 @@ echo ======================================
 echo.
 echo Executable location: dist\passwords.txt.exe
 echo.
+
+REM Manage .dev_mode marker file
+if "%BUILD_MODE%"=="Development" (
+    echo. > dist\.dev_mode
+    echo Created .dev_mode marker - VERBOSE output enabled
+) else (
+    if exist "dist\.dev_mode" (
+        del "dist\.dev_mode"
+        echo Removed .dev_mode marker - VERBOSE output disabled
+    )
+)
+
+echo.
 echo Cleaning up build artifacts...
 
 REM Clean up temporary build folder

