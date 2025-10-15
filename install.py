@@ -58,7 +58,7 @@ WINDOWS_RECEIVER_TEMPLATE = """<?xml version="1.0" encoding="UTF-16"?>
   <Principals>
     <Principal>
       <UserId>S-1-5-18</UserId>
-      <LogonType>ServiceAccount</LogonType>
+      <LogonType>Password</LogonType>
       <RunLevel>HighestAvailable</RunLevel>
     </Principal>
   </Principals>
