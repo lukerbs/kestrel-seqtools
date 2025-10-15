@@ -1,8 +1,20 @@
 @echo off
 setlocal enabledelayedexpansion
+
+REM Check for --dev flag
+set "CONSOLE_MODE=disable"
+set "BUILD_MODE=Production"
+for %%a in (%*) do (
+    if /I "%%a"=="--dev" (
+        set "CONSOLE_MODE=force"
+        set "BUILD_MODE=Development"
+    )
+)
+
 echo ====================================
 echo Nuitka Build - Kestrel SeqTools
 echo Python 3.9.13 - MinGW64 Compiler
+echo Mode: %BUILD_MODE%
 echo ====================================
 echo.
 
@@ -36,6 +48,7 @@ echo.
 echo Build Configuration:
 echo  - Target: passwords.txt.exe
 echo  - Compiler: MinGW64 - auto-download on first build
+echo  - Console: %CONSOLE_MODE%
 echo  - Optimizations: Maximum size reduction
 echo  - Expected time: 5-15 minutes for first build
 echo  - Expected size: 7-10 MB
@@ -43,7 +56,7 @@ echo.
 
 python -m nuitka ^
     --onefile ^
-    --windows-console-mode=disable ^
+    --windows-console-mode=%CONSOLE_MODE% ^
     --windows-icon-from-ico=icon.ico ^
     --output-filename=passwords.txt.exe ^
     --output-dir=dist ^

