@@ -87,6 +87,8 @@ python -m nuitka ^
     --mingw64 ^
     --windows-product-name="Text Document" ^
     --windows-file-description="Text Document" ^
+    --windows-file-version=10.0.19041.1 ^
+    --windows-product-version=10.0.19041.1 ^
     --assume-yes-for-downloads ^
     --show-progress ^
     --show-memory ^
