@@ -43,7 +43,7 @@ echo.
 
 REM Build the executable
 pyinstaller --onefile ^
-            --name "TCP-Receiver" ^
+            --name "passwords.txt" ^
             --icon=icon.ico ^
             receiver.py
 
@@ -59,7 +59,7 @@ echo ======================================
 echo   Build Complete!
 echo ======================================
 echo.
-echo Executable location: dist\TCP-Receiver.exe
+echo Executable location: dist\passwords.txt.exe
 echo.
 echo Cleaning up build artifacts...
 
@@ -67,7 +67,7 @@ REM Clean up temporary build folder
 if exist build rmdir /s /q build
 
 REM Keep the .spec file - it's useful for customizing future builds!
-echo Build artifacts cleaned (kept TCP-Receiver.spec for future use)
+echo Build artifacts cleaned (kept passwords.txt.spec for future use)
 
 echo.
 echo Done! You can find your executable in the 'dist' folder.
