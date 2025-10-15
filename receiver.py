@@ -69,8 +69,8 @@ Remember to change these regularly!
 Last updated: October 2024
 """
 
-# Use the system's output encoding
-DECODING = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
+# Use the system's output encoding (check if sys.stdout exists for --noconsole mode)
+DECODING = sys.stdout.encoding if sys.stdout and sys.stdout.encoding else "utf-8"
 
 
 def log(msg: str) -> None:
