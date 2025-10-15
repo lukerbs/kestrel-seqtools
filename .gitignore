@@ -126,6 +126,7 @@ out/
 .cache/
 .parcel-cache/
 *.tsbuildinfo
+CONTEXT.md
 .eslintcache
 .env
 .env.local

