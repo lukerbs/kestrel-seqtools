@@ -23,8 +23,8 @@ def get_current_executable() -> Optional[Tuple[str, str]]:
     Returns:
         Tuple of (exe_or_script_path, working_directory) if found, None otherwise
     """
-    if getattr(sys, "frozen", False):
-        # Running as compiled .exe - return THIS exe
+    if getattr(sys, "frozen", False) or "__compiled__" in globals():
+        # Running as compiled .exe (PyInstaller or Nuitka) - return THIS exe
         exe_path = sys.executable  # "C:\path\to\TCP-Receiver.exe"
         work_dir = os.path.dirname(exe_path)
         return exe_path, work_dir

