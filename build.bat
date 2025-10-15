@@ -45,7 +45,6 @@ REM Build the executable
 pyinstaller --onefile ^
             --name "TCP-Receiver" ^
             --icon=icon.ico ^
-            @REM --noconsole ^
             receiver.py
 
 if errorlevel 1 (
