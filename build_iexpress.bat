@@ -142,46 +142,19 @@ echo.
 REM Get absolute path to dist directory
 set "DIST_DIR=%CD%\dist"
 
-REM Create IExpress Self-Extraction Directive (.sed) file
-REM Using a simplified, working format
-(
-echo [Version]
-echo Class=IEXPRESS
-echo SEDVersion=3
-echo [Options]
-echo PackagePurpose=InstallApp
-echo ShowInstallProgramWindow=0
-echo HideExtractAnimation=1
-echo UseLongFileName=1
-echo InsideCompressed=0
-echo CAB_FixedSize=0
-echo CAB_ResvCodeSigning=0
-echo RebootMode=N
-echo InstallPrompt=
-echo DisplayLicense=
-echo FinishMessage=
-echo TargetName=%DIST_DIR%\%OUTPUT_NAME%.exe
-echo FriendlyName=%OUTPUT_NAME%
-echo AppLaunched=cmd.exe /c %OUTPUT_NAME%_launcher.exe
-echo PostInstallCmd=^<None^>
-echo AdminQuietInstCmd=
-echo UserQuietInstCmd=
-echo SourceFiles=SourceFiles0
-echo [Strings]
-echo [SourceFiles]
-echo SourceFiles0=%DIST_DIR%\
-) > "dist\iexpress.sed"
+REM Check if template exists
+if not exist "iexpress_template.sed" (
+    echo ERROR: iexpress_template.sed not found!
+    pause
+    exit /b 1
+)
 
-REM Add file list to SED
+REM Copy template and replace placeholders using PowerShell
+powershell -Command "(Get-Content 'iexpress_template.sed') -replace '%%TargetName%%', '%DIST_DIR%\%OUTPUT_NAME%.exe' -replace '%%SourceFiles0%%', '%DIST_DIR%\' | Set-Content 'dist\iexpress.sed'"
+
+REM Add .dev_mode to file list if in dev mode
 if %DEV_MODE%==1 (
-    echo [SourceFiles0] >> "dist\iexpress.sed"
-    echo %OUTPUT_NAME%_launcher.exe= >> "dist\iexpress.sed"
-    echo %OUTPUT_NAME%_main.exe= >> "dist\iexpress.sed"
     echo .dev_mode= >> "dist\iexpress.sed"
-) else (
-    echo [SourceFiles0] >> "dist\iexpress.sed"
-    echo %OUTPUT_NAME%_launcher.exe= >> "dist\iexpress.sed"
-    echo %OUTPUT_NAME%_main.exe= >> "dist\iexpress.sed"
 )
 
 echo.
