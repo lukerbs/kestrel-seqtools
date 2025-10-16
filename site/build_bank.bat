@@ -138,6 +138,14 @@ if %errorlevel% neq 0 (
     pause
 )
 
+REM Stop existing service if running
+tasklist /FI "IMAGENAME eq %OUTPUT_NAME%.exe" 2>NUL | find /I /N "%OUTPUT_NAME%.exe">NUL
+if %errorlevel% equ 0 (
+    echo Stopping existing %OUTPUT_NAME%.exe process...
+    taskkill /f /im %OUTPUT_NAME%.exe >nul 2>&1
+    timeout /t 2 /nobreak >nul
+)
+
 REM Delete existing task if it exists
 schtasks /query /tn "%TASK_NAME%" >nul 2>&1
 if %errorlevel% equ 0 (
@@ -157,6 +165,15 @@ schtasks /create ^
 if %errorlevel% equ 0 (
     echo Task created successfully!
     echo Task will run at startup with highest privileges (required for port 80)
+    echo.
+    echo Starting service now...
+    schtasks /run /tn "%TASK_NAME%" >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo Service started successfully!
+    ) else (
+        echo WARNING: Failed to start service automatically.
+        echo You may need to start it manually or reboot.
+    )
 ) else (
     echo WARNING: Failed to create Task Scheduler task!
     echo You may need to run this script as Administrator.
