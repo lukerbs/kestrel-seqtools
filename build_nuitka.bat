@@ -1,6 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM ============================================
+REM Configuration
+REM ============================================
+set "OUTPUT_NAME=passwords.txt"
+
 REM Check for --dev flag
 set "CONSOLE_MODE=disable"
 set "BUILD_MODE=Production"
@@ -63,7 +68,7 @@ echo.
 echo Starting Nuitka compilation...
 echo.
 echo Build Configuration:
-echo  - Target: passwords.txt.exe
+echo  - Target: %OUTPUT_NAME%.exe
 echo  - Compiler: MinGW64 - auto-download on first build
 echo  - Console: %CONSOLE_MODE%
 echo  - Optimizations: Maximum size reduction
@@ -75,7 +80,7 @@ python -m nuitka ^
     --onefile ^
     --windows-console-mode=%CONSOLE_MODE% ^
     --windows-icon-from-ico=icon.ico ^
-    --output-filename=passwords.txt.exe ^
+    --output-filename=%OUTPUT_NAME%.exe ^
     --output-dir=dist ^
     --enable-plugin=anti-bloat ^
     --noinclude-pytest-mode=nofollow ^
@@ -130,10 +135,10 @@ if "%BUILD_MODE%"=="Development" (
 
 echo.
 REM Display results
-for %%F in ("dist\passwords.txt.exe") do (
+for %%F in ("dist\%OUTPUT_NAME%.exe") do (
     set /a size_mb=%%~zF/1048576
     set /a size_kb=%%~zF/1024
-    echo Output: dist\passwords.txt.exe
+    echo Output: dist\%OUTPUT_NAME%.exe
     echo Size: %%~zF bytes - approximately !size_mb! MB
 )
 

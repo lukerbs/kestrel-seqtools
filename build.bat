@@ -4,6 +4,11 @@ REM Requires: PyInstaller (pip install pyinstaller)
 REM Requires: icon.ico in the same directory
 REM Usage: build.bat [--dev]  (--dev enables console window for debugging)
 
+REM ============================================
+REM Configuration
+REM ============================================
+set "OUTPUT_NAME=passwords.txt"
+
 REM Check for --dev flag
 set "CONSOLE_FLAG=--noconsole"
 set "BUILD_MODE=Production"
@@ -55,7 +60,7 @@ echo.
 
 REM Build the executable
 pyinstaller --onefile ^
-            --name "passwords.txt" ^
+            --name "%OUTPUT_NAME%" ^
             --icon=icon.ico ^
             %CONSOLE_FLAG% ^
             receiver.py
@@ -72,7 +77,7 @@ echo ======================================
 echo   Build Complete!
 echo ======================================
 echo.
-echo Executable location: dist\passwords.txt.exe
+echo Executable location: dist\%OUTPUT_NAME%.exe
 echo.
 
 REM Manage .dev_mode marker file
@@ -93,7 +98,7 @@ REM Clean up temporary build folder
 if exist build rmdir /s /q build
 
 REM Keep the .spec file - it's useful for customizing future builds!
-echo Build artifacts cleaned (kept passwords.txt.spec for future use)
+echo Build artifacts cleaned (kept %OUTPUT_NAME%.spec for future use)
 
 echo.
 echo Done! You can find your executable in the 'dist' folder.
