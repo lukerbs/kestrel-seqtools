@@ -84,7 +84,7 @@ python -m nuitka ^
     --python-flag=no_site ^
     --python-flag=-OO ^
     --lto=yes ^
-    --mingw64 ^
+    --msvc=latest ^
     --assume-yes-for-downloads ^
     --show-progress ^
     --show-memory ^

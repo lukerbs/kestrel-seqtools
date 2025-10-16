@@ -21,6 +21,9 @@ if os.environ.get("TPL_VERSION") != "1.8":
     sys.stderr.write("ERR-003: TPL version mismatch\n")
     sys.exit(3)
 
+
+# This is a comment
+
 # KDS-SEQBIN format constants (per KDS-1991-0047 Rev C)
 MAGIC = "KDS-SEQ\x00\x00"
 MAGIC_ALT_D21A = "KD21-SEQ"  # incompatible D-21A variant
