@@ -38,64 +38,71 @@ def start_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         print(f"Listening on {host}:{port}")
         print("Waiting for client to connect...\n")
 
-        # Accept a connection
-        client_socket, client_address = server_socket.accept()
-        print(f"Connected: {client_address[0]}:{client_address[1]}")
-        print("Ready to send commands (Ctrl+C to exit)\n")
-
-        # Continuously read user input and send commands
+        # Main server loop - accept multiple clients sequentially
         while True:
+            # Accept a connection
+            client_socket, client_address = server_socket.accept()
+            print(f"Connected: {client_address[0]}:{client_address[1]}")
+            print("Ready to send commands (Ctrl+C to exit)\n")
+
+            # Continuously read user input and send commands
             try:
-                # Get command from user
-                command = input("command> ")
-
-                # Skip empty commands
-                if not command.strip():
-                    continue
-
-                # Send the command
-                client_socket.sendall(command.encode("utf-8"))
-                print()
-
-                # Receive and display streaming output
                 while True:
                     try:
-                        data = client_socket.recv(BUFFER_SIZE)
-                        if not data:
-                            print("\nConnection lost")
-                            return
+                        # Get command from user
+                        command = input("command> ")
 
-                        chunk = data.decode("utf-8")
+                        # Skip empty commands
+                        if not command.strip():
+                            continue
 
-                        # Check for end marker
-                        if END_MARKER in chunk:
-                            # Print only the part before the marker
-                            output = chunk.split(END_MARKER)[0]
-                            if output:
-                                sys.stdout.write(output)
+                        # Send the command
+                        client_socket.sendall(command.encode("utf-8"))
+                        print()
+
+                        # Receive and display streaming output
+                        while True:
+                            try:
+                                data = client_socket.recv(BUFFER_SIZE)
+                                if not data:
+                                    print("\nConnection lost")
+                                    raise ConnectionResetError("Client disconnected")
+
+                                chunk = data.decode("utf-8")
+
+                                # Check for end marker
+                                if END_MARKER in chunk:
+                                    # Print only the part before the marker
+                                    output = chunk.split(END_MARKER)[0]
+                                    if output:
+                                        sys.stdout.write(output)
+                                        sys.stdout.flush()
+                                    break
+
+                                # Print output as it arrives (already line-by-line from receiver)
+                                sys.stdout.write(chunk)
                                 sys.stdout.flush()
-                            break
 
-                        # Print output as it arrives (already line-by-line from receiver)
-                        sys.stdout.write(chunk)
-                        sys.stdout.flush()
+                            except Exception as e:
+                                print(f"\nError: {e}")
+                                break
 
+                    except KeyboardInterrupt:
+                        print("\n\nExiting...")
+                        raise  # Re-raise to exit server loop
+                    except BrokenPipeError:
+                        print("\nConnection closed by receiver")
+                        break
+                    except ConnectionResetError:
+                        break
                     except Exception as e:
                         print(f"\nError: {e}")
                         break
 
-            except KeyboardInterrupt:
-                print("\n\nExiting...")
-                break
-            except BrokenPipeError:
-                print("\nConnection closed by receiver")
-                break
-            except Exception as e:
-                print(f"\nError: {e}")
-                break
-
-        # Clean up
-        client_socket.close()
+            finally:
+                # Clean up client connection
+                client_socket.close()
+                print("\nWaiting for next client to connect...\n")
 
     except KeyboardInterrupt:
         print("\n\nExiting...")
