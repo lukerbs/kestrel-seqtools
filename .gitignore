@@ -20,6 +20,8 @@ site/instance/
 site/flask_session/
 site/.env
 site/.env.local
+site/cert.pem
+site/key.pem
 
 # Terraform
 .terraform/
