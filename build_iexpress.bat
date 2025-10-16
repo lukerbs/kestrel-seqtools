@@ -225,7 +225,8 @@ echo [5/6] Creating IExpress package...
 echo.
 
 REM Run IExpress with the generated configuration
-iexpress /N /Q "dist\iexpress.sed"
+REM Note: Removed /Q flag to see actual error messages
+iexpress /N "dist\iexpress.sed"
 
 if errorlevel 1 (
     echo.
