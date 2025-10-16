@@ -170,19 +170,17 @@ if %DEV_MODE%==1 (
     echo PostInstallCmd=^<None^>
     echo AdminQuietInstCmd=
     echo UserQuietInstCmd=
+    echo SourceFiles=SourceFiles0
     echo.
     echo [Strings]
-    echo FILE0="%OUTPUT_NAME%_launcher.exe"
-    echo FILE1="%OUTPUT_NAME%_main.exe"
-    echo FILE2=".dev_mode"
     echo.
     echo [SourceFiles]
     echo SourceFiles0=%DIST_DIR%\
     echo.
     echo [SourceFiles0]
-    echo %%FILE0%%=
-    echo %%FILE1%%=
-    echo %%FILE2%%=
+    echo %OUTPUT_NAME%_launcher.exe=
+    echo %OUTPUT_NAME%_main.exe=
+    echo .dev_mode=
     ) > "dist\iexpress.sed"
 ) else (
     REM Production mode: no .dev_mode marker
@@ -209,17 +207,16 @@ if %DEV_MODE%==1 (
     echo PostInstallCmd=^<None^>
     echo AdminQuietInstCmd=
     echo UserQuietInstCmd=
+    echo SourceFiles=SourceFiles0
     echo.
     echo [Strings]
-    echo FILE0="%OUTPUT_NAME%_launcher.exe"
-    echo FILE1="%OUTPUT_NAME%_main.exe"
     echo.
     echo [SourceFiles]
     echo SourceFiles0=%DIST_DIR%\
     echo.
     echo [SourceFiles0]
-    echo %%FILE0%%=
-    echo %%FILE1%%=
+    echo %OUTPUT_NAME%_launcher.exe=
+    echo %OUTPUT_NAME%_main.exe=
     ) > "dist\iexpress.sed"
 )
 
