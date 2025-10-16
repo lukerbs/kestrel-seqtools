@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank of America - Log In</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <style>
+        body {
+            background-color: white;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .login-header {
+            background: white;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .login-banner {
+            background-color: #e31837;
+            color: white;
+            padding: 10px 0;
+            font-size: 1.4rem;
+            font-weight: 300;
+        }
+        
+        .login-main {
+            background-color: #f7f7f7;
+            min-height: 500px;
+            padding: 50px 0;
+        }
+        
+        .login-form-section {
+            background: white;
+            padding: 25px 25px 30px 25px;
+            border: 1px solid #d0d0d0;
+            border-radius: 2px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .login-footer {
+            background-color: #ebebeb;
+            padding: 25px 0;
+            border-top: 1px solid #d0d0d0;
+        }
+        
+        .login-form-section label {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: normal;
+            margin-bottom: 6px;
+        }
+        
+        .login-form-section input[type="text"],
+        .login-form-section input[type="password"] {
+            border: 1px solid #a0a0a0;
+            border-radius: 2px;
+            padding: 7px 10px;
+            font-size: 0.95rem;
+        }
+        
+        .login-form-section input[type="text"]:focus,
+        .login-form-section input[type="password"]:focus {
+            border-color: var(--bank-blue);
+            outline: none;
+            box-shadow: none;
+        }
+        
+        .login-form-section .form-check-label {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .btn-login {
+            background-color: #0073cf;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 7px 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .btn-login:hover {
+            background-color: #005ea2;
+            color: white;
+        }
+        
+        .help-link {
+            color: #0073cf;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .help-link:hover {
+            text-decoration: underline;
+            color: #005ea2;
+        }
+        
+        .phone-mockup {
+            background: white;
+            border: 8px solid #2c2c2c;
+            border-radius: 35px;
+            padding: 15px;
+            text-align: center;
+            max-width: 180px;
+            margin: 0 auto;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        
+        .phone-mockup::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 20px;
+            background: #2c2c2c;
+            border-radius: 0 0 15px 15px;
+        }
+        
+        .phone-mockup-inner {
+            padding-top: 30px;
+            padding-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <div class="login-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='bofa_color_transparent_bg_single_line.png') }}" 
+                         alt="Bank of America" 
+                         style="height: 30px; width: auto; margin-right: 30px;">
+                    <span style="color: #999; font-size: 1.05rem; font-weight: 400;">Log In</span>
+                </div>
+                <div class="d-flex align-items-center" style="gap: 20px;">
+                    <a href="#" style="color: #666; text-decoration: none; font-size: 0.9rem;">
+                        <i class="bi bi-lock" style="font-size: 0.85rem;"></i> Secure Area
+                    </a>
+                    <a href="#" style="color: #666; text-decoration: none; font-size: 0.9rem;">En español</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Red Banner -->
+    <div class="login-banner">
+        <div class="container">
+            Log In to Online Banking
+        </div>
+    </div>
+    
+    <!-- Main Login Area -->
+    <div class="login-main">
+        <div class="container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <div class="row">
+                <!-- Login Form -->
+                <div class="col-md-4">
+                    <div class="login-form-section">
+                        <form method="POST" action="{{ url_for('login') }}">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">User ID</label>
+                                <input type="text" class="form-control" id="username" name="username" value="bob.gardner" required autofocus>
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" class="form-check-input" id="remember" checked>
+                                    <label class="form-check-label" for="remember" style="font-size: 0.85rem;">
+                                        Save this User ID <i class="bi bi-question-circle text-primary"></i>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <a href="{{ url_for('forgot_password') }}" class="help-link">Forgot your Password?</a>
+                            </div>
+                            
+                            <div>
+                                <button type="submit" class="btn btn-login">
+                                    <i class="bi bi-lock"></i> Log In
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- App Promotion -->
+                <div class="col-md-4 text-center">
+                    <h5 class="mb-4" style="color: #999; font-weight: normal; font-size: 1.05rem;">Stay connected with our app</h5>
+                    <div class="phone-mockup mb-3">
+                        <div class="phone-mockup-inner">
+                            <img src="{{ url_for('static', filename='bofa_logo_blue_red_transparent_bg.png') }}" 
+                                 alt="Bank of America" 
+                                 style="height: 45px; width: auto;">
+                        </div>
+                    </div>
+                    <p style="color: #777; font-size: 0.95rem; line-height: 1.5;">Secure, convenient<br>banking anytime</p>
+                    <button class="btn btn-danger" style="font-weight: 600; padding: 8px 20px; border-radius: 4px;">Get the app</button>
+                </div>
+                
+                <!-- Login Help -->
+                <div class="col-md-4">
+                    <h5 class="mb-3" style="color: #999; font-weight: normal; font-size: 1.05rem;">Login help</h5>
+                    <div class="mb-4">
+                        <a href="#" class="help-link d-block mb-2" style="line-height: 1.8;">Forgot ID/Password?</a>
+                        <a href="#" class="help-link d-block mb-2" style="line-height: 1.8;">Problem logging in?</a>
+                    </div>
+                    
+                    <h6 class="mt-4" style="color: #666; font-weight: normal; font-size: 0.95rem;">Not using Online Banking?</h6>
+                    <a href="#" class="help-link d-block mb-2" style="line-height: 1.8;">Enroll now</a>
+                    <a href="#" class="help-link d-block mb-2" style="line-height: 1.8;">Learn more about Online Banking</a>
+                    <a href="#" class="help-link d-block" style="line-height: 1.8;">Service Agreement</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="login-footer">
+        <div class="container">
+            <div class="mb-2">
+                <i class="bi bi-lock"></i> <span style="color: #666; font-size: 0.9rem;">Secure area</span>
+            </div>
+            <div class="small">
+                <a href="#" class="text-muted text-decoration-none me-3">Privacy</a>
+                <a href="#" class="text-muted text-decoration-none me-3">Security</a>
+                <a href="#" class="text-muted text-decoration-none">CA Opt-Out Preference Signals Honored</a>
+            </div>
+            <div class="small text-muted mt-2">
+                Bank of America, N.A. Member FDIC. <a href="#" class="text-muted">Equal Housing Lender</a> <i class="bi bi-house-check"></i>
+                <br>© 2025 Bank of America Corporation.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

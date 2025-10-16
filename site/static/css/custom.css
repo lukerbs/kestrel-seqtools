@@ -1,0 +1,673 @@
+/* Bank of America - Custom Styles */
+
+:root {
+    --bank-primary: #dc1431;
+    --bank-primary-hover: #b31028;
+    --bank-blue: #0073cf;
+    --bank-blue-light: #1e90ff;
+    --bank-blue-hover: #005ea2;
+    --bank-secondary: #666666;
+    --bank-success: #198754;
+    --bank-danger: #dc1431;
+    --bank-light-gray: #f5f5f5;
+    --bank-border: #d9d9d9;
+    --bank-beige: #d1cec5;
+    --bank-taupe: #e5e2db;
+}
+
+/* BofA Typography */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+    background-color: #f5f5f5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    color: #333;
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+h5 {
+    font-size: 1rem;
+}
+
+/* Primary color overrides - BofA Red */
+.bg-primary {
+    background-color: var(--bank-primary) !important;
+    color: white !important;
+}
+
+/* BofA uses BLUE for primary action buttons, not red */
+.btn-primary {
+    background-color: var(--bank-blue);
+    border-color: var(--bank-blue);
+    font-weight: 600;
+    color: white;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--bank-blue-hover);
+    border-color: var(--bank-blue-hover);
+    color: white;
+}
+
+.btn-outline-primary {
+    color: var(--bank-blue);
+    border-color: var(--bank-blue);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--bank-blue);
+    border-color: var(--bank-blue);
+    color: white;
+}
+
+/* Red buttons for critical actions only */
+.btn-danger {
+    background-color: var(--bank-primary);
+    border-color: var(--bank-primary);
+    font-weight: 600;
+}
+
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active {
+    background-color: var(--bank-primary-hover);
+    border-color: var(--bank-primary-hover);
+}
+
+/* Use blue for primary text elements (matches BofA) */
+.text-primary {
+    color: var(--bank-blue) !important;
+}
+
+/* Keep red for danger/alert text */
+.text-danger {
+    color: var(--bank-primary) !important;
+}
+
+.border-primary {
+    border-color: var(--bank-primary) !important;
+}
+
+/* Blue links - BofA style */
+a {
+    color: var(--bank-blue);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--bank-blue-hover);
+    text-decoration: underline;
+}
+
+/* Ensure card links are blue */
+.card a:not(.btn) {
+    color: var(--bank-blue) !important;
+    font-weight: 500;
+}
+
+.card a:not(.btn):hover {
+    color: var(--bank-blue-hover) !important;
+    text-decoration: underline;
+}
+
+/* List group items with links should be blue */
+.list-group-item a {
+    color: var(--bank-blue) !important;
+    font-weight: 500;
+}
+
+.list-group-item a:hover {
+    color: var(--bank-blue-hover) !important;
+}
+
+/* Tab navigation - use blue for active */
+.nav-tabs .nav-link.active {
+    color: var(--bank-blue) !important;
+    border-bottom: 2px solid var(--bank-blue);
+}
+
+.nav-tabs .nav-link {
+    color: #666;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--bank-blue);
+}
+
+/* Navigation - BofA Style */
+.navbar {
+    padding: 0.4rem 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.navbar-brand i {
+    font-size: 1.3rem;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Top navbar links (red bar) - white text */
+.navbar-dark .nav-link {
+    font-size: 0.85rem;
+    font-weight: 400;
+    padding: 0.4rem 0.8rem !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.navbar-dark .nav-link:hover:not(.disabled) {
+    color: white !important;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+/* Secondary navbar (beige bar) - compact styling */
+.navbar-light.navbar {
+    min-height: auto;
+}
+
+.navbar-light .navbar-nav {
+    margin: 0;
+    padding: 0;
+}
+
+/* Secondary navbar links (beige bar) - dark gray text */
+.navbar-light .nav-link {
+    color: #666 !important;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    padding: 0.7rem 1.25rem !important;
+    border-right: 1px solid #ccc;
+    line-height: 1.2;
+    border-bottom: 3px solid transparent;
+}
+
+.navbar-light .nav-item:last-child .nav-link {
+    border-right: none;
+}
+
+.navbar-light .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #333 !important;
+}
+
+/* Active tab effect - white background with bottom border */
+.navbar-light .nav-link.active {
+    background-color: white;
+    color: #333 !important;
+    font-weight: 600;
+    border-bottom: 3px solid var(--bank-blue);
+}
+
+.nav-link.disabled {
+    color: rgba(255, 255, 255, 0.6) !important;
+    cursor: not-allowed;
+}
+
+.nav-divider {
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.dropdown-menu {
+    border-radius: 3px;
+    border: 1px solid var(--bank-border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 0.875rem;
+}
+
+.dropdown-item {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+}
+
+.dropdown-item:hover {
+    background-color: var(--bank-light-gray);
+    color: var(--bank-primary);
+}
+
+/* Cards - BofA Utilitarian Style */
+.card {
+    border: 1px solid var(--bank-border);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    background-color: white;
+}
+
+.card:hover {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.card-header {
+    font-weight: 600;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--bank-border);
+    background-color: #fafafa;
+    padding: 0.75rem 1.5rem;
+}
+
+.card-header.bg-primary {
+    border-bottom: none;
+    background-color: var(--bank-primary);
+    color: white !important;
+}
+
+.card-header.bg-primary h1,
+.card-header.bg-primary h2,
+.card-header.bg-primary h3,
+.card-header.bg-primary h4,
+.card-header.bg-primary h5,
+.card-header.bg-primary h6 {
+    color: white !important;
+}
+
+.card-header.bg-light {
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--bank-border);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Account Cards on Dashboard */
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.card-title i {
+    color: var(--bank-blue);
+}
+
+/* Large Icon Action Cards - BofA Utilitarian Style */
+.action-card {
+    border: 1px solid var(--bank-border);
+    border-radius: 4px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    background: white;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+    height: 100%;
+    min-height: 220px;
+}
+
+.action-card:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    border-color: var(--bank-blue);
+    text-decoration: none;
+}
+
+.action-card-icon {
+    font-size: 4rem;
+    color: var(--bank-blue);
+    margin-bottom: 1.25rem;
+    display: block;
+}
+
+.action-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.action-card-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0;
+}
+
+.text-muted {
+    color: var(--bank-secondary) !important;
+    font-size: 0.875rem;
+}
+
+/* Login page specific - BofA Style */
+.login-container {
+    background: var(--bank-primary);
+    min-height: 100vh;
+}
+
+.login-container .card {
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Footer - Sticky to bottom */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+.footer a:hover {
+    text-decoration: underline !important;
+}
+
+.footer .bi {
+    font-size: 1.2rem;
+}
+
+/* Utility classes */
+.min-vh-100 {
+    min-height: 100vh;
+}
+
+/* Transaction table - styling moved to main table section above */
+
+/* BofA-style buttons and forms */
+.btn {
+    border-radius: 3px;
+    font-weight: 600;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.btn-lg {
+    padding: 10px 20px;
+    font-size: 0.95rem;
+}
+
+.btn-outline-secondary {
+    color: var(--bank-secondary);
+    border-color: var(--bank-border);
+    background-color: white;
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--bank-light-gray);
+    border-color: var(--bank-border);
+    color: var(--bank-secondary);
+}
+
+/* Form styling */
+.form-control,
+.form-select {
+    border-radius: 3px;
+    border: 1px solid var(--bank-border);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--bank-blue);
+    box-shadow: none;
+    outline: none;
+}
+
+.form-label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.875rem;
+    margin-bottom: 0.4rem;
+}
+
+.input-group-text {
+    background-color: #fafafa;
+    border-color: var(--bank-border);
+    color: var(--bank-secondary);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+/* Table styling - BofA Style */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+}
+
+.table thead th {
+    background-color: #fafafa;
+    border-bottom: 2px solid var(--bank-border);
+    font-weight: 500;
+    color: #666;
+    padding: 16px;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+    letter-spacing: 0;
+}
+
+.table tbody td {
+    padding: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #fafafa;
+    cursor: pointer;
+}
+
+/* Badge styling - BofA */
+.badge {
+    font-weight: 600;
+    padding: 0.4em 0.75em;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    letter-spacing: 0.3px;
+}
+
+.badge.bg-primary {
+    background-color: var(--bank-blue) !important;
+    color: white !important;
+}
+
+.badge.bg-light {
+    background-color: #f0f0f0 !important;
+    color: #666 !important;
+    border: 1px solid var(--bank-border);
+}
+
+.badge.bg-success {
+    background-color: #28a745 !important;
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #333 !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--bank-primary) !important;
+    color: white !important;
+}
+
+/* Alert styling - BofA */
+.alert {
+    border-radius: 3px;
+    border: 1px solid transparent;
+    padding: 0.85rem 1.15rem;
+    font-size: 0.9rem;
+}
+
+.alert i {
+    font-size: 1.1rem;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.alert-info {
+    background-color: #e7f3ff;
+    border-color: #b3d9ff;
+    color: #004085;
+}
+
+.alert-warning {
+    background-color: #fff8e6;
+    border-color: #ffe7a3;
+    color: #856404;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+/* Dashboard & Page Layout */
+.container-fluid,
+.container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Balance Display - BofA Style */
+h2.mb-0 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #333;
+    letter-spacing: -0.5px;
+}
+
+small.text-muted {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+/* Footer - BofA Style */
+.footer {
+    background-color: white;
+    border-top: 1px solid var(--bank-border);
+    font-size: 0.85rem;
+    color: var(--bank-secondary);
+}
+
+.footer h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.footer a {
+    color: var(--bank-blue);
+    font-size: 0.85rem;
+}
+
+.footer a:hover {
+    color: var(--bank-blue-hover);
+}
+
+.footer .text-muted {
+    font-size: 0.8rem !important;
+}
+
+/* Modal improvements */
+.modal-header {
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--bank-border);
+}
+
+.modal-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.modal-footer {
+    background-color: #fafafa;
+    border-top: 1px solid var(--bank-border);
+}
+
+/* List groups */
+.list-group-item {
+    border-color: var(--bank-border);
+    font-size: 0.9rem;
+}
+
+.list-group-item:hover {
+    background-color: #fafafa;
+}
+
+/* Progress bars */
+.progress {
+    height: 8px;
+    border-radius: 3px;
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    background-color: var(--bank-blue);
+}
+
+/* Spinner - use blue for loading indicators */
+.spinner-border {
+    border-color: var(--bank-blue);
+    border-right-color: transparent;
+}
+
+.spinner-border.text-primary {
+    border-color: var(--bank-blue);
+    border-right-color: transparent;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1rem;
+    }
+    
+    h1, h2 {
+        font-size: 1.5rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn {
+        font-size: 0.85rem;
+        padding: 8px 16px;
+    }
+}
+

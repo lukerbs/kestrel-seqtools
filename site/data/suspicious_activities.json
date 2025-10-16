@@ -1,0 +1,58 @@
+[
+    {
+        "date": "2025-10-15 3:42 AM",
+        "activity": "Login attempt",
+        "location": "Lagos, Nigeria",
+        "ip": "197.210.84.22",
+        "device": "Windows 10 - Chrome",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-14 11:28 PM",
+        "activity": "Failed login attempt",
+        "location": "Mumbai, India",
+        "ip": "103.76.228.15",
+        "device": "Android - Samsung Browser",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-14 2:15 PM",
+        "activity": "Password change request",
+        "location": "Moscow, Russia",
+        "ip": "5.188.210.67",
+        "device": "iOS - Safari",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-13 8:03 AM",
+        "activity": "Login from new device",
+        "location": "Bucharest, Romania",
+        "ip": "86.107.112.44",
+        "device": "Windows 11 - Edge",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-12 5:47 PM",
+        "activity": "Multiple failed login attempts",
+        "location": "Jakarta, Indonesia",
+        "ip": "182.253.162.89",
+        "device": "Linux - Firefox",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-11 9:32 PM",
+        "activity": "Security settings change attempt",
+        "location": "Manila, Philippines",
+        "ip": "112.198.82.173",
+        "device": "Windows 10 - Chrome",
+        "suspicious": true
+    },
+    {
+        "date": "2025-10-10 1:18 AM",
+        "activity": "Login from suspicious IP",
+        "location": "Dhaka, Bangladesh",
+        "ip": "103.109.242.12",
+        "device": "Android - Chrome",
+        "suspicious": true
+    }
+]

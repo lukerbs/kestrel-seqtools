@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.account_type }} Account - Bank of America{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="row mb-3">
+    <div class="col-12">
+        <a href="{{ url_for('dashboard') }}" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem;">
+            <i class="bi bi-chevron-left"></i> Back to Accounts
+        </a>
+    </div>
+</div>
+
+<!-- Account Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-size: 1.5rem; font-weight: 400; color: #333;">
+            {% if account.nickname %}{{ account.nickname }}{% else %}{{ account.account_type }} Account{% endif %} - {{ account.account_number }}
+        </h2>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Left Column - Balance & Transactions -->
+    <div class="col-lg-8">
+        <!-- Balance Display -->
+        <div class="mb-4">
+            <p class="text-muted mb-2" style="font-size: 0.875rem;">Available balance <span class="text-muted">(as of today)</span></p>
+            <h1 style="font-size: 4rem; font-weight: 600; letter-spacing: -1.5px; line-height: 1; margin-bottom: 2rem;">
+                {{ account.balance|currency }}
+            </h1>
+        </div>
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs mb-4" style="border-bottom: 2px solid #e0e0e0;">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" style="color: #333; border: none; border-bottom: 3px solid var(--bank-blue); font-weight: 600; font-size: 0.95rem; padding: 1rem 1.5rem;">
+                    Activity
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ url_for('statements') }}" style="color: #666; border: none; font-size: 0.95rem; padding: 1rem 1.5rem;">
+                    Statements & Documents
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" style="color: #666; border: none; font-size: 0.95rem; padding: 1rem 1.5rem;">
+                    Information & Services
+                </a>
+            </li>
+        </ul>
+
+        <!-- Transaction Section Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Transactions</h5>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="card mb-3" style="background: #fafafa; border: 1px solid #e0e0e0;">
+            <div class="card-body" style="padding: 1rem 1.5rem;">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" placeholder="Search description" style="font-size: 0.875rem;">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" style="font-size: 0.875rem;">
+                            <option>All types</option>
+                            <option>Deposits</option>
+                            <option>Withdrawals</option>
+                            <option>Bill Payments</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Table -->
+        <div class="card">
+            <div class="card-body p-0">
+                {% if transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Posting date <i class="bi bi-chevron-down" style="font-size: 0.7rem;"></i></th>
+                                <th>Description <i class="bi bi-chevron-expand" style="font-size: 0.7rem;"></i></th>
+                                <th>Type</th>
+                                <th class="text-end">Amount <i class="bi bi-chevron-expand" style="font-size: 0.7rem;"></i></th>
+                                <th class="text-end">Available balance</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for txn in transactions %}
+                            <tr>
+                                <td style="font-size: 0.875rem;">{{ txn.date }}</td>
+                                <td style="font-size: 0.875rem; font-weight: 500;">{{ txn.description }}</td>
+                                <td><span class="badge bg-light text-dark" style="font-size: 0.75rem;">{{ txn.type|title }}</span></td>
+                                <td class="text-end {% if txn.amount > 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.875rem; font-weight: 600;">
+                                    {% if txn.amount > 0 %}+{% endif %}{{ txn.amount|currency }}
+                                </td>
+                                <td class="text-end" style="font-size: 0.875rem;">{{ txn.balance_after|currency }}</td>
+                                <td>
+                                    <a href="#" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem;">
+                                        Details
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted py-5 mb-0">No transactions found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar - Features & Services -->
+    <div class="col-lg-4">
+        <!-- Features & Services -->
+        <div class="card mb-4">
+            <div class="card-body" style="padding: 1.5rem;">
+                <div class="row">
+                    <div class="col-6">
+                        <h6 style="font-size: 0.875rem; font-weight: 600; color: #666; margin-bottom: 1rem;">Features</h6>
+                        <ul class="list-unstyled" style="font-size: 0.85rem;">
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">
+                                    <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i> Stop or change checks
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">
+                                    <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i> Balance Connect for overdraft
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">
+                                    <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i> BankAmeriDeals
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">
+                                    <i class="bi bi-chevron-right" style="font-size: 0.7rem;"></i> Paperless statements
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-6">
+                        <h6 style="font-size: 0.875rem; font-weight: 600; color: #666; margin-bottom: 1rem;">Services</h6>
+                        <ul class="list-unstyled" style="font-size: 0.85rem;">
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">Enroll</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">Do</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">Manage</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none" style="color: var(--bank-blue);">Manage</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spending & Budgeting Widget -->
+        <div class="card mb-4">
+            <div class="card-body" style="padding: 1.5rem;">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem;">Spending & Budgeting</h6>
+                <div class="mb-3 text-center">
+                    <div style="width: 100px; height: 100px; margin: 0 auto; border: 8px solid #e0e0e0; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 0.8rem; color: #999;">Track<br>spending</span>
+                    </div>
+                </div>
+                <p class="text-muted mb-3" style="font-size: 0.85rem;">Set up spending and budgeting to track your money</p>
+                <a href="#" class="btn btn-outline-primary btn-sm w-100">Get started</a>
+            </div>
+        </div>
+
+        <!-- Alerts Widget -->
+        <div class="card border-0" style="background: #fff8f8;">
+            <div class="card-body" style="padding: 1.5rem;">
+                <div class="d-flex align-items-start">
+                    <div class="text-danger me-3">
+                        <i class="bi bi-flag-fill" style="font-size: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-1" style="font-size: 0.95rem; font-weight: 600;">Alerts your way</h6>
+                        <p class="small mb-0 text-muted" style="font-size: 0.85rem;">Stay informed with customizable alerts for your accounts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

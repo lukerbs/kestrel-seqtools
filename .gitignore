@@ -13,6 +13,14 @@ __pycache__/
 /assets/
 .DS_Store
 
+# Flask / Site Directory
+site/__pycache__/
+site/*.pyc
+site/instance/
+site/flask_session/
+site/.env
+site/.env.local
+
 # Terraform
 .terraform/
 .terraform.lock.hcl

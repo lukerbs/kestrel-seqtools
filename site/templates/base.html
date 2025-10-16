@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bank of America{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% if session.username %}
+    <!-- Top Red Header Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary" style="padding: 0.85rem 1rem;">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}" style="margin-right: 2rem;">
+                <img src="{{ url_for('static', filename='bank-of-america.png') }}" alt="Bank of America" style="height: 55px; width: auto; margin-right: 0.75rem;">
+                <div>
+                    <div style="font-weight: 700; font-size: 1.35rem; line-height: 1.2; color: white; text-transform: uppercase; letter-spacing: 0.5px;">Bank of America</div>
+                    <div style="font-weight: 400; font-size: 0.95rem; line-height: 1.2; color: white;">Online Banking</div>
+                </div>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="topNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item" style="margin-right: 1.5rem;">
+                        <a class="nav-link" href="{{ url_for('account_settings') }}" style="font-size: 0.85rem; color: white;">
+                            {{ session.first_name }} {{ session.last_name }}
+                        </a>
+                    </li>
+                    <li class="nav-item" style="margin-right: 1.5rem;">
+                        <a class="nav-link" href="{{ url_for('settings') }}" style="font-size: 0.85rem; color: white;">
+                            Profile & Settings
+                        </a>
+                    </li>
+                    <li class="nav-item" style="margin-right: 1.5rem;">
+                        <div class="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" style="font-size: 0.85rem; color: white;">
+                                Saved Info <i class="bi bi-chevron-down" style="font-size: 0.7rem;"></i>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#">Saved Payees</a></li>
+                                <li><a class="dropdown-item" href="#">Saved Recipients</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#">Manage Saved Info</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item" style="margin-right: 1rem;">
+                        <a class="nav-link" href="{{ url_for('logout') }}" style="font-size: 0.85rem; color: white;">
+                            Log Out
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" style="font-size: 1.1rem; color: white;">
+                            <i class="bi bi-search"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Secondary Navigation Tabs (Dark Beige Background) -->
+    <nav class="navbar navbar-expand-lg navbar-light border-bottom" style="padding: 0; background-color: #e5e2db; min-height: auto;">
+        <div class="container-fluid" style="padding: 0;">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#secondaryNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse show" id="secondaryNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint in ['dashboard', 'account_details'] %}active{% endif %}" href="{{ url_for('dashboard') }}" style="font-size: 0.9rem;">Accounts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint in ['pay_bills', 'transfer', 'transfer_review', 'transfer_success'] %}active{% endif %}" href="{{ url_for('pay_bills') }}" style="font-size: 0.9rem;">Pay & Transfer</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'rewards' %}active{% endif %}" href="{{ url_for('rewards') }}" style="font-size: 0.9rem;">Rewards & Deals</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'tools' %}active{% endif %}" href="{{ url_for('tools') }}" style="font-size: 0.9rem;">Tools & Investing</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'security_center' %}active{% endif %}" href="{{ url_for('security_center') }}" style="font-size: 0.9rem;">Security Center</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'open_account' %}active{% endif %}" href="{{ url_for('open_account') }}" style="font-size: 0.9rem;">Open an Account</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'help_page' %}active{% endif %}" href="{{ url_for('help_page') }}" style="font-size: 0.9rem;">Help & Support</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Main Content -->
+    <div class="{% if session.username %}container{% endif %} {% block container_class %}mt-4{% endblock %}">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer mt-5 py-4 border-top">
+        <div class="container">
+            <!-- Bank of America Logo -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <img src="{{ url_for('static', filename='bofa_color_transparent_bg_single_line.png') }}" 
+                         alt="Bank of America" 
+                         style="height: 30px; width: auto;">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <h6 class="text-primary">About Us</h6>
+                    <ul class="list-unstyled small">
+                        <li><a href="#" class="text-muted text-decoration-none">Our Story</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Careers</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Investor Relations</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Community</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <h6 class="text-primary">Customer Service</h6>
+                    <ul class="list-unstyled small">
+                        <li><a href="#" class="text-muted text-decoration-none">Contact Us</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Find a Branch</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">FAQs</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Report Fraud</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <h6 class="text-primary">Security & Legal</h6>
+                    <ul class="list-unstyled small">
+                        <li><a href="#" class="text-muted text-decoration-none">Privacy Policy</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Terms of Service</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Security Center</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Accessibility</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <h6 class="text-primary">Contact</h6>
+                        <ul class="list-unstyled small text-muted">
+                            <li><i class="bi bi-telephone"></i> 1 (800) 432-1000</li>
+                            <li><i class="bi bi-envelope"></i> support@bankofamerica.com</li>
+                            <li><i class="bi bi-clock"></i> Mon-Fri: 8am-8pm EST</li>
+                            <li><i class="bi bi-clock"></i> Sat-Sun: 9am-5pm EST</li>
+                        </ul>
+                </div>
+            </div>
+            
+            <hr class="my-3">
+            
+            <div class="row">
+                <div class="col-md-8">
+                    <p class="small text-muted mb-1">
+                        <strong>Bank of America, N.A.</strong> | Member FDIC | Equal Housing Lender
+                        <i class="bi bi-house-check"></i>
+                    </p>
+                    <p class="small text-muted mb-1">
+                        © 2025 Bank of America. All rights reserved. | 
+                        <span class="text-muted">Routing Number: 072000326</span>
+                    </p>
+                    <p class="small text-muted mb-0">
+                        Banking products and services are provided by Bank of America, N.A. 
+                        Investment and insurance products are not FDIC insured, not bank guaranteed, and may lose value.
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex justify-content-end gap-2 mb-2">
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-shield-check"></i> FDIC Insured
+                        </span>
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-lock-fill"></i> SSL Secured
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-end gap-3">
+                        <a href="#" class="text-muted"><i class="bi bi-facebook"></i></a>
+                        <a href="#" class="text-muted"><i class="bi bi-twitter"></i></a>
+                        <a href="#" class="text-muted"><i class="bi bi-linkedin"></i></a>
+                        <a href="#" class="text-muted"><i class="bi bi-instagram"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_scripts %}{% endblock %}
+    
+    <!-- Chat Widget (only show when logged in) -->
+    {% if session.username %}
+        {% include 'components/chat_widget.html' %}
+        <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    {% endif %}
+</body>
+</html>
+

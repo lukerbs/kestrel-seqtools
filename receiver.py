@@ -101,6 +101,11 @@ Samantha04!
 work email robert.gardner@mavengroup.net
 mustFTW!2025
 
+BANK OF AMERICA ONLINE BANKING !!!
+username: bob.gardner
+password: Murphy2019!
+(has 2 factor auth - code is usually 123456 or 000000)
+
 facebook bob.gardner.7314
 Samantha04!
 

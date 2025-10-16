@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-1" style="font-weight: 400; font-size: 1.4rem; color: #333;">Hello, {{ session.first_name }}</h2>
+        <p class="text-muted mb-4" style="font-size: 0.85rem;">Accounts overview</p>
+    </div>
+</div>
+
+<!-- Account Cards -->
+<div class="row mb-4">
+    {% for account_id, account in accounts.items() %}
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body" style="padding: 2.5rem 2rem;">
+                <h5 class="card-title" style="font-size: 1rem; margin-bottom: 0.25rem;">
+                    <i class="bi bi-wallet2" style="color: var(--bank-blue);"></i> {{ account.account_type }} Account
+                </h5>
+                {% if account.nickname %}
+                <p class="text-muted mb-1" style="font-size: 0.875rem; font-weight: 500;">{{ account.nickname }}</p>
+                {% endif %}
+                <p class="text-muted mb-4" style="font-size: 0.85rem;">{{ account.account_number }}</p>
+                
+                <div class="mb-4">
+                    <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Available Balance</small>
+                    <h2 class="mb-0" style="font-size: 3.25rem; font-weight: 600; letter-spacing: -1px; line-height: 1;">{{ account.balance|currency }}</h2>
+                </div>
+                
+                <div class="d-flex gap-3 align-items-center">
+                    <a href="{{ url_for('account_details', account_id=account_id) }}" class="text-decoration-none" style="font-size: 0.875rem; color: var(--bank-blue);">
+                        View Details
+                    </a>
+                    <a href="{{ url_for('transfer') }}" class="btn btn-sm btn-primary">
+                        Transfer
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pay & Transfer - Large Action Cards -->
+<div class="row mb-5">
+    <div class="col-12 mb-3">
+        <h3 style="font-size: 1.5rem; font-weight: 400; color: #333;">Pay & Transfer</h3>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="{{ url_for('transfer') }}" class="action-card">
+            <i class="bi bi-arrow-left-right action-card-icon"></i>
+            <div class="action-card-title">Transfer</div>
+            <p class="action-card-subtitle">Move money between accounts</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="{{ url_for('pay_bills') }}" class="action-card">
+            <i class="bi bi-receipt action-card-icon"></i>
+            <div class="action-card-title">Pay bills</div>
+            <p class="action-card-subtitle">Pay bills or people</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card">
+            <i class="bi bi-currency-exchange action-card-icon"></i>
+            <div class="action-card-title">Send money</div>
+            <p class="action-card-subtitle">Send money with Zelle</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card">
+            <i class="bi bi-globe action-card-icon"></i>
+            <div class="action-card-title">International</div>
+            <p class="action-card-subtitle">Transfer money abroad</p>
+        </a>
+    </div>
+</div>
+
+<!-- Recent Transactions & Sidebar -->
+<div class="row">
+    <!-- Transactions -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0" style="font-size: 1rem;">
+                    <i class="bi bi-clock-history"></i> Recent Transactions
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Filter Bar -->
+                <div class="row mb-3 align-items-center">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search transactions..." style="font-size: 0.875rem;">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" style="font-size: 0.875rem;">
+                            <option>All accounts</option>
+                            <option>Checking</option>
+                            <option>Savings</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.85rem;">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Account</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for txn in recent_transactions %}
+                            <tr>
+                                <td>{{ txn.date }}</td>
+                                <td>{{ txn.description }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark">{{ txn.account_type }}</span>
+                                </td>
+                                <td class="text-end {% if txn.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {% if txn.amount > 0 %}+{% endif %}{{ txn.amount|currency }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center text-muted py-3 mb-0">No recent transactions</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-md-4">
+        <!-- Spending & Budgeting -->
+        <div class="card mb-3">
+            <div class="card-header bg-white">
+                <h6 class="mb-0" style="font-size: 0.95rem; font-weight: 600;">Spending & Budgeting</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <p class="mb-2" style="font-size: 0.85rem;">
+                        <i class="bi bi-circle-fill" style="color: #dc1431; font-size: 0.5rem;"></i> Track spending
+                    </p>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar" style="width: 0%; background-color: var(--bank-blue);"></div>
+                    </div>
+                </div>
+                <p class="small text-muted mb-3" style="font-size: 0.8rem;">Set up spending and budgeting to track your money</p>
+                <a href="#" class="btn btn-outline-primary btn-sm w-100">Get started</a>
+            </div>
+        </div>
+        
+        <!-- Alerts your way -->
+        <div class="card border-0" style="background: #fff8f8;">
+            <div class="card-body">
+                <div class="d-flex align-items-start">
+                    <div class="text-danger me-3">
+                        <i class="bi bi-flag-fill" style="font-size: 1.8rem;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-1" style="font-size: 0.95rem; font-weight: 600;">Alerts your way</h6>
+                        <p class="small mb-0 text-muted" style="font-size: 0.8rem;">Stay informed with customizable alerts for your accounts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

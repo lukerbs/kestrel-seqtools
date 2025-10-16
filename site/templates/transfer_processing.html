@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Processing Transfer - Bank of America{% endblock %}
+
+{% block extra_head %}
+<meta http-equiv="refresh" content="8;url={{ url_for('transfer_success') }}">
+<style>
+    .processing-spinner {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto;
+    }
+    @keyframes progress-step {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    .progress-step {
+        animation: progress-step 2s ease-in-out infinite;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <div class="processing-spinner mb-4">
+                    <div class="spinner-border text-primary" style="width: 100px; height: 100px;" role="status">
+                        <span class="visually-hidden">Processing...</span>
+                    </div>
+                </div>
+                
+                <h3 class="mb-4">Processing Your Transfer</h3>
+                
+                <div class="progress mb-4" style="height: 30px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 75%;">
+                        Processing...
+                    </div>
+                </div>
+                
+                <div class="text-start" id="progress-messages">
+                    <p class="text-muted progress-step">
+                        <i class="bi bi-check-circle-fill text-success"></i> Verifying account details...
+                    </p>
+                    <p class="text-muted progress-step" style="animation-delay: 1s;">
+                        <i class="bi bi-check-circle-fill text-success"></i> Contacting receiving bank...
+                    </p>
+                    <p class="text-muted progress-step" style="animation-delay: 2s;">
+                        <i class="bi bi-hourglass-split"></i> Confirming transaction...
+                    </p>
+                </div>
+                
+                <div class="alert alert-info mt-4">
+                    <i class="bi bi-info-circle"></i> Please wait. Do not close this window.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Update progress messages dynamically
+let messageIndex = 0;
+const messages = [
+    '<i class="bi bi-check-circle-fill text-success"></i> Verifying account details...',
+    '<i class="bi bi-check-circle-fill text-success"></i> Contacting receiving bank...',
+    '<i class="bi bi-hourglass-split"></i> Confirming transaction...',
+    '<i class="bi bi-hourglass-split"></i> Finalizing transfer...'
+];
+
+setInterval(() => {
+    const container = document.getElementById('progress-messages');
+    if (messageIndex < messages.length) {
+        const p = document.createElement('p');
+        p.className = 'text-muted';
+        p.innerHTML = messages[messageIndex];
+        container.appendChild(p);
+        messageIndex++;
+    }
+}, 2000);
+</script>
+{% endblock %}
+

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Rewards & Deals - Bank of America{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-size: 1.75rem; font-weight: 400; color: #333;">Rewards & Deals</h2>
+        <p class="text-muted" style="font-size: 0.95rem;">Explore exclusive offers and maximize your rewards</p>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Left Column - Offers -->
+    <div class="col-lg-8">
+        <!-- Credit Card Rewards -->
+        <div class="card mb-4">
+            <div class="card-body" style="padding: 2.5rem 2rem;">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4 style="font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem;">Cash Rewards</h4>
+                        <p style="font-size: 0.95rem; color: #666; margin-bottom: 1.5rem;">
+                            Earn unlimited 3% cash back on the category of your choice, 2% at grocery stores and wholesale clubs, and 1% on all other purchases.
+                        </p>
+                        <a href="#" class="btn btn-primary">Learn More</a>
+                        <a href="#" class="btn btn-outline-secondary ms-2">Apply Now</a>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div style="width: 120px; height: 80px; background: linear-gradient(135deg, var(--bank-blue), var(--bank-primary)); border-radius: 8px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1rem;">
+                            3% Cash Back
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BankAmeriDeals -->
+        <div class="card mb-4">
+            <div class="card-header bg-white" style="padding: 1.5rem;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">BankAmeriDeals®</h5>
+                        <p class="text-muted mb-0" style="font-size: 0.875rem;">Cash back offers from your favorite brands</p>
+                    </div>
+                    <a href="#" class="btn btn-outline-primary btn-sm">View All Deals</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="row g-0">
+                    <!-- Target -->
+                    <div class="col-md-4" style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0; border-right: 1px solid #f0f0f0;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-bullseye" style="font-size: 2rem; color: #cc0000;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Target</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">8% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On purchases over $50</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Best Buy -->
+                    <div class="col-md-4" style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0; border-right: 1px solid #f0f0f0;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-display" style="font-size: 2rem; color: #0046be;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Best Buy</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">6% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On electronics purchases</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Home Depot -->
+                    <div class="col-md-4" style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-house-door" style="font-size: 2rem; color: #f96302;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Home Depot</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">5% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On home improvement</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Macy's -->
+                    <div class="col-md-4" style="padding: 1.5rem; border-right: 1px solid #f0f0f0;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-bag-heart" style="font-size: 2rem; color: #e21a2c;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Macy's</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">10% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On clothing & accessories</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Walmart -->
+                    <div class="col-md-4" style="padding: 1.5rem; border-right: 1px solid #f0f0f0;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-cart3" style="font-size: 2rem; color: #0071ce;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Walmart</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">7% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On grocery & essentials</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Starbucks -->
+                    <div class="col-md-4" style="padding: 1.5rem;">
+                        <div class="text-center">
+                            <div style="width: 80px; height: 80px; background: #f5f5f5; border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-cup-hot" style="font-size: 2rem; color: #00704a;"></i>
+                            </div>
+                            <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Starbucks</h6>
+                            <p class="text-success mb-2" style="font-size: 1rem; font-weight: 600;">12% Cash Back</p>
+                            <p class="text-muted mb-3" style="font-size: 0.8rem;">On in-store purchases</p>
+                            <a href="#" class="btn btn-sm btn-outline-primary">Add to Card</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preferred Rewards -->
+        <div class="card mb-4">
+            <div class="card-body" style="padding: 2.5rem 2rem; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);">
+                <div class="row align-items-center">
+                    <div class="col-md-9">
+                        <h4 style="font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem;">
+                            <i class="bi bi-star-fill text-warning"></i> Preferred Rewards
+                        </h4>
+                        <p style="font-size: 0.95rem; color: #666; margin-bottom: 1rem;">
+                            Boost your rewards and access exclusive benefits. Members earn up to 75% more rewards on every purchase.
+                        </p>
+                        <ul style="font-size: 0.9rem; color: #666;">
+                            <li>Earn bonus rewards on credit cards</li>
+                            <li>Interest rate boosts on savings</li>
+                            <li>Waived fees and discounts</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <a href="#" class="btn btn-primary w-100">Enroll Now</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="col-lg-4">
+        <!-- Rewards Summary -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin: 0;">Your Rewards</h6>
+            </div>
+            <div class="card-body" style="padding: 1.5rem;">
+                <div class="mb-4">
+                    <p class="text-muted mb-2" style="font-size: 0.85rem;">Available Cash Rewards</p>
+                    <h3 style="font-size: 2.5rem; font-weight: 600; color: var(--bank-blue); margin: 0;">$127.50</h3>
+                </div>
+                <div class="mb-3">
+                    <p class="text-muted mb-2" style="font-size: 0.85rem;">Points Earned This Month</p>
+                    <h4 style="font-size: 1.5rem; font-weight: 600; margin: 0;">2,840</h4>
+                </div>
+                <hr>
+                <a href="#" class="btn btn-primary w-100 mb-2">Redeem Rewards</a>
+                <a href="#" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem; display: block; text-align: center;">
+                    View Rewards History
+                </a>
+            </div>
+        </div>
+
+        <!-- Special Offers -->
+        <div class="card border-0" style="background: #fff8f8;">
+            <div class="card-body" style="padding: 1.5rem;">
+                <div class="d-flex align-items-start">
+                    <div class="text-danger me-3">
+                        <i class="bi bi-gift-fill" style="font-size: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Limited Time Offer</h6>
+                        <p class="text-muted mb-2" style="font-size: 0.85rem;">Earn 5% cash back at Amazon.com through December 31st</p>
+                        <a href="#" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem;">Learn More →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

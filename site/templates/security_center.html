@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Security Center - Bank of America{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-size: 1.75rem; font-weight: 400; color: #333;">Security Center</h2>
+        <p class="text-muted" style="font-size: 0.95rem;">Protect your accounts and personal information</p>
+    </div>
+</div>
+
+<!-- Security Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-success" style="background: #f0f8f5;">
+            <div class="card-body" style="padding: 2rem;">
+                <div class="row align-items-center">
+                    <div class="col-md-1 text-center">
+                        <i class="bi bi-shield-check-fill text-success" style="font-size: 3rem;"></i>
+                    </div>
+                    <div class="col-md-11">
+                        <h4 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #155724;">Your Account is Secure</h4>
+                        <p style="font-size: 0.95rem; color: #155724; margin: 0;">
+                            All security features are enabled and your account is protected. Last security check: Today at 9:32 AM
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-lg-8">
+        <!-- Security Settings -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Security Settings</h5>
+            </div>
+            <div class="card-body p-0">
+                <!-- Two-Factor Authentication -->
+                <div style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-phone-fill text-success me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Two-Factor Authentication</h6>
+                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                                        Enabled • Receive a code via SMS when signing in from a new device
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <span class="badge bg-success" style="padding: 0.5rem 1rem;">Active</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Alerts -->
+                <div style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-bell-fill text-primary me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Account Alerts</h6>
+                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                                        Enabled • Get notified about suspicious activity and large transactions
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">Manage</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Password & PIN -->
+                <div style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-key-fill text-warning me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Password & Security PIN</h6>
+                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                                        Last changed 45 days ago • We recommend changing your password every 90 days
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{{ url_for('account_settings') }}" class="btn btn-outline-secondary btn-sm">Update</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trusted Devices -->
+                <div style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-laptop text-info me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Trusted Devices</h6>
+                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                                        3 devices • View and manage devices that can access your account
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="#" class="btn btn-outline-secondary btn-sm">View Devices</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SafePass -->
+                <div style="padding: 1.5rem;">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-fingerprint text-primary me-3" style="font-size: 1.5rem;"></i>
+                                <div>
+                                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Biometric Authentication</h6>
+                                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                                        Use fingerprint or face recognition to sign in on mobile devices
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="#" class="btn btn-outline-secondary btn-sm">Set Up</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fraud Protection -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Fraud Protection</h5>
+            </div>
+            <div class="card-body" style="padding: 2rem;">
+                <div class="mb-4">
+                    <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Our Guarantee</h6>
+                    <p style="font-size: 0.95rem; color: #666; line-height: 1.6;">
+                        Your accounts are protected by our $0 Liability Guarantee. You won't be held responsible for unauthorized transactions made using your Bank of America debit or credit card or online banking.
+                    </p>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <i class="bi bi-shield-fill-check" style="font-size: 2.5rem; color: var(--bank-blue); margin-bottom: 1rem;"></i>
+                            <h6 style="font-size: 0.95rem; font-weight: 600;">24/7 Monitoring</h6>
+                            <p style="font-size: 0.85rem; color: #666;">Advanced fraud detection</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <i class="bi bi-lock-fill" style="font-size: 2.5rem; color: var(--bank-blue); margin-bottom: 1rem;"></i>
+                            <h6 style="font-size: 0.95rem; font-weight: 600;">Secure Encryption</h6>
+                            <p style="font-size: 0.85rem; color: #666;">Bank-level security</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <i class="bi bi-telephone-fill" style="font-size: 2.5rem; color: var(--bank-blue); margin-bottom: 1rem;"></i>
+                            <h6 style="font-size: 0.95rem; font-weight: 600;">Instant Alerts</h6>
+                            <p style="font-size: 0.85rem; color: #666;">Real-time notifications</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Fraud -->
+        <div class="card">
+            <div class="card-body" style="padding: 2rem; background: #fff3cd; border: 1px solid #ffc107;">
+                <div class="row align-items-center">
+                    <div class="col-md-9">
+                        <h5 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: #856404;">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Suspect Fraud?
+                        </h5>
+                        <p style="font-size: 0.95rem; color: #856404; margin: 0;">
+                            Report unauthorized activity immediately. Call us 24/7 at <strong>1 (800) 432-1000</strong>
+                        </p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <a href="#" class="btn btn-danger w-100">Report Now</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="col-lg-4">
+        <!-- Security Tips -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin: 0;">Security Tips</h6>
+            </div>
+            <div class="card-body" style="padding: 1.5rem;">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1rem; margin-top: 0.1rem;"></i>
+                            <span style="font-size: 0.875rem;">Never share your password or security codes</span>
+                        </div>
+                    </li>
+                    <li class="mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1rem; margin-top: 0.1rem;"></i>
+                            <span style="font-size: 0.875rem;">Use unique passwords for each account</span>
+                        </div>
+                    </li>
+                    <li class="mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1rem; margin-top: 0.1rem;"></i>
+                            <span style="font-size: 0.875rem;">Enable two-factor authentication</span>
+                        </div>
+                    </li>
+                    <li class="mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1rem; margin-top: 0.1rem;"></i>
+                            <span style="font-size: 0.875rem;">Review your accounts regularly</span>
+                        </div>
+                    </li>
+                    <li class="mb-0">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill text-success me-2" style="font-size: 1rem; margin-top: 0.1rem;"></i>
+                            <span style="font-size: 0.875rem;">Avoid public Wi-Fi for banking</span>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Phishing Alert -->
+        <div class="card border-danger mb-4">
+            <div class="card-body" style="padding: 1.5rem; background: #fff5f5;">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; color: #721c24;">
+                    <i class="bi bi-shield-exclamation"></i> Beware of Scams
+                </h6>
+                <p style="font-size: 0.85rem; color: #721c24; margin-bottom: 1rem;">
+                    We will never ask for your password, PIN, or security codes via email, text, or phone.
+                </p>
+                <a href="#" class="text-decoration-none" style="color: var(--bank-primary); font-size: 0.875rem; font-weight: 600;">Learn More About Phishing →</a>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="card border-0" style="background: #f8f9fa;">
+            <div class="card-body" style="padding: 1.5rem;">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem;">Need Help?</h6>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 1rem;">
+                    Our security team is available 24/7 to assist you with any concerns.
+                </p>
+                <p class="mb-2">
+                    <i class="bi bi-telephone-fill text-primary me-2"></i>
+                    <strong style="font-size: 0.9rem;">1 (800) 432-1000</strong>
+                </p>
+                <p class="mb-0">
+                    <i class="bi bi-envelope-fill text-primary me-2"></i>
+                    <a href="mailto:security@bankofamerica.com" style="font-size: 0.9rem; color: var(--bank-blue); text-decoration: none;">security@bankofamerica.com</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

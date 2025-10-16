@@ -1,0 +1,22 @@
+{
+    "bob.gardner": {
+        "demo_pass": "Murphy2019!",
+        "first_name": "Robert",
+        "last_name": "Gardner",
+        "full_name": "Robert Gardner",
+        "account_ids": [
+            "checking_001",
+            "savings_001"
+        ],
+        "email": "bgardner57@yahoo.com",
+        "phone": "(408) 412-1363",
+        "address": "4782 Maple Street",
+        "city": "Dearborn",
+        "state": "MI",
+        "zip": "48126",
+        "security_questions": {
+            "q1": "What is your pet's name?",
+            "a1": "murphy"
+        }
+    }
+}

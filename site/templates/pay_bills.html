@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Center - Bank of America{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-size: 1.75rem; font-weight: 400; color: #333;">Payment Center</h2>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" style="border-bottom: 2px solid #e0e0e0;">
+    <li class="nav-item">
+        <a class="nav-link active" href="#" style="color: #333; border: none; border-bottom: 3px solid var(--bank-blue); font-weight: 600; font-size: 0.95rem; padding: 1rem 1.5rem;">
+            Organize My List
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#addPayeeModal" style="color: #666; border: none; font-size: 0.95rem; padding: 1rem 1.5rem;">
+            Add a Company or Person
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" style="color: #666; border: none; font-size: 0.95rem; padding: 1rem 1.5rem;">
+            Calculator
+        </a>
+    </li>
+</ul>
+
+<!-- Payee Group -->
+<div class="mb-4">
+    <button class="btn btn-link text-decoration-none p-0 mb-3" style="color: #333; font-size: 1rem; font-weight: 600;">
+        <i class="bi bi-chevron-down"></i> Default Group
+    </button>
+
+    <!-- Payees List -->
+    <div class="card">
+        <div class="card-body p-0">
+            {% for payee_id, payee in payees.items() %}
+            <div class="payee-row" style="padding: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                <div class="row align-items-center">
+                    <!-- Logo/Initial -->
+                    <div class="col-auto">
+                        <div class="payee-logo" style="width: 50px; height: 50px; background: linear-gradient(135deg, var(--bank-blue), var(--bank-primary)); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.25rem;">
+                            {{ payee.name[0] }}
+                        </div>
+                    </div>
+
+                    <!-- Payee Info -->
+                    <div class="col-md-3">
+                        <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;">{{ payee.name }}</h6>
+                        <p class="text-muted mb-1" style="font-size: 0.85rem;">{{ payee.category }}</p>
+                        <p class="text-muted mb-0" style="font-size: 0.8rem;">Last payment: {{ payee.last_payment_date }}</p>
+                    </div>
+
+                    <!-- Pay From -->
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size: 0.8rem; font-weight: 600; color: #666; margin-bottom: 0.5rem;">Pay from</label>
+                        <select class="form-select form-select-sm" style="font-size: 0.875rem;">
+                            {% for account_id, account in accounts.items() %}
+                            <option value="{{ account_id }}">{{ account.account_type }} {{ account.account_number }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Amount -->
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-size: 0.8rem; font-weight: 600; color: #666; margin-bottom: 0.5rem;">Amount</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text" style="font-size: 0.875rem;">$</span>
+                            <input type="text" class="form-control" placeholder="0.00" style="font-size: 0.875rem;">
+                        </div>
+                    </div>
+
+                    <!-- Deliver On -->
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-size: 0.8rem; font-weight: 600; color: #666; margin-bottom: 0.5rem;">Deliver on</label>
+                        <div class="input-group input-group-sm">
+                            <input type="date" class="form-control" style="font-size: 0.875rem;">
+                            <span class="input-group-text"><i class="bi bi-calendar3"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Actions Dropdown -->
+                    <div class="col-auto">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size: 0.85rem;">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-clock-history"></i> Activity</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-trash"></i> Remove</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-arrow-repeat"></i> AutoPay</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Action Bar -->
+<div class="card border-0 shadow-sm" style="position: sticky; bottom: 20px; background: white;">
+    <div class="card-body" style="padding: 1.5rem;">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="alwaysShow" checked>
+                    <label class="form-check-label" for="alwaysShow" style="font-size: 0.875rem;">
+                        Always show: Make Payments
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-primary btn-lg" style="padding: 0.75rem 2.5rem; font-size: 1rem; font-weight: 600;">
+                    Make Payments
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Payee Modal -->
+<div class="modal fade" id="addPayeeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Payee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="mb-3">
+                        <label for="newPayeeName" class="form-label">Company/Person Name</label>
+                        <input type="text" class="form-control" id="newPayeeName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPayeeNickname" class="form-label">Nickname (optional)</label>
+                        <input type="text" class="form-control" id="newPayeeNickname" placeholder="e.g., Electric Bill">
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPayeeAccount" class="form-label">Account Number</label>
+                        <input type="text" class="form-control" id="newPayeeAccount" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPayeeCategory" class="form-label">Category</label>
+                        <select class="form-select" id="newPayeeCategory">
+                            <option value="Utilities">Utilities</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Loan">Loan</option>
+                            <option value="Insurance">Insurance</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary">Add Payee</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.payee-row:hover {
+    background-color: #fafafa;
+}
+
+.payee-row:last-child {
+    border-bottom: none !important;
+}
+</style>
+
+{% endblock %}

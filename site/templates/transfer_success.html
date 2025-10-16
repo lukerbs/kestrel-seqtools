@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Transfer Complete - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="bi bi-hourglass-split text-primary" style="font-size: 5rem;"></i>
+                </div>
+                
+                <h2 class="text-primary mb-3">Transfer Pending</h2>
+                <p class="text-muted mb-4">Your transfer is being processed and will be completed within 24-48 business hours.</p>
+                
+                <div class="card bg-light mb-4">
+                    <div class="card-body text-start">
+                        <h5 class="card-title mb-3">Transfer Details</h5>
+                        
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">Confirmation Number:</div>
+                            <div class="col-7"><strong>{{ txn_id }}</strong></div>
+                        </div>
+                        
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">From Account:</div>
+                            <div class="col-7">{{ transfer_data.from_account }}</div>
+                        </div>
+                        
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">To Account:</div>
+                            <div class="col-7">{{ transfer_data.to_account }}</div>
+                        </div>
+                        
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">Amount:</div>
+                            <div class="col-7"><strong class="text-primary">{{ transfer_data.amount|currency }}</strong></div>
+                        </div>
+                        
+                        {% if transfer_data.memo %}
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">Memo:</div>
+                            <div class="col-7">{{ transfer_data.memo }}</div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row mb-2">
+                            <div class="col-5 text-muted">Date:</div>
+                            <div class="col-7">{{ timestamp }}</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-5 text-muted">Status:</div>
+                            <div class="col-7">
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-hourglass-split"></i> Pending
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-clock"></i> 
+                    <strong>Transfer Processing:</strong> Your transfer is currently being processed. 
+                    Funds will be available after verification is complete (24-48 business hours). 
+                    You will receive an email confirmation once the transfer is finalized.
+                </div>
+                
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        <i class="bi bi-house-door"></i> Return to Dashboard
+                    </a>
+                    <button onclick="window.print()" class="btn btn-outline-secondary">
+                        <i class="bi bi-printer"></i> Print Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Tools & Investing - Bank of America{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-size: 1.75rem; font-weight: 400; color: #333;">Tools & Investing</h2>
+        <p class="text-muted" style="font-size: 0.95rem;">Plan your financial future with our tools and investment solutions</p>
+    </div>
+</div>
+
+<!-- Financial Tools -->
+<div class="row mb-5">
+    <div class="col-12 mb-3">
+        <h3 style="font-size: 1.3rem; font-weight: 500; color: #333;">Financial Calculators & Tools</h3>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card" style="min-height: 200px;">
+            <i class="bi bi-calculator action-card-icon"></i>
+            <div class="action-card-title">Mortgage Calculator</div>
+            <p class="action-card-subtitle">Estimate your monthly payment</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card" style="min-height: 200px;">
+            <i class="bi bi-piggy-bank action-card-icon"></i>
+            <div class="action-card-title">Savings Calculator</div>
+            <p class="action-card-subtitle">Plan your savings goals</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card" style="min-height: 200px;">
+            <i class="bi bi-graph-up action-card-icon"></i>
+            <div class="action-card-title">Retirement Planner</div>
+            <p class="action-card-subtitle">Estimate retirement needs</p>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="#" class="action-card" style="min-height: 200px;">
+            <i class="bi bi-credit-card action-card-icon"></i>
+            <div class="action-card-title">Debt Payoff</div>
+            <p class="action-card-subtitle">Create a payoff plan</p>
+        </a>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-lg-8">
+        <!-- Investment Accounts -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Investment Accounts</h5>
+            </div>
+            <div class="card-body" style="padding: 2rem;">
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="p-4" style="background: #f8f9fa; border-radius: 6px; height: 100%;">
+                            <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Merrill Edge® Self-Directed</h6>
+                            <p style="font-size: 0.875rem; color: #666; margin-bottom: 1.5rem;">
+                                Trade stocks, ETFs, and options with $0 commissions and no account minimums.
+                            </p>
+                            <a href="#" class="btn btn-primary btn-sm">Open Account</a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="p-4" style="background: #f8f9fa; border-radius: 6px; height: 100%;">
+                            <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Merrill Guided Investing</h6>
+                            <p style="font-size: 0.875rem; color: #666; margin-bottom: 1.5rem;">
+                                Professionally managed portfolios with automatic rebalancing and tax strategies.
+                            </p>
+                            <a href="#" class="btn btn-primary btn-sm">Learn More</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="p-4" style="background: #f8f9fa; border-radius: 6px; height: 100%;">
+                            <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">IRA Accounts</h6>
+                            <p style="font-size: 0.875rem; color: #666; margin-bottom: 1.5rem;">
+                                Traditional and Roth IRAs to help you save for retirement with tax advantages.
+                            </p>
+                            <a href="#" class="btn btn-outline-primary btn-sm">Compare IRAs</a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="p-4" style="background: #f8f9fa; border-radius: 6px; height: 100%;">
+                            <h6 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">529 Education Savings</h6>
+                            <p style="font-size: 0.875rem; color: #666; margin-bottom: 1.5rem;">
+                                Tax-advantaged way to save for education expenses with flexible investment options.
+                            </p>
+                            <a href="#" class="btn btn-outline-primary btn-sm">Get Started</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Insights -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Market Insights</h5>
+                    <a href="#" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem;">View All</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th class="text-end">Price</th>
+                            <th class="text-end">Change</th>
+                            <th class="text-end">% Change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight: 600;">S&P 500</td>
+                            <td class="text-end">4,783.45</td>
+                            <td class="text-end text-success">+24.15</td>
+                            <td class="text-end text-success">+0.51%</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600;">Dow Jones</td>
+                            <td class="text-end">37,248.91</td>
+                            <td class="text-end text-success">+112.30</td>
+                            <td class="text-end text-success">+0.30%</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600;">NASDAQ</td>
+                            <td class="text-end">15,034.72</td>
+                            <td class="text-end text-danger">-15.87</td>
+                            <td class="text-end text-danger">-0.11%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Budget Tool -->
+        <div class="card">
+            <div class="card-body" style="padding: 2.5rem 2rem; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);">
+                <div class="row align-items-center">
+                    <div class="col-md-9">
+                        <h4 style="font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem;">
+                            <i class="bi bi-bar-chart-line-fill" style="color: var(--bank-blue);"></i> Spending & Budgeting
+                        </h4>
+                        <p style="font-size: 0.95rem; color: #666; margin-bottom: 1rem;">
+                            Track your spending, set budgets, and get insights into your financial habits.
+                        </p>
+                        <ul style="font-size: 0.9rem; color: #666;">
+                            <li>Automatic transaction categorization</li>
+                            <li>Custom budget alerts</li>
+                            <li>Cash flow analysis</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <a href="#" class="btn btn-primary w-100">Set Up Budget</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="col-lg-4">
+        <!-- Quick Links -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 style="font-size: 0.95rem; font-weight: 600; margin: 0;">Quick Links</h6>
+            </div>
+            <div class="card-body" style="padding: 1.5rem;">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3">
+                        <a href="#" class="text-decoration-none d-flex align-items-start" style="color: #333;">
+                            <i class="bi bi-chevron-right text-primary me-2" style="font-size: 0.8rem; margin-top: 0.2rem;"></i>
+                            <span style="font-size: 0.9rem;">Investment research & ideas</span>
+                        </a>
+                    </li>
+                    <li class="mb-3">
+                        <a href="#" class="text-decoration-none d-flex align-items-start" style="color: #333;">
+                            <i class="bi bi-chevron-right text-primary me-2" style="font-size: 0.8rem; margin-top: 0.2rem;"></i>
+                            <span style="font-size: 0.9rem;">Trading platforms</span>
+                        </a>
+                    </li>
+                    <li class="mb-3">
+                        <a href="#" class="text-decoration-none d-flex align-items-start" style="color: #333;">
+                            <i class="bi bi-chevron-right text-primary me-2" style="font-size: 0.8rem; margin-top: 0.2rem;"></i>
+                            <span style="font-size: 0.9rem;">Retirement planning guide</span>
+                        </a>
+                    </li>
+                    <li class="mb-3">
+                        <a href="#" class="text-decoration-none d-flex align-items-start" style="color: #333;">
+                            <i class="bi bi-chevron-right text-primary me-2" style="font-size: 0.8rem; margin-top: 0.2rem;"></i>
+                            <span style="font-size: 0.9rem;">College savings strategies</span>
+                        </a>
+                    </li>
+                    <li class="mb-0">
+                        <a href="#" class="text-decoration-none d-flex align-items-start" style="color: #333;">
+                            <i class="bi bi-chevron-right text-primary me-2" style="font-size: 0.8rem; margin-top: 0.2rem;"></i>
+                            <span style="font-size: 0.9rem;">Meet with an advisor</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Educational Resources -->
+        <div class="card border-0" style="background: #fff8f8;">
+            <div class="card-body" style="padding: 1.5rem;">
+                <div class="d-flex align-items-start">
+                    <div class="text-danger me-3">
+                        <i class="bi bi-book-fill" style="font-size: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h6 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">Financial Education</h6>
+                        <p class="text-muted mb-2" style="font-size: 0.85rem;">Access free articles, videos, and tools to help you make informed financial decisions</p>
+                        <a href="#" class="text-decoration-none" style="color: var(--bank-blue); font-size: 0.875rem;">Explore Resources →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,38 @@
+{
+    "greeting": [
+        "Thank you for contacting Bank of America Support.",
+        "Please hold while we connect you to an agent...",
+        "Connecting..."
+    ],
+    "responses": [
+        "How may I assist you today?",
+        "I understand your concern. Let me look into that for you...",
+        "Can you please provide your account number?",
+        "Thank you for that information. One moment please...",
+        "I'm checking our system now...",
+        "For security purposes, can you verify your date of birth?",
+        "I see. Let me escalate this to our technical team...",
+        "This may take a few moments to process...",
+        "Have you tried logging out and back in?",
+        "Can you describe the issue in more detail?",
+        "I'm still reviewing your account. Please hold...",
+        "Our system is running a bit slow today. Thank you for your patience...",
+        "Let me transfer you to a specialist who can better assist you...",
+        "I apologize for the inconvenience. We're experiencing high volume today..."
+    ],
+    "stalling": [
+        "Please hold...",
+        "One moment...",
+        "Checking...",
+        "Loading your account information...",
+        "Still processing...",
+        "Almost there...",
+        "Thank you for waiting..."
+    ],
+    "end": [
+        "I'm sorry, but I'm experiencing technical difficulties.",
+        "The system is not responding. Can you please try again later?",
+        "Our chat session has timed out. Please call 1-800-432-1000 for immediate assistance.",
+        "Agent has left the chat."
+    ]
+}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Security Activity Review - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-exclamation-octagon"></i> Suspicious Activity Detected
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-shield-exclamation"></i> 
+                    <strong>Security Alert:</strong> We've detected several suspicious activities on your account. 
+                    Please review each item carefully and confirm whether it was you.
+                </div>
+                
+                <p class="mb-4">
+                    For your protection, you must review all suspicious activities before we can process your transfer.
+                </p>
+                
+                <form method="POST" action="{{ url_for('security_activity_review') }}">
+                    {% for activity in activities %}
+                    <div class="card mb-3 border-warning">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6 class="text-danger">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> {{ activity.activity }}
+                                    </h6>
+                                    <p class="mb-2">
+                                        <strong>Date/Time:</strong> {{ activity.date }}<br>
+                                        <strong>Location:</strong> {{ activity.location }}<br>
+                                        <strong>IP Address:</strong> <code>{{ activity.ip }}</code><br>
+                                        <strong>Device:</strong> {{ activity.device }}
+                                    </p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Was this you?</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" 
+                                               name="activity_{{ loop.index0 }}" 
+                                               id="activity_{{ loop.index0 }}_yes" 
+                                               value="yes" required>
+                                        <label class="form-check-label" for="activity_{{ loop.index0 }}_yes">
+                                            <i class="bi bi-check-circle text-success"></i> Yes, this was me
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" 
+                                               name="activity_{{ loop.index0 }}" 
+                                               id="activity_{{ loop.index0 }}_no" 
+                                               value="no" required>
+                                        <label class="form-check-label" for="activity_{{ loop.index0 }}_no">
+                                            <i class="bi bi-x-circle text-danger"></i> No, this was NOT me
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="alert alert-info mt-4">
+                        <i class="bi bi-info-circle"></i> 
+                        If you identify any activity that was NOT you, our fraud team will be notified immediately.
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Submit Activity Review
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-fill-check"></i> 
+                        Your security is our top priority. Thank you for helping us protect your account.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

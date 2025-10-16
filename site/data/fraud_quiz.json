@@ -1,0 +1,112 @@
+[
+    {
+        "id": 1,
+        "question": "What should you do if you receive a suspicious email claiming to be from your bank?",
+        "options": [
+            "Click the link to verify your account",
+            "Reply with your account information",
+            "Delete it and contact your bank directly",
+            "Forward it to your friends"
+        ],
+        "correct": 2
+    },
+    {
+        "id": 2,
+        "question": "How can you identify a phishing attempt?",
+        "options": [
+            "The email has perfect grammar",
+            "It asks for personal information via email or link",
+            "It comes from a verified sender",
+            "It contains your account number"
+        ],
+        "correct": 1
+    },
+    {
+        "id": 3,
+        "question": "What information should you NEVER share over the phone?",
+        "options": [
+            "Your first name",
+            "Your bank's phone number",
+            "Your full Social Security Number",
+            "Your email address"
+        ],
+        "correct": 2
+    },
+    {
+        "id": 4,
+        "question": "What does HTTPS in a website URL indicate?",
+        "options": [
+            "The site is faster",
+            "The site is encrypted and secure",
+            "The site is free to use",
+            "The site is government-approved"
+        ],
+        "correct": 1
+    },
+    {
+        "id": 5,
+        "question": "If someone calls claiming to be from your bank and asks for your password, you should:",
+        "options": [
+            "Provide it if they know your account number",
+            "Give them half of your password to verify",
+            "Hang up and call your bank directly",
+            "Ask them security questions first"
+        ],
+        "correct": 2
+    },
+    {
+        "id": 6,
+        "question": "What is two-factor authentication?",
+        "options": [
+            "Using two different passwords",
+            "Logging in from two devices",
+            "An extra security step beyond your password",
+            "Having two bank accounts"
+        ],
+        "correct": 2
+    },
+    {
+        "id": 7,
+        "question": "What should you do before entering sensitive information on a website?",
+        "options": [
+            "Clear your browser history",
+            "Verify the URL is correct and secure",
+            "Turn off your antivirus",
+            "Use public WiFi"
+        ],
+        "correct": 1
+    },
+    {
+        "id": 8,
+        "question": "What is a common sign of a tech support scam?",
+        "options": [
+            "They provide a phone number to call back",
+            "They claim your computer is infected and demand immediate payment",
+            "They send you written instructions",
+            "They suggest updating your software"
+        ],
+        "correct": 1
+    },
+    {
+        "id": 9,
+        "question": "How often should you review your bank statements?",
+        "options": [
+            "Once a year",
+            "Only when you make a large purchase",
+            "Regularly - at least monthly",
+            "Never, the bank will notify you"
+        ],
+        "correct": 2
+    },
+    {
+        "id": 10,
+        "question": "What should you do if you notice unauthorized transactions on your account?",
+        "options": [
+            "Wait to see if more appear",
+            "Contact your bank immediately",
+            "Post about it on social media",
+            "Change your email password"
+        ],
+        "correct": 1
+    }
+]

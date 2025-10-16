@@ -1,0 +1,38 @@
+{
+    "payee_001": {
+        "name": "DTE Energy",
+        "category": "Utilities",
+        "account_number": "2847-3821-9918",
+        "nickname": "Electric Bill",
+        "auto_pay": false,
+        "last_payment": "2025-09-15",
+        "last_amount": 127.45
+    },
+    "payee_002": {
+        "name": "Xfinity",
+        "category": "Internet/Cable",
+        "account_number": "8774-4382-9918-2847",
+        "nickname": "Cable & Internet",
+        "auto_pay": false,
+        "last_payment": "2025-10-14",
+        "last_amount": 127.45
+    },
+    "payee_003": {
+        "name": "Discover Card",
+        "category": "Credit Card",
+        "account_number": "6011-XXXX-XXXX-4422",
+        "nickname": "Discover",
+        "auto_pay": false,
+        "last_payment": "2025-09-28",
+        "last_amount": 85.00
+    },
+    "payee_004": {
+        "name": "City of Dearborn Water Department",
+        "category": "Utilities",
+        "account_number": "WTR-48126-7821",
+        "nickname": "Water Bill",
+        "auto_pay": false,
+        "last_payment": "2025-09-01",
+        "last_amount": 42.18
+    }
+}

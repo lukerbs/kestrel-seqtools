@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Transfer Money - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-arrow-left-right"></i> Transfer Money
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('transfer') }}">
+                    <div class="mb-4">
+                        <label for="from_account" class="form-label">From Account</label>
+                        <select class="form-select" id="from_account" name="from_account" required>
+                            <option value="">Select account...</option>
+                            {% for account_id, account in accounts.items() %}
+                            <option value="{{ account_id }}">
+                                {{ account.account_type }} {{ account.account_number }} - {{ account.balance|currency }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="to_account" class="form-label">To Account</label>
+                        <select class="form-select" id="to_account" name="to_account" required>
+                            <option value="">Select destination...</option>
+                            <optgroup label="My Accounts">
+                                {% for account_id, account in accounts.items() %}
+                                <option value="{{ account_id }}">
+                                    {{ account.account_type }} {{ account.account_number }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="External Transfer">
+                                <option value="external_wire">External Wire Transfer</option>
+                                <option value="external_ach" disabled>External ACH Transfer (Coming Soon)</option>
+                            </optgroup>
+                        </select>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i> External transfers may require additional verification
+                        </small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="amount" class="form-label">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" 
+                                   step="0.01" min="0.01" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="memo" class="form-label">Memo (Optional)</label>
+                        <input type="text" class="form-control" id="memo" name="memo" 
+                               placeholder="Description or note...">
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Security Notice:</strong> 
+                        All transfers are encrypted and monitored for your protection.
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-arrow-right-circle"></i> Continue to Review
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

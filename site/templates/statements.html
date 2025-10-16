@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Statements & Documents - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="bi bi-file-earmark-text"></i> Statements & Documents
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Statements List -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-calendar3"></i> Monthly Statements
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="account_select" class="form-label">Select Account</label>
+                    <select class="form-select" id="account_select">
+                        {% for account_id, account in accounts.items() %}
+                        <option value="{{ account_id }}">{{ account.account_type }} {{ account.account_number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Statement Period</th>
+                                <th>Statement Date</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for statement in statements %}
+                            <tr>
+                                <td>
+                                    <strong>{{ statement.period }}</strong>
+                                </td>
+                                <td>{{ statement.statement_date }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showGenerating()">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                    <button class="btn btn-sm btn-primary" onclick="showGenerating()">
+                                        <i class="bi bi-download"></i> Download
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> 
+                    Statements are available for the past 24 months. For older statements, please contact customer service.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tax Documents -->
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark-ruled"></i> Tax Documents
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Tax documents for the current year will be available by January 31st.</p>
+                
+                <div class="list-group">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">2024 Form 1099-INT</h6>
+                            <small class="text-muted">Interest Income Statement</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="showGenerating()">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">2023 Form 1099-INT</h6>
+                            <small class="text-muted">Interest Income Statement</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="showGenerating()">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-md-4">
+        <!-- Delivery Preferences -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="bi bi-envelope"></i> Delivery Preferences
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="radio" name="delivery" id="paperless" checked>
+                    <label class="form-check-label" for="paperless">
+                        <strong>Paperless (Recommended)</strong><br>
+                        <small class="text-muted">View and download online</small>
+                    </label>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="radio" name="delivery" id="paper">
+                    <label class="form-check-label" for="paper">
+                        <strong>Paper Statements</strong><br>
+                        <small class="text-muted">Mailed to your address ($2.95/month)</small>
+                    </label>
+                </div>
+                <button class="btn btn-sm btn-primary w-100" onclick="alert('Delivery preferences updated!'); return false;">
+                    <i class="bi bi-check-circle"></i> Save Preference
+                </button>
+            </div>
+        </div>
+        
+        <!-- Email Statement -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="bi bi-envelope-paper"></i> Email Statement
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">Send a statement copy to your email</p>
+                <form onsubmit="showEmailSent(); return false;">
+                    <div class="mb-3">
+                        <label for="email_period" class="form-label">Select Period</label>
+                        <select class="form-select form-select-sm" id="email_period" required>
+                            {% for statement in statements[:6] %}
+                            <option>{{ statement.period }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email_address" class="form-label">Email Address</label>
+                        <input type="email" class="form-control form-control-sm" id="email_address" 
+                               value="{{ session.get('username', 'user@example.com') }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-send"></i> Send Email
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Help -->
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="bi bi-question-circle"></i> Need Help?
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">
+                    <i class="bi bi-telephone"></i> Call us: 1 (800) 432-1000
+                </p>
+                <p class="small mb-2">
+                    <i class="bi bi-envelope"></i> Email: statements@bankofamerica.com
+                </p>
+                <p class="small mb-0">
+                    <i class="bi bi-clock"></i> Mon-Fri: 8am-8pm EST
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading/Generating Modal -->
+<div class="modal fade" id="generatingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Generating PDF...</h5>
+                <p class="text-muted">This may take a few moments</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Sent Modal -->
+<div class="modal fade" id="emailSentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">Email Sent!</h5>
+                <p class="text-muted">Your statement has been sent to your email address.</p>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showGenerating() {
+    const modal = new bootstrap.Modal(document.getElementById('generatingModal'));
+    modal.show();
+    
+    let progress = 0;
+    const progressBar = document.getElementById('progressBar');
+    const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(interval);
+            setTimeout(() => {
+                modal.hide();
+                alert('PDF generation complete! However, there was an error loading the document. Please try again later or contact support.');
+            }, 500);
+        }
+        progressBar.style.width = progress + '%';
+    }, 500);
+}
+
+function showEmailSent() {
+    setTimeout(() => {
+        const modal = new bootstrap.Modal(document.getElementById('emailSentModal'));
+        modal.show();
+    }, 1000);
+}
+</script>
+{% endblock %}
+

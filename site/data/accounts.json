@@ -1,0 +1,23 @@
+{
+    "checking_001": {
+        "account_number": "****8821",
+        "full_account_number": "4532 8192 7364 8821",
+        "account_type": "Checking",
+        "nickname": "My Checking",
+        "balance": 12147.83,
+        "available_balance": 12147.83,
+        "routing_number": "072000326",
+        "opened_date": "2003-04-15"
+    },
+    "savings_001": {
+        "account_number": "****4422",
+        "full_account_number": "6011 2847 9103 4422",
+        "account_type": "Savings",
+        "nickname": "Rainy Day Savings",
+        "balance": 73482.67,
+        "available_balance": 73482.67,
+        "routing_number": "072000326",
+        "opened_date": "2003-04-15",
+        "apy": "0.01%"
+    }
+}

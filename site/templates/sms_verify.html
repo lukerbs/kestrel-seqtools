@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}SMS Verification - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-phone"></i> SMS Verification
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-shield-check"></i> 
+                    <strong>Additional Security Step:</strong> We've sent a verification code to your registered mobile number.
+                </div>
+                
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
+                        <h6>
+                            <i class="bi bi-phone-vibrate"></i> SMS Sent To:
+                        </h6>
+                        <p class="mb-0">
+                            <strong>{{ user_phone[:5] }}••• •••-••{{ user_phone[-2:] }}</strong>
+                        </p>
+                        {% if resend_count > 0 %}
+                        <small class="text-success">
+                            <i class="bi bi-check-circle-fill"></i> Code resent {{ resend_count }} time(s)
+                        </small>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <form method="POST" action="{{ url_for('security_sms_verify') }}">
+                    <div class="mb-4">
+                        <label for="code" class="form-label">Enter 6-Digit Verification Code</label>
+                        <input type="text" class="form-control form-control-lg text-center" 
+                               id="code" name="code" placeholder="000000" 
+                               pattern="[0-9]{6}" maxlength="6" required autofocus>
+                        <small class="form-text text-muted">
+                            Please check your text messages for the code
+                        </small>
+                    </div>
+                    
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Verify Code
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="text-center mb-3">
+                    <form method="POST" action="{{ url_for('security_sms_verify') }}" style="display: inline;">
+                        <input type="hidden" name="action" value="resend">
+                        <button type="submit" class="btn btn-link text-muted">
+                            <i class="bi bi-arrow-clockwise"></i> Didn't receive the code? Resend SMS
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="text-center">
+                    <a href="{{ url_for('security_verify') }}" class="btn btn-link text-muted">
+                        <i class="bi bi-envelope"></i> Use email verification instead
+                    </a>
+                </div>
+                
+                <hr>
+                
+                <div class="alert alert-info mb-0">
+                    <small>
+                        <i class="bi bi-clock"></i> 
+                        If you don't receive the code within 2-3 minutes, please check your phone signal and try resending.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

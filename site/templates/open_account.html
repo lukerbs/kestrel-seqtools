@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Open an Account - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 style="font-weight: 400; font-size: 1.5rem; color: #333;">Open a new account</h2>
+        <p class="text-muted" style="font-size: 0.9rem;">Choose the account that's right for you</p>
+    </div>
+</div>
+
+<!-- Account Types -->
+<div class="row mb-5">
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body" style="padding: 2rem;">
+                <h5 class="mb-3" style="font-size: 1.15rem; font-weight: 600;">
+                    <i class="bi bi-wallet2" style="color: var(--bank-blue);"></i> Checking Account
+                </h5>
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                    Your everyday account for purchases, bill payments and direct deposits.
+                </p>
+                
+                <ul class="list-unstyled mb-4" style="font-size: 0.875rem;">
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> No monthly maintenance fee</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Free online and mobile banking</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Debit card with rewards</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Overdraft protection available</li>
+                </ul>
+                
+                <button class="btn btn-primary w-100" onclick="showApplicationForm('checking')">Open Checking Account</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body" style="padding: 2rem;">
+                <h5 class="mb-3" style="font-size: 1.15rem; font-weight: 600;">
+                    <i class="bi bi-piggy-bank" style="color: var(--bank-blue);"></i> Savings Account
+                </h5>
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                    Build your savings with competitive interest rates and flexible access.
+                </p>
+                
+                <ul class="list-unstyled mb-4" style="font-size: 0.875rem;">
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Competitive interest rates</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> No minimum balance required</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> FDIC insured up to $250,000</li>
+                    <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Link to checking for overdraft</li>
+                </ul>
+                
+                <button class="btn btn-primary w-100" onclick="showApplicationForm('savings')">Open Savings Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Application Form (Hidden by default) -->
+<div id="applicationForm" style="display: none;">
+    <div class="card">
+        <div class="card-header" style="background-color: #e7f3ff; border-bottom: 1px solid var(--bank-border);">
+            <h5 class="mb-0" style="color: #333;">
+                <i class="bi bi-pencil-square"></i> <span id="accountTypeTitle">Account</span> Application
+            </h5>
+        </div>
+        <div class="card-body" style="padding: 2rem;">
+            <form method="POST" action="{{ url_for('open_account') }}">
+                <input type="hidden" name="account_type" id="accountTypeInput" value="">
+                
+                <h6 class="mb-3" style="font-weight: 600;">Personal Information</h6>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="firstName" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="firstName" name="first_name" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="lastName" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="lastName" name="last_name" required>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" required>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="dob" class="form-label">Date of Birth</label>
+                    <input type="date" class="form-control" id="dob" name="dob" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="ssn" class="form-label">Social Security Number</label>
+                    <input type="text" class="form-control" id="ssn" name="ssn" placeholder="XXX-XX-XXXX" required>
+                </div>
+                
+                <hr class="my-4">
+                
+                <h6 class="mb-3" style="font-weight: 600;">Address</h6>
+                
+                <div class="mb-3">
+                    <label for="address" class="form-label">Street Address</label>
+                    <input type="text" class="form-control" id="address" name="address" required>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="city" class="form-label">City</label>
+                        <input type="text" class="form-control" id="city" name="city" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="state" class="form-label">State</label>
+                        <select class="form-select" id="state" name="state" required>
+                            <option value="">Select...</option>
+                            <option value="MI">Michigan</option>
+                            <option value="OH">Ohio</option>
+                            <option value="IL">Illinois</option>
+                            <option value="IN">Indiana</option>
+                            <option value="NY">New York</option>
+                            <option value="CA">California</option>
+                            <option value="TX">Texas</option>
+                            <option value="FL">Florida</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="zip" class="form-label">ZIP Code</label>
+                        <input type="text" class="form-control" id="zip" name="zip" required>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <h6 class="mb-3" style="font-weight: 600;">Initial Deposit</h6>
+                
+                <div class="mb-3">
+                    <label for="initialDeposit" class="form-label">Initial Deposit Amount</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="initialDeposit" name="initial_deposit" min="0" step="0.01" value="25.00" required>
+                    </div>
+                    <small class="text-muted">Minimum $25 to open account</small>
+                </div>
+                
+                <div class="form-check mb-4">
+                    <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+                    <label class="form-check-label" for="agreeTerms" style="font-size: 0.875rem;">
+                        I agree to the <a href="#">Terms and Conditions</a> and <a href="#">Privacy Policy</a>
+                    </label>
+                </div>
+                
+                <div class="alert alert-info" style="font-size: 0.875rem;">
+                    <i class="bi bi-info-circle"></i> 
+                    Your application will be reviewed within 1-2 business days. You will receive an email confirmation once approved.
+                </div>
+                
+                <div class="d-flex gap-3">
+                    <button type="button" class="btn btn-outline-secondary" onclick="hideApplicationForm()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Application</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showApplicationForm(accountType) {
+    document.getElementById('applicationForm').style.display = 'block';
+    document.getElementById('accountTypeInput').value = accountType;
+    
+    const title = accountType === 'checking' ? 'Checking Account' : 'Savings Account';
+    document.getElementById('accountTypeTitle').textContent = title;
+    
+    // Scroll to form
+    document.getElementById('applicationForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideApplicationForm() {
+    document.getElementById('applicationForm').style.display = 'none';
+    document.getElementById('applicationForm').querySelector('form').reset();
+}
+</script>
+{% endblock %}
+

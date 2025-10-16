@@ -1,0 +1,105 @@
+{
+    "checking_001": [
+        {
+            "id": "TXN-2025-001",
+            "days_ago": 0,
+            "description": "XFINITY PAYMENT",
+            "amount": -127.45,
+            "balance_after": 12147.83,
+            "type": "bill_payment",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-002",
+            "days_ago": 1,
+            "description": "Social Security Admin Direct Deposit",
+            "amount": 1842.00,
+            "balance_after": 12275.28,
+            "type": "deposit",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-003",
+            "days_ago": 2,
+            "description": "CVS PHARMACY #4721",
+            "amount": -43.87,
+            "balance_after": 10433.28,
+            "type": "debit_card",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-004",
+            "days_ago": 4,
+            "description": "DTE ENERGY PAYMENT",
+            "amount": -142.90,
+            "balance_after": 10477.15,
+            "type": "bill_payment",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-005",
+            "days_ago": 6,
+            "description": "KROGER #8472",
+            "amount": -68.24,
+            "balance_after": 10620.05,
+            "type": "debit_card",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-006",
+            "days_ago": 8,
+            "description": "ATM WITHDRAWAL",
+            "amount": -200.00,
+            "balance_after": 10688.29,
+            "type": "atm",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-007",
+            "days_ago": 12,
+            "description": "MEIJER #2847",
+            "amount": -84.52,
+            "balance_after": 10888.29,
+            "type": "debit_card",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-2025-008",
+            "days_ago": 14,
+            "description": "CARQUEST AUTO PARTS",
+            "amount": -127.83,
+            "balance_after": 10972.81,
+            "type": "debit_card",
+            "status": "completed"
+        }
+    ],
+    "savings_001": [
+        {
+            "id": "TXN-SAV-001",
+            "days_ago": 15,
+            "description": "Monthly Interest Payment",
+            "amount": 6.12,
+            "balance_after": 73482.67,
+            "type": "interest",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-SAV-002",
+            "days_ago": 45,
+            "description": "Monthly Interest Payment",
+            "amount": 6.12,
+            "balance_after": 73476.55,
+            "type": "interest",
+            "status": "completed"
+        },
+        {
+            "id": "TXN-SAV-003",
+            "days_ago": 75,
+            "description": "Monthly Interest Payment",
+            "amount": 6.12,
+            "balance_after": 73470.43,
+            "type": "interest",
+            "status": "completed"
+        }
+    ]
+}

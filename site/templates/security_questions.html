@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Security Question - Bank of America{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header" style="background-color: #e7f3ff; border-bottom: 1px solid var(--bank-border);">
+                <h4 class="mb-0" style="color: #333;">
+                    <i class="bi bi-shield-check"></i> Additional Verification Required
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if is_locked %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-lock-fill"></i> 
+                    <strong>Account Temporarily Locked</strong><br>
+                    Too many failed attempts. Please wait 5 minutes before trying again.
+                </div>
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                        Return to Dashboard
+                    </a>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    Please answer your security question to complete this transfer.
+                </div>
+                
+                <form method="POST" action="{{ url_for('security_questions') }}">
+                    <div class="mb-4">
+                        <label for="answer" class="form-label">Security Question:</label>
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <strong>{{ question }}</strong>
+                            </div>
+                        </div>
+                        <input type="text" class="form-control form-control-lg" 
+                               id="answer" name="answer" placeholder="Enter your answer" required autofocus>
+                        <small class="form-text text-muted">
+                            Answer is case-insensitive
+                        </small>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Submit Answer
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-fill-check"></i> This security measure helps protect your account from unauthorized transfers.
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
