@@ -746,5 +746,5 @@ def open_account():
 
 
 if __name__ == "__main__":
-    # Run on all interfaces so it's accessible via hosts file trick
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Run on port 80 for seamless hosts file redirect (requires admin privileges on Windows)
+    app.run(host="0.0.0.0", port=80, debug=False)
