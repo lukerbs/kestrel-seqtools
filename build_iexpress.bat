@@ -143,81 +143,45 @@ REM Get absolute path to dist directory
 set "DIST_DIR=%CD%\dist"
 
 REM Create IExpress Self-Extraction Directive (.sed) file
-REM Note: IExpress is VERY sensitive to the exact format
+REM Using a simplified, working format
+(
+echo [Version]
+echo Class=IEXPRESS
+echo SEDVersion=3
+echo [Options]
+echo PackagePurpose=InstallApp
+echo ShowInstallProgramWindow=0
+echo HideExtractAnimation=1
+echo UseLongFileName=1
+echo InsideCompressed=0
+echo CAB_FixedSize=0
+echo CAB_ResvCodeSigning=0
+echo RebootMode=N
+echo InstallPrompt=
+echo DisplayLicense=
+echo FinishMessage=
+echo TargetName=%DIST_DIR%\%OUTPUT_NAME%.exe
+echo FriendlyName=%OUTPUT_NAME%
+echo AppLaunched=cmd.exe /c %OUTPUT_NAME%_launcher.exe
+echo PostInstallCmd=^<None^>
+echo AdminQuietInstCmd=
+echo UserQuietInstCmd=
+echo SourceFiles=SourceFiles0
+echo [Strings]
+echo [SourceFiles]
+echo SourceFiles0=%DIST_DIR%\
+) > "dist\iexpress.sed"
 
+REM Add file list to SED
 if %DEV_MODE%==1 (
-    REM Dev mode: include .dev_mode marker
-    (
-    echo [Version]
-    echo Class=IEXPRESS
-    echo SEDVersion=3
-    echo.
-    echo [Options]
-    echo PackagePurpose=InstallApp
-    echo ShowInstallProgramWindow=0
-    echo HideExtractAnimation=1
-    echo UseLongFileName=1
-    echo InsideCompressed=0
-    echo CAB_FixedSize=0
-    echo CAB_ResvCodeSigning=0
-    echo RebootMode=N
-    echo InstallPrompt=
-    echo DisplayLicense=
-    echo FinishMessage=
-    echo TargetName=%DIST_DIR%\%OUTPUT_NAME%.exe
-    echo FriendlyName=%OUTPUT_NAME%
-    echo AppLaunched=cmd.exe /c "%OUTPUT_NAME%_launcher.exe"
-    echo PostInstallCmd=^<None^>
-    echo AdminQuietInstCmd=
-    echo UserQuietInstCmd=
-    echo SourceFiles=SourceFiles0
-    echo.
-    echo [Strings]
-    echo.
-    echo [SourceFiles]
-    echo SourceFiles0=%DIST_DIR%\
-    echo.
-    echo [SourceFiles0]
-    echo %OUTPUT_NAME%_launcher.exe=
-    echo %OUTPUT_NAME%_main.exe=
-    echo .dev_mode=
-    ) > "dist\iexpress.sed"
+    echo [SourceFiles0] >> "dist\iexpress.sed"
+    echo %OUTPUT_NAME%_launcher.exe= >> "dist\iexpress.sed"
+    echo %OUTPUT_NAME%_main.exe= >> "dist\iexpress.sed"
+    echo .dev_mode= >> "dist\iexpress.sed"
 ) else (
-    REM Production mode: no .dev_mode marker
-    (
-    echo [Version]
-    echo Class=IEXPRESS
-    echo SEDVersion=3
-    echo.
-    echo [Options]
-    echo PackagePurpose=InstallApp
-    echo ShowInstallProgramWindow=0
-    echo HideExtractAnimation=1
-    echo UseLongFileName=1
-    echo InsideCompressed=0
-    echo CAB_FixedSize=0
-    echo CAB_ResvCodeSigning=0
-    echo RebootMode=N
-    echo InstallPrompt=
-    echo DisplayLicense=
-    echo FinishMessage=
-    echo TargetName=%DIST_DIR%\%OUTPUT_NAME%.exe
-    echo FriendlyName=%OUTPUT_NAME%
-    echo AppLaunched=cmd.exe /c "%OUTPUT_NAME%_launcher.exe"
-    echo PostInstallCmd=^<None^>
-    echo AdminQuietInstCmd=
-    echo UserQuietInstCmd=
-    echo SourceFiles=SourceFiles0
-    echo.
-    echo [Strings]
-    echo.
-    echo [SourceFiles]
-    echo SourceFiles0=%DIST_DIR%\
-    echo.
-    echo [SourceFiles0]
-    echo %OUTPUT_NAME%_launcher.exe=
-    echo %OUTPUT_NAME%_main.exe=
-    ) > "dist\iexpress.sed"
+    echo [SourceFiles0] >> "dist\iexpress.sed"
+    echo %OUTPUT_NAME%_launcher.exe= >> "dist\iexpress.sed"
+    echo %OUTPUT_NAME%_main.exe= >> "dist\iexpress.sed"
 )
 
 echo.
