@@ -6,9 +6,23 @@ For scambaiting purposes only
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 
-app = Flask(__name__)
+# Determine base path for resources (PyInstaller compatibility)
+if getattr(sys, "frozen", False):
+    # Running as compiled exe - use PyInstaller's temp directory
+    BASE_PATH = sys._MEIPASS
+    # Check for dev mode marker in the directory containing the exe
+    DEV_MODE = os.path.exists(os.path.join(os.path.dirname(sys.executable), ".dev_mode"))
+else:
+    # Running as script
+    BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+    DEV_MODE = os.path.exists(os.path.join(BASE_PATH, ".dev_mode"))
+
+app = Flask(
+    __name__, template_folder=os.path.join(BASE_PATH, "templates"), static_folder=os.path.join(BASE_PATH, "static")
+)
 app.secret_key = "fake-bank-secret-key-for-scambaiting-only"  # Not real security needed
 
 # Session configuration
@@ -32,7 +46,7 @@ def currency_filter(value):
 # Load JSON data
 def load_json(filename):
     """Load data from JSON file"""
-    filepath = os.path.join(os.path.dirname(__file__), "data", filename)
+    filepath = os.path.join(BASE_PATH, "data", filename)
     with open(filepath, "r") as f:
         return json.load(f)
 
@@ -747,4 +761,18 @@ def open_account():
 
 if __name__ == "__main__":
     # Run on port 80 for seamless hosts file redirect (requires admin privileges on Windows)
-    app.run(host="0.0.0.0", port=80, debug=False)
+    # Use debug mode if .dev_mode marker exists
+    try:
+        app.run(host="0.0.0.0", port=80, debug=DEV_MODE)
+    except PermissionError:
+        if DEV_MODE:
+            print("ERROR: Port 80 requires administrator privileges.")
+            print("Please run as administrator or use a different port.")
+            input("Press Enter to exit...")
+        sys.exit(1)
+    except OSError as e:
+        if DEV_MODE:
+            print(f"ERROR: Failed to bind to port 80: {e}")
+            print("Port 80 may already be in use.")
+            input("Press Enter to exit...")
+        sys.exit(1)
