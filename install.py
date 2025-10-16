@@ -126,6 +126,7 @@ WINDOWS_RECEIVER_TEMPLATE = """<?xml version="1.0" encoding="UTF-16"?>
 
 # ============================================================================
 # WINDOWS INSTALLATION FUNCTIONS
+# These are used to install the receiver as a Windows Task Scheduler task.
 # ============================================================================
 
 
