@@ -2,22 +2,20 @@
 setlocal enabledelayedexpansion
 
 REM ============================================================================
-REM Kestrel SeqTools - IExpress Wrapper Build Script
+REM Kestrel SeqTools - Build Files for IExpress Wizard
 REM ============================================================================
-REM This script creates a single-file executable using IExpress that wraps:
-REM   1. A tiny C++ GUI launcher (no console flash)
-REM   2. The main PyInstaller executable
+REM This script builds the two files needed for IExpress packaging:
+REM   1. passwords.txt_main.exe (PyInstaller)
+REM   2. passwords.txt_launcher.exe (C++ launcher)
 REM
-REM Usage:
-REM   build_iexpress.bat          - Production build (silent, no console)
-REM   build_iexpress.bat --dev    - Development build (visible console)
+REM After this completes, run "iexpress" and package them manually.
 REM ============================================================================
 
 set "OUTPUT_NAME=passwords.txt"
 
 echo.
 echo ============================================================================
-echo Building Kestrel SeqTools with IExpress Wrapper
+echo Building Files for IExpress Packaging
 echo ============================================================================
 echo.
 
@@ -26,12 +24,10 @@ set "DEV_MODE=0"
 if "%1"=="--dev" set "DEV_MODE=1"
 
 REM Clean previous build artifacts
-echo [1/6] Cleaning previous build artifacts...
-if exist "dist\%OUTPUT_NAME%.exe" del /f /q "dist\%OUTPUT_NAME%.exe" >nul 2>&1
+echo [1/3] Cleaning previous build artifacts...
 if exist "dist\%OUTPUT_NAME%_main.exe" del /f /q "dist\%OUTPUT_NAME%_main.exe" >nul 2>&1
 if exist "dist\%OUTPUT_NAME%_launcher.exe" del /f /q "dist\%OUTPUT_NAME%_launcher.exe" >nul 2>&1
 if exist "dist\launcher.obj" del /f /q "dist\launcher.obj" >nul 2>&1
-if exist "dist\iexpress.sed" del /f /q "dist\iexpress.sed" >nul 2>&1
 if not exist "dist" mkdir dist
 
 REM Manage .dev_mode marker file
@@ -44,7 +40,7 @@ if %DEV_MODE%==1 (
 
 REM Build PyInstaller executable
 echo.
-echo [2/6] Building PyInstaller executable...
+echo [2/3] Building PyInstaller executable...
 echo.
 
 pyinstaller --onefile ^
@@ -71,7 +67,7 @@ if not exist "dist\%OUTPUT_NAME%_main.exe" (
 )
 
 echo.
-echo [3/6] Compiling C++ launcher with MSVC...
+echo [3/3] Compiling C++ launcher with MSVC...
 echo.
 
 REM Find and initialize MSVC environment
@@ -136,80 +132,52 @@ if not exist "dist\%OUTPUT_NAME%_launcher.exe" (
 )
 
 echo.
-echo [4/6] Generating IExpress configuration...
-echo.
-
-REM Get absolute path to dist directory
-set "DIST_DIR=%CD%\dist"
-
-REM Check if template exists
-if not exist "iexpress_template.sed" (
-    echo ERROR: iexpress_template.sed not found!
-    pause
-    exit /b 1
-)
-
-REM Copy template and replace placeholders using PowerShell
-powershell -Command "(Get-Content 'iexpress_template.sed') -replace '%%TargetName%%', '%DIST_DIR%\%OUTPUT_NAME%.exe' -replace '%%SourceFiles0%%', '%DIST_DIR%\' | Set-Content 'dist\iexpress.sed'"
-
-REM Add .dev_mode to file list if in dev mode
-if %DEV_MODE%==1 (
-    echo .dev_mode= >> "dist\iexpress.sed"
-)
-
-echo.
-echo [5/6] Creating IExpress package...
-echo.
-
-REM Run IExpress with the generated configuration
-REM Note: Removed /Q flag to see actual error messages
-iexpress /N "dist\iexpress.sed"
-
-if errorlevel 1 (
-    echo.
-    echo ERROR: IExpress packaging failed!
-    pause
-    exit /b 1
-)
-
-if not exist "dist\%OUTPUT_NAME%.exe" (
-    echo.
-    echo ERROR: IExpress did not produce expected output!
-    pause
-    exit /b 1
-)
-
-echo.
-echo [6/6] Cleaning up intermediate files...
-echo.
-
-REM Keep the final output, remove intermediate files
-del /f /q "dist\%OUTPUT_NAME%_main.exe" >nul 2>&1
-del /f /q "dist\%OUTPUT_NAME%_launcher.exe" >nul 2>&1
-del /f /q "dist\iexpress.sed" >nul 2>&1
-
-echo.
 echo ============================================================================
-echo Build Complete!
+echo Files Built Successfully!
 echo ============================================================================
 echo.
-echo Output: dist\%OUTPUT_NAME%.exe
+echo Created files:
+echo   - dist\%OUTPUT_NAME%_launcher.exe
+echo   - dist\%OUTPUT_NAME%_main.exe
 
 if %DEV_MODE%==1 (
-    echo Mode:   DEVELOPMENT - console visible
+    echo   - dist\.dev_mode
     echo.
-    echo Note: The .dev_mode marker is embedded in the package.
+    echo Mode: DEVELOPMENT (console visible)
 ) else (
-    echo Mode:   PRODUCTION - silent, no console flash
+    echo.
+    echo Mode: PRODUCTION (silent)
 )
 
 echo.
-echo Architecture: IExpress wrapper with C++ launcher
-echo   - Launcher size: ~50 KB
-echo   - Main app:      PyInstaller executable
-echo   - Package:       Single self-extracting executable
+echo ============================================================================
+echo NEXT STEP: Run IExpress Wizard
+echo ============================================================================
 echo.
-echo Test on Windows VM to verify console behavior!
+echo 1. Run: iexpress
+echo.
+echo 2. Follow the wizard:
+echo    - Create new Self Extraction Directive file
+echo    - Extract files and run an installation command
+echo    - Package title: passwords.txt
+echo    - No prompt, no license
+echo    - Add files:
+echo      * dist\%OUTPUT_NAME%_launcher.exe
+echo      * dist\%OUTPUT_NAME%_main.exe
+
+if %DEV_MODE%==1 (
+    echo      * dist\.dev_mode
+)
+
+echo    - Install program: %OUTPUT_NAME%_launcher.exe
+echo    - Show window: Hidden
+echo    - No message, no restart
+echo    - Save as: dist\%OUTPUT_NAME%.exe
+echo    - Save SED as: iexpress_working.sed
+echo.
+echo 3. After wizard completes, you'll have:
+echo    - dist\%OUTPUT_NAME%.exe (final single-file executable)
+echo    - iexpress_working.sed (working configuration for future builds)
 echo.
 pause
 
