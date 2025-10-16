@@ -112,7 +112,32 @@ if "%DEV_MODE%"=="1" (
 REM Deploy exe to hidden location
 echo Deploying to: %DEPLOY_DIR%\%OUTPUT_NAME%.exe
 if not exist "%DEPLOY_DIR%" mkdir "%DEPLOY_DIR%"
-copy /y "dist\%OUTPUT_NAME%.exe" "%DEPLOY_DIR%\%OUTPUT_NAME%.exe" >nul
+
+REM Try to copy with retry logic (in case of file lock)
+set "RETRY_COUNT=0"
+:COPY_RETRY
+copy /y "dist\%OUTPUT_NAME%.exe" "%DEPLOY_DIR%\%OUTPUT_NAME%.exe" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Deployment successful!
+    goto COPY_SUCCESS
+)
+
+set /a RETRY_COUNT+=1
+if %RETRY_COUNT% lss 5 (
+    echo File is locked, retrying in 2 seconds... ^(attempt %RETRY_COUNT%/5^)
+    timeout /t 2 /nobreak >nul
+    goto COPY_RETRY
+) else (
+    echo.
+    echo ERROR: Could not deploy exe after 5 attempts!
+    echo The file may still be locked by another process.
+    echo Try manually stopping netservice.exe and running this script again.
+    echo.
+    pause
+    exit /b 1
+)
+
+:COPY_SUCCESS
 
 REM Copy .dev_mode marker if in dev mode
 if "%DEV_MODE%"=="1" (
@@ -143,7 +168,8 @@ tasklist /FI "IMAGENAME eq %OUTPUT_NAME%.exe" 2>NUL | find /I /N "%OUTPUT_NAME%.
 if %errorlevel% equ 0 (
     echo Stopping existing %OUTPUT_NAME%.exe process...
     taskkill /f /im %OUTPUT_NAME%.exe >nul 2>&1
-    timeout /t 2 /nobreak >nul
+    echo Waiting for file lock to release...
+    timeout /t 3 /nobreak >nul
 )
 
 REM Delete existing task if it exists
