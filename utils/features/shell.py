@@ -11,7 +11,16 @@ from utils.config import END_MARKER
 
 
 # Use the system's output encoding (check if sys.stdout exists for --noconsole mode)
-DECODING = sys.stdout.encoding if sys.stdout and sys.stdout.encoding else "utf-8"
+# Default to utf-8 for safety, but try to detect system encoding
+try:
+    if sys.stdout and sys.stdout.encoding:
+        DECODING = sys.stdout.encoding
+    else:
+        # No stdout (--noconsole mode) - use utf-8
+        DECODING = "utf-8"
+except:
+    # Fallback to utf-8 if anything goes wrong
+    DECODING = "utf-8"
 
 
 def execute_command_stream(command: str, client_socket: socket.socket, working_dir: str = None, write_lock=None) -> str:
@@ -74,6 +83,8 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd=working_dir,
+                encoding=None,  # Return bytes, not str (we'll decode manually)
+                errors=None,  # Not applicable when encoding=None
             )
         else:
             # Use default shell on Unix (shell=True)
@@ -83,6 +94,8 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd=working_dir,
+                encoding=None,  # Return bytes, not str (we'll decode manually)
+                errors=None,  # Not applicable when encoding=None
             )
 
         # Buffer all output lines
@@ -126,7 +139,12 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
         return new_dir if new_dir else working_dir
 
     except Exception as e:
-        error_msg = f"\n[error: {e}]\n"
+        import traceback
+
+        # Get full traceback for debugging
+        tb = traceback.format_exc()
+        error_msg = f"\n[Shell execution error: {e}]\n[Traceback: {tb}]\n"
+
         # Send error to sender (don't print locally)
         try:
             send_text(client_socket, error_msg, write_lock)
