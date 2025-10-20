@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank of America - Proxy Setup</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <style>
+        body {
+            background-color: white;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .header {
+            background: white;
+            padding: 15px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .banner {
+            background-color: #e31837;
+            color: white;
+            padding: 15px 0;
+            font-size: 1.6rem;
+            font-weight: 300;
+        }
+        
+        .main-content {
+            background-color: #f7f7f7;
+            min-height: 600px;
+            padding: 40px 0;
+        }
+        
+        .content-section {
+            background: white;
+            padding: 30px;
+            border: 1px solid #d0d0d0;
+            border-radius: 2px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .info-box {
+            background-color: #e5f2ff;
+            border-left: 4px solid #012169;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        
+        .config-box {
+            background-color: #f7f7f7;
+            padding: 20px;
+            border-left: 4px solid #012169;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            margin: 15px 0;
+        }
+        
+        .step-section {
+            margin-bottom: 40px;
+        }
+        
+        .step-header {
+            color: #012169;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .instruction-step {
+            margin-bottom: 20px;
+            padding-left: 35px;
+            position: relative;
+        }
+        
+        .instruction-step .step-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 28px;
+            height: 28px;
+            background-color: #012169;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .btn-bofa {
+            background-color: #012169;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 2px;
+            border: none;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.2s;
+            margin: 5px;
+        }
+        
+        .btn-bofa:hover {
+            background-color: #001a4d;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .btn-bofa-secondary {
+            background-color: white;
+            color: #012169;
+            border: 2px solid #012169;
+        }
+        
+        .btn-bofa-secondary:hover {
+            background-color: #f0f0f0;
+            color: #012169;
+        }
+        
+        .domain-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .domain-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .domain-list li:before {
+            content: "→ ";
+            color: #012169;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="container">
+            <img src="{{ url_for('static', filename='bofa_color_transparent_bg_single_line.png') }}" alt="Bank of America" height="25">
+        </div>
+    </div>
+    
+    <!-- Banner -->
+    <div class="banner">
+        <div class="container">
+            <i class="bi bi-gear"></i> Proxy Configuration Setup
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-10 offset-lg-1">
+                    <!-- Quick Start -->
+                    <div class="content-section">
+                        <h2 class="mb-4" style="color: #012169;">
+                            <i class="bi bi-rocket-takeoff"></i> Quick Start
+                        </h2>
+                        
+                        <div class="info-box">
+                            <p class="mb-0"><strong>This application requires two setup steps:</strong></p>
+                            <ol class="mt-3 mb-0">
+                                <li>Configure your browser to use the local proxy</li>
+                                <li>Install the security certificate</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('cert_instructions') }}" class="btn-bofa">
+                                <i class="bi bi-shield-check"></i> Install Certificate First
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Proxy Configuration -->
+                    <div class="content-section step-section">
+                        <div class="step-header">
+                            <i class="bi bi-1-circle"></i> Configure Browser Proxy
+                        </div>
+                        
+                        <h5 class="mb-3">Option A: Automatic Configuration (PAC File)</h5>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <div>
+                                Copy this PAC file URL:
+                                <div class="config-box">
+                                    {{ pac_url }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <div>
+                                In Chrome/Edge, go to: <code>Settings → System → Open your computer's proxy settings</code>
+                            </div>
+                        </div>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">3</div>
+                            <div>
+                                Enable "Use setup script" and paste the PAC file URL above
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <h5 class="mb-3">Option B: Manual Configuration</h5>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <div>
+                                In Chrome/Edge, go to: <code>Settings → System → Open your computer's proxy settings</code>
+                            </div>
+                        </div>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <div>
+                                Enable "Use a proxy server" and configure:
+                                <div class="config-box">
+                                    <strong>Address:</strong> {{ proxy_host }}<br>
+                                    <strong>Port:</strong> {{ proxy_port }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Certificate Installation -->
+                    <div class="content-section step-section">
+                        <div class="step-header">
+                            <i class="bi bi-2-circle"></i> Install Security Certificate
+                        </div>
+                        
+                        <p>After configuring the proxy, you must install the security certificate to allow HTTPS interception.</p>
+                        
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('cert_instructions') }}" class="btn-bofa">
+                                <i class="bi bi-shield-check"></i> View Certificate Instructions
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Domain Info -->
+                    <div class="content-section">
+                        <h4 style="color: #012169;">
+                            <i class="bi bi-info-circle"></i> Intercepted Domains
+                        </h4>
+                        
+                        <p>The proxy will intercept requests to the following domains and route them to the local application:</p>
+                        
+                        <ul class="domain-list">
+                            {% for domain in target_domains %}
+                            <li><code>{{ domain }}</code></li>
+                            {% endfor %}
+                        </ul>
+                        
+                        <div class="info-box mt-4">
+                            <i class="bi bi-lightbulb"></i> <strong>Note:</strong> All other internet traffic will pass through normally without interception.
+                        </div>
+                    </div>
+                    
+                    <!-- Testing -->
+                    <div class="content-section">
+                        <h4 style="color: #012169;">
+                            <i class="bi bi-check2-circle"></i> Test Your Setup
+                        </h4>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <div>
+                                Open a new browser tab and visit: <code>https://www.google.com</code>
+                                <br><small class="text-muted">This should work normally (proxy passes through)</small>
+                            </div>
+                        </div>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <div>
+                                Visit: <code>https://www.bankofamerica.com</code>
+                                <br><small class="text-muted">This should show the local Bank of America login page</small>
+                            </div>
+                        </div>
+                        
+                        <div class="instruction-step">
+                            <div class="step-number">3</div>
+                            <div>
+                                Check the browser's address bar for a <strong>secure padlock icon</strong>
+                                <br><small class="text-muted">Certificate should show as issued by "mitmproxy"</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="text-center mt-5">
+                        <a href="{{ url_for('cert_instructions') }}" class="btn-bofa">
+                            <i class="bi bi-shield-check"></i> Install Certificate
+                        </a>
+                        <a href="{{ url_for('login') }}" class="btn-bofa btn-bofa-secondary">
+                            <i class="bi bi-house"></i> Go to Login Page
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

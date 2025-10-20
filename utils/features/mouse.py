@@ -21,18 +21,20 @@ def start_jitter(sock: socket.socket, mode_manager: ModeManager) -> None:
     """
     # Check if we can enter jitter mode
     if not mode_manager.set_mode(Mode.MOUSE_JITTER):
-        send_error(sock, "Already in another mode. Use /stop first.")
+        send_error(sock, "Already in another mode. Use /stop first.", mode_manager.socket_write_lock)
         return
 
     try:
         from pynput.mouse import Controller
     except ImportError:
-        send_error(sock, "pynput library not available. Install with: pip install pynput")
+        send_error(
+            sock, "pynput library not available. Install with: pip install pynput", mode_manager.socket_write_lock
+        )
         mode_manager.reset_mode()
         return
 
     # Send confirmation
-    send_text(sock, "[Mouse jitter started. Use /stop to end.]\n")
+    send_text(sock, "[Mouse jitter started. Use /stop to end.]\n", mode_manager.socket_write_lock)
     log("Mouse jitter started")
 
     # Start jitter in background thread
@@ -74,7 +76,7 @@ def stop_jitter(sock: socket.socket, mode_manager: ModeManager) -> None:
         mode_manager: Mode manager instance
     """
     if mode_manager.current_mode != Mode.MOUSE_JITTER:
-        send_error(sock, "Mouse jitter is not running.")
+        send_error(sock, "Mouse jitter is not running.", mode_manager.socket_write_lock)
         return
 
     # Signal stop
@@ -84,7 +86,7 @@ def stop_jitter(sock: socket.socket, mode_manager: ModeManager) -> None:
     mode_manager.wait_for_thread(timeout=2)
 
     # Send confirmation
-    send_text(sock, "[Mouse jitter stopped.]\n")
+    send_text(sock, "[Mouse jitter stopped.]\n", mode_manager.socket_write_lock)
     log("Mouse jitter stopped")
 
     # Reset mode

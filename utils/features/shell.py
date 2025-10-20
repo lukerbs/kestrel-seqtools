@@ -14,7 +14,7 @@ from utils.config import END_MARKER
 DECODING = sys.stdout.encoding if sys.stdout and sys.stdout.encoding else "utf-8"
 
 
-def execute_command_stream(command: str, client_socket: socket.socket, working_dir: str = None) -> str:
+def execute_command_stream(command: str, client_socket: socket.socket, working_dir: str = None, write_lock=None) -> str:
     """
     Executes a command and streams output back through the socket.
 
@@ -110,6 +110,7 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
                     break
 
         # Send all output to sender (excluding the pwd line)
+        # Note: Lock not required - shell commands run sequentially in NORMAL mode with no active background threads
         for line in output_lines:
             client_socket.sendall(line.encode("utf-8"))
 
@@ -128,7 +129,7 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
         error_msg = f"\n[error: {e}]\n"
         # Send error to sender (don't print locally)
         try:
-            send_text(client_socket, error_msg)
+            send_text(client_socket, error_msg, write_lock)
         except (socket.error, OSError, BrokenPipeError):
             pass  # Socket already closed, nothing we can do
 

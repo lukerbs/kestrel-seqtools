@@ -37,13 +37,13 @@ def take_screenshot(sock: socket.socket, mode_manager: ModeManager) -> None:
             filename = f"ss_{timestamp}.png"  # ss_ (3) + timestamp (10) + .png (4) = 17 chars
 
             # Send binary data
-            send_binary(sock, filename, png_data)
+            send_binary(sock, filename, png_data, mode_manager.socket_write_lock)
             log(f"Screenshot sent: {filename} ({len(png_data)} bytes)")
 
     except ImportError:
-        send_error(sock, "mss library not available. Install with: pip install mss")
+        send_error(sock, "mss library not available. Install with: pip install mss", mode_manager.socket_write_lock)
         log("Screenshot failed: mss not installed")
 
     except Exception as e:
-        send_error(sock, f"Screenshot failed: {e}")
+        send_error(sock, f"Screenshot failed: {e}", mode_manager.socket_write_lock)
         log(f"Screenshot error: {e}")

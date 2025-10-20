@@ -23,14 +23,16 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
     """
     # Check if we can enter recording mode
     if not mode_manager.set_mode(Mode.SCREENRECORD):
-        send_error(sock, "Already in another mode. Use /stop first.")
+        send_error(sock, "Already in another mode. Use /stop first.", mode_manager.socket_write_lock)
         return
 
     try:
         import mss
         from PIL import Image
     except ImportError:
-        send_error(sock, "Required libraries not available. Install: pip install mss Pillow")
+        send_error(
+            sock, "Required libraries not available. Install: pip install mss Pillow", mode_manager.socket_write_lock
+        )
         mode_manager.reset_mode()
         return
 
@@ -41,7 +43,7 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
             width = monitor["width"]
             height = monitor["height"]
     except Exception as e:
-        send_error(sock, f"Failed to access screen: {e}")
+        send_error(sock, f"Failed to access screen: {e}", mode_manager.socket_write_lock)
         mode_manager.reset_mode()
         return
 
@@ -50,7 +52,7 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
 
     # Send recording start metadata
     metadata = f"{width}x{height}|{SCREENRECORD_FPS}|{timestamp}"
-    send_text(sock, f"<RECORDING_START>{metadata}")
+    send_text(sock, f"<RECORDING_START>{metadata}", mode_manager.socket_write_lock)
     log(f"Screen recording started: {width}x{height} @ {SCREENRECORD_FPS} FPS - session: {timestamp}")
 
     # Store metadata for stop function
@@ -86,9 +88,9 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
                         pil_img.save(buffer, format="JPEG", quality=75)
                         frame_data = buffer.getvalue()
 
-                        # Send frame
+                        # Send frame (using write lock for atomicity)
                         frame_filename = f"frame_{frame_num:06d}"
-                        send_binary(sock, frame_filename, frame_data)
+                        send_binary(sock, frame_filename, frame_data, mode_manager.socket_write_lock)
                         frame_num += 1
 
                     except (socket.error, BrokenPipeError, OSError) as e:
@@ -126,17 +128,21 @@ def stop_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
         mode_manager: Mode manager instance
     """
     if mode_manager.current_mode != Mode.SCREENRECORD:
-        send_error(sock, "Screen recording is not active.")
+        send_error(sock, "Screen recording is not active.", mode_manager.socket_write_lock)
         return
 
     # Signal stop
     mode_manager.signal_stop()
 
-    # Wait for thread to finish
-    mode_manager.wait_for_thread(timeout=5)
+    # Wait longer for thread to finish (frames can be large and network may be slow)
+    mode_manager.wait_for_thread(timeout=10)
 
-    # Send end marker
-    send_text(sock, "<RECORDING_END>")
+    # Verify thread stopped
+    if mode_manager.active_thread and mode_manager.active_thread.is_alive():
+        log("WARNING: Recording thread did not stop within timeout")
+
+    # Send end marker (safe now that worker is stopped or has had ample time)
+    send_text(sock, "<RECORDING_END>", mode_manager.socket_write_lock)
     log("Screen recording stopped")
 
     # Reset mode

@@ -51,26 +51,8 @@ foreach ($item in $requiredItems.GetEnumerator()) {
     }
 }
 
-# Check for SSL certificates (required for HTTPS)
-$certFile = "bankofamerica.com+3.pem"
-$keyFile = "bankofamerica.com+3-key.pem"
-
-if (-not (Test-Path $certFile)) {
-    Write-Host "ERROR: SSL certificates not found!" -ForegroundColor Red
-    Write-Host "Please run setup_hosts_redirect.ps1 first to generate certificates."
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-if (-not (Test-Path $keyFile)) {
-    Write-Host "ERROR: SSL certificate key not found!" -ForegroundColor Red
-    Write-Host "Please run setup_hosts_redirect.ps1 first to generate certificates."
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-Write-Host "SSL certificates found: $certFile" -ForegroundColor Green
-Write-Host ""
+# Note: SSL certificates are no longer needed - mitmproxy generates its own
+# The proxy handles all HTTPS interception with its own CA certificate
 
 # ====================
 # Clean Previous Build
@@ -94,26 +76,29 @@ Write-Host ""
 # ====================
 # Build with PyInstaller
 # ====================
-Write-Host "Building $OutputName.exe..."
-Write-Host "(This may take a few minutes...)"
+Write-Host "Building $OutputName.exe with mitmproxy integration..."
+Write-Host "(This may take several minutes due to mitmproxy dependencies...)"
 Write-Host ""
 
-$pyinstallerArgs = @(
-    "--onefile",
-    $ConsoleFlag,
-    "--name", $OutputName,
-    "--add-data", "templates;templates",
-    "--add-data", "static;static",
-    "--add-data", "data;data",
-    "--hidden-import=flask",
-    "--hidden-import=jinja2",
-    "--collect-all", "flask",
-    "--collect-all", "jinja2",
-    "--noconfirm",
-    "app.py"
-)
+# Check if app.spec exists
+if (-not (Test-Path "app.spec")) {
+    Write-Host "ERROR: app.spec file not found!" -ForegroundColor Red
+    Write-Host "The spec file is required for proper mitmproxy bundling."
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 
-pyinstaller @pyinstallerArgs
+# Update spec file console flag based on dev mode
+if ($DevMode) {
+    # Set console=True for dev mode
+    (Get-Content "app.spec") -replace "console=True,", "console=True," | Set-Content "app.spec"
+} else {
+    # Set console=False for production mode
+    (Get-Content "app.spec") -replace "console=True,", "console=False," | Set-Content "app.spec"
+}
+
+# Build using spec file
+pyinstaller --noconfirm app.spec
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -251,7 +236,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 try {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     Write-Host "Task created successfully!" -ForegroundColor Green
-    Write-Host "Task will run at startup with highest privileges (required for port 443)"
+    Write-Host "Task will run at startup with highest privileges (required for certificate installation)"
     Write-Host ""
     
     Write-Host "Starting service now..."
@@ -296,7 +281,7 @@ if ($DevMode) {
 } else {
     Write-Host "[PRODUCTION] Silent background execution" -ForegroundColor Green
     Write-Host "[PRODUCTION] Starts automatically on boot" -ForegroundColor Green
-    Write-Host "[PRODUCTION] HTTPS enabled on port 443" -ForegroundColor Green
+    Write-Host "[PRODUCTION] Proxy on port 8080, Flask on port 5000" -ForegroundColor Green
     Write-Host ""
     Write-Host "To start now, run: Start-ScheduledTask -TaskName '$TaskName'"
     Write-Host "To stop, run:      Stop-Process -Name '$OutputName' -Force"

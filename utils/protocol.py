@@ -7,31 +7,39 @@ import socket
 from utils.config import END_MARKER, BINARY_START_MARKER, BUFFER_SIZE
 
 
-def send_text(sock: socket.socket, message: str) -> None:
+def send_text(sock: socket.socket, message: str, write_lock=None) -> None:
     """
     Send a text message with END_MARKER.
 
     Args:
         sock: Socket to send through
         message: Text message to send
+        write_lock: Optional threading.Lock to serialize writes
     """
-    sock.sendall(message.encode("utf-8"))
-    sock.sendall(END_MARKER)
+    encoded = message.encode("utf-8")
+    if write_lock:
+        with write_lock:
+            sock.sendall(encoded)
+            sock.sendall(END_MARKER)
+    else:
+        sock.sendall(encoded)
+        sock.sendall(END_MARKER)
 
 
-def send_error(sock: socket.socket, message: str) -> None:
+def send_error(sock: socket.socket, message: str, write_lock=None) -> None:
     """
     Send an error message with consistent formatting.
 
     Args:
         sock: Socket to send through
         message: Error message to send
+        write_lock: Optional threading.Lock to serialize writes
     """
     if not message.startswith("[ERROR"):
         message = f"[ERROR: {message}]"
     if not message.endswith("\n"):
         message += "\n"
-    send_text(sock, message)
+    send_text(sock, message, write_lock)
 
 
 def receive_text(sock: socket.socket) -> str:
@@ -58,7 +66,7 @@ def receive_text(sock: socket.socket) -> str:
     return buffer.split(END_MARKER)[0].decode("utf-8")
 
 
-def send_binary(sock: socket.socket, data_type: str, data: bytes) -> None:
+def send_binary(sock: socket.socket, data_type: str, data: bytes, write_lock=None) -> None:
     """
     Send binary data with a header containing type and size.
 
@@ -68,6 +76,7 @@ def send_binary(sock: socket.socket, data_type: str, data: bytes) -> None:
         sock: Socket to send through
         data_type: Type identifier (max 20 chars)
         data: Binary data to send
+        write_lock: Optional threading.Lock to serialize writes
     """
     # Truncate or pad data_type to exactly 20 characters
     type_bytes = data_type.encode("utf-8")[:20].ljust(20, b"\x00")
@@ -76,11 +85,18 @@ def send_binary(sock: socket.socket, data_type: str, data: bytes) -> None:
     # Use ! for network byte order (big-endian) with standard sizes and no padding
     header = struct.pack("!20sQ", type_bytes, len(data))
 
-    # Send: marker + header + data + end marker
-    sock.sendall(BINARY_START_MARKER)
-    sock.sendall(header)
-    sock.sendall(data)
-    sock.sendall(END_MARKER)
+    # Send: marker + header + data + end marker (atomically if lock provided)
+    if write_lock:
+        with write_lock:
+            sock.sendall(BINARY_START_MARKER)
+            sock.sendall(header)
+            sock.sendall(data)
+            sock.sendall(END_MARKER)
+    else:
+        sock.sendall(BINARY_START_MARKER)
+        sock.sendall(header)
+        sock.sendall(data)
+        sock.sendall(END_MARKER)
 
 
 def receive_binary(sock: socket.socket) -> tuple[str, bytes]:

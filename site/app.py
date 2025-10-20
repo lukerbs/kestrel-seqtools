@@ -3,11 +3,21 @@ Fake Bank Website - Flask Application
 For scambaiting purposes only
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 import json
 import os
 import sys
+import asyncio
+import threading
+import signal
+import time
+import logging
+import subprocess
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
+from mitmproxy.options import Options
+from mitmproxy.tools.dump import DumpMaster
+from mitmproxy import http, ctx
 
 # Determine base path for resources (PyInstaller compatibility)
 if getattr(sys, "frozen", False):
@@ -19,6 +29,25 @@ else:
     # Running as script
     BASE_PATH = os.path.dirname(os.path.abspath(__file__))
     DEV_MODE = os.path.exists(os.path.join(BASE_PATH, ".dev_mode"))
+
+# Persistent directory for mitmproxy certificates
+if getattr(sys, "frozen", False):
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CONF_DIR = os.path.join(APP_DIR, "mitmproxy_data")
+LOG_FILE = os.path.join(CONF_DIR, "app.log")
+
+# Proxy Configuration
+PROXY_HOST = "127.0.0.1"
+PROXY_PORT = 8080
+FLASK_PORT = 5000  # Flask runs on non-privileged port
+TARGET_DOMAINS = ["bankofamerica.com", "www.bankofamerica.com", "secure.bankofamerica.com", "online.bankofamerica.com"]
+
+# Global state for mitmproxy
+shutdown_event = threading.Event()
+mitm_master = None
 
 app = Flask(
     __name__, template_folder=os.path.join(BASE_PATH, "templates"), static_folder=os.path.join(BASE_PATH, "static")
@@ -41,6 +70,39 @@ def currency_filter(value):
         return "${:,.2f}".format(float(value))
     except (ValueError, TypeError):
         return "$0.00"
+
+
+# mitmproxy Redirector Addon
+class Redirector:
+    """mitmproxy addon to intercept and route Bank of America traffic"""
+
+    def get_cert_path(self) -> str:
+        cert_filename = "mitmproxy-ca-cert.cer"
+        return os.path.join(ctx.options.confdir, cert_filename)
+
+    def request(self, flow: http.HTTPFlow) -> None:
+        original_host = flow.request.pretty_host
+        if any(domain in original_host for domain in TARGET_DOMAINS):
+            ctx.log.info(f"Intercepting {original_host} -> Flask")
+            flow.request.host = "127.0.0.1"
+            flow.request.port = FLASK_PORT
+            flow.request.scheme = "http"
+            flow.request.headers["Host"] = original_host
+
+    def error(self, flow: http.HTTPFlow) -> None:
+        is_local_failure = (
+            flow.request.host == "127.0.0.1"
+            and flow.request.port == FLASK_PORT
+            and flow.error
+            and "refused" in str(flow.error).lower()
+        )
+        if is_local_failure:
+            ctx.log.warn("Flask server not responding")
+            flow.response = http.Response.make(
+                503,
+                b"<h1>503 Service Unavailable</h1><p>Flask server is not running.</p>",
+                {"Content-Type": "text/html"},
+            )
 
 
 # Load JSON data
@@ -759,6 +821,43 @@ def open_account():
     return render_template("open_account.html")
 
 
+# Proxy support routes
+@app.route("/proxy.pac")
+def proxy_pac():
+    """Generate PAC file for automatic proxy configuration"""
+    pac_script_parts = ["function FindProxyForURL(url, host) {", '    var proxy = "DIRECT";']
+    for domain in TARGET_DOMAINS:
+        condition = f'shExpMatch(host, "{domain}") || shExpMatch(host, "*.{domain}")'
+        pac_script_parts.append(f'    if ({condition}) {{ proxy = "PROXY {PROXY_HOST}:{PROXY_PORT}"; }}')
+    pac_script_parts.extend(["    return proxy;", "}"])
+    pac_script = "\n".join(pac_script_parts)
+    return Response(pac_script, mimetype="application/x-ns-proxy-autoconfig")
+
+
+@app.route("/cert")
+def cert_instructions():
+    """Display certificate installation instructions"""
+    cert_path = "Certificate not available. Start proxy first."
+    if mitm_master:
+        for addon in mitm_master.addons:
+            if isinstance(addon, Redirector):
+                try:
+                    cert_path = addon.get_cert_path()
+                except Exception as e:
+                    if DEV_MODE:
+                        print(f"Could not get cert path: {e}")
+    return render_template("cert.html", cert_path=cert_path)
+
+
+@app.route("/setup")
+def setup_instructions():
+    """Display proxy setup instructions"""
+    pac_url = f"http://127.0.0.1:{FLASK_PORT}/proxy.pac"
+    return render_template(
+        "setup.html", pac_url=pac_url, proxy_host=PROXY_HOST, proxy_port=PROXY_PORT, target_domains=TARGET_DOMAINS
+    )
+
+
 # Catch-all route for any unrecognized URLs
 # This makes the fake site extremely convincing for scambaiting:
 # - Any real Bank of America URL from Google search will work
@@ -778,56 +877,124 @@ def catch_all(path):
     return redirect(url_for("login"))
 
 
-if __name__ == "__main__":
-    import glob
+def setup_logging(log_path):
+    """Configure file-based logging for the application"""
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[RotatingFileHandler(log_path, maxBytes=10485760, backupCount=3), logging.StreamHandler(sys.stdout)],
+    )
+    logging.getLogger("mitmproxy").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-    # Dynamically detect SSL certificates using glob patterns
-    # Certificates are deployed alongside the .exe in the same directory
-    # This avoids hardcoding the +N number based on SANs
-    cert_pattern = "bankofamerica.com*.pem"
-    key_pattern = "bankofamerica.com*-key.pem"
 
-    cert_files = glob.glob(cert_pattern)
-    key_files = glob.glob(key_pattern)
-
-    # Filter out key files from cert files list
-    cert_files = [f for f in cert_files if not f.endswith("-key.pem")]
-
-    # Check if we have both certificate and key
-    if cert_files and key_files:
-        cert_file = cert_files[0]
-        key_file = key_files[0]
-
-        if os.path.exists(cert_file) and os.path.exists(key_file):
-            ssl_context = (cert_file, key_file)
-            port = 443
-            if DEV_MODE:
-                print(f"Starting with HTTPS on port {port}")
-                print(f"Certificate: {os.path.basename(cert_file)}")
-                print(f"Key: {os.path.basename(key_file)}")
-        else:
-            ssl_context = None
-            port = 80
-            if DEV_MODE:
-                print(f"Certificates not found. Starting with HTTP on port {port}")
-    else:
-        ssl_context = None
-        port = 80
-        if DEV_MODE:
-            print(f"No SSL certificates found. Starting with HTTP on port {port}")
-
-    # Run Flask with appropriate configuration
+def run_mitmproxy(master):
+    """Run mitmproxy's asyncio event loop in a separate thread"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        app.run(host="0.0.0.0", port=port, ssl_context=ssl_context, debug=DEV_MODE)
-    except PermissionError:
-        if DEV_MODE:
-            print(f"ERROR: Port {port} requires administrator privileges.")
-            print("Please run as administrator or use a different port.")
-            input("Press Enter to exit...")
+        loop.run_until_complete(master.run())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        loop.close()
+
+
+def handle_shutdown(signum, frame):
+    """Handle graceful shutdown signal"""
+    logging.info("Shutdown signal received")
+    if mitm_master:
+        mitm_master.shutdown()
+    shutdown_event.set()
+
+
+def install_cert_windows(cert_path):
+    """Attempt automatic certificate installation on Windows"""
+    if sys.platform == "win32" and os.path.exists(cert_path):
+        logging.info(f"Attempting automatic certificate install: {cert_path}")
+        try:
+            command = [
+                "powershell",
+                "-Command",
+                f"Import-Certificate -FilePath '{cert_path}' -CertStoreLocation 'Cert:\\LocalMachine\\Root'",
+            ]
+            # CREATE_NO_WINDOW is Windows-specific
+            creation_flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+            subprocess.run(command, check=True, capture_output=True, text=True, creationflags=creation_flags)
+            logging.info("Certificate installed successfully")
+            return True
+        except Exception as e:
+            logging.warning(f"Auto-install failed: {e}. Use manual instructions.")
+    return False
+
+
+def main():
+    """Main application entry point"""
+    global mitm_master
+
+    os.makedirs(CONF_DIR, exist_ok=True)
+    setup_logging(LOG_FILE)
+    logging.info("Starting Bank of America Scambaiting Application")
+
+    # Configure mitmproxy
+    opts = Options(listen_host=PROXY_HOST, listen_port=PROXY_PORT, confdir=CONF_DIR)
+    mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
+    redirector = Redirector()
+    mitm_master.addons.add(redirector)
+
+    # Start mitmproxy in background thread
+    mitm_thread = threading.Thread(target=run_mitmproxy, args=(mitm_master,), daemon=True)
+    mitm_thread.start()
+    logging.info(f"Proxy listening on {PROXY_HOST}:{PROXY_PORT}")
+
+    # Register signal handlers
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
+
+    # Validate proxy started successfully
+    time.sleep(0.5)
+    if not mitm_thread.is_alive():
+        logging.error("mitmproxy thread died immediately. Check for port conflicts.")
         sys.exit(1)
-    except OSError as e:
-        if DEV_MODE:
-            print(f"ERROR: Failed to bind to port {port}: {e}")
-            print(f"Port {port} may already be in use.")
-            input("Press Enter to exit...")
-        sys.exit(1)
+
+    # Wait for cert generation with retry logic
+    max_retries = 10
+    cert_installed = False
+    for attempt in range(max_retries):
+        time.sleep(0.5)
+        try:
+            cert_path = redirector.get_cert_path()
+            if os.path.exists(cert_path):
+                install_cert_windows(cert_path)
+                cert_installed = True
+                break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logging.warning(f"Certificate not available after {max_retries} attempts: {e}")
+
+    # Print setup instructions
+    if DEV_MODE:
+        print("\n" + "=" * 60)
+        print("  Bank of America Scambaiting Proxy")
+        print("=" * 60)
+        print(f"Flask:  http://127.0.0.1:{FLASK_PORT}")
+        print(f"Proxy:  {PROXY_HOST}:{PROXY_PORT}")
+        print(f"Setup:  http://127.0.0.1:{FLASK_PORT}/setup")
+        print("=" * 60 + "\n")
+
+    # Start Flask on non-privileged port (no admin needed!)
+    try:
+        app.run(host="0.0.0.0", port=FLASK_PORT, threaded=True, debug=DEV_MODE)
+    except Exception as e:
+        logging.error(f"Flask failed: {e}")
+    finally:
+        if not shutdown_event.is_set():
+            handle_shutdown(None, None)
+
+    mitm_thread.join()
+    logging.info("Shutdown complete")
+
+
+if __name__ == "__main__":
+    main()

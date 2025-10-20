@@ -26,7 +26,7 @@ def take_webcam_snapshot(sock: socket.socket, mode_manager: ModeManager) -> None
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
-            send_error(sock, "No webcam detected or webcam is in use.")
+            send_error(sock, "No webcam detected or webcam is in use.", mode_manager.socket_write_lock)
             log("Webcam snapshot failed: No webcam available")
             return
 
@@ -35,7 +35,7 @@ def take_webcam_snapshot(sock: socket.socket, mode_manager: ModeManager) -> None
         cap.release()
 
         if not ret or frame is None:
-            send_error(sock, "Failed to capture webcam frame.")
+            send_error(sock, "Failed to capture webcam frame.", mode_manager.socket_write_lock)
             log("Webcam snapshot failed: Could not capture frame")
             return
 
@@ -44,7 +44,7 @@ def take_webcam_snapshot(sock: socket.socket, mode_manager: ModeManager) -> None
         ret, jpeg_data = cv2.imencode(".jpg", frame, encode_param)
 
         if not ret:
-            send_error(sock, "Failed to encode webcam image.")
+            send_error(sock, "Failed to encode webcam image.", mode_manager.socket_write_lock)
             log("Webcam snapshot failed: Encoding error")
             return
 
@@ -56,13 +56,17 @@ def take_webcam_snapshot(sock: socket.socket, mode_manager: ModeManager) -> None
         filename = f"snap_{timestamp}.jpg"  # snap_ (5) + timestamp (10) + .jpg (4) = 19 chars
 
         # Send binary data
-        send_binary(sock, filename, jpeg_bytes)
+        send_binary(sock, filename, jpeg_bytes, mode_manager.socket_write_lock)
         log(f"Webcam snapshot sent: {filename} ({len(jpeg_bytes)} bytes)")
 
     except ImportError:
-        send_error(sock, "opencv-python library not available. Install with: pip install opencv-python")
+        send_error(
+            sock,
+            "opencv-python library not available. Install with: pip install opencv-python",
+            mode_manager.socket_write_lock,
+        )
         log("Webcam snapshot failed: opencv-python not installed")
 
     except Exception as e:
-        send_error(sock, f"Webcam snapshot failed: {e}")
+        send_error(sock, f"Webcam snapshot failed: {e}", mode_manager.socket_write_lock)
         log(f"Webcam snapshot error: {e}")

