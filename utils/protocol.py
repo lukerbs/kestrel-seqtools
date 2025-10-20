@@ -73,7 +73,8 @@ def send_binary(sock: socket.socket, data_type: str, data: bytes) -> None:
     type_bytes = data_type.encode("utf-8")[:20].ljust(20, b"\x00")
 
     # Pack header: type (20 bytes) + size (8-byte unsigned long long)
-    header = struct.pack("20sQ", type_bytes, len(data))
+    # Use ! for network byte order (big-endian) with standard sizes and no padding
+    header = struct.pack("!20sQ", type_bytes, len(data))
 
     # Send: marker + header + data + end marker
     sock.sendall(BINARY_START_MARKER)
@@ -117,7 +118,8 @@ def receive_binary(sock: socket.socket) -> tuple[str, bytes]:
     buffer = buffer[header_size:]
 
     try:
-        type_bytes, data_size = struct.unpack("20sQ", header)
+        # Use ! for network byte order (big-endian) with standard sizes and no padding
+        type_bytes, data_size = struct.unpack("!20sQ", header)
         data_type = type_bytes.rstrip(b"\x00").decode("utf-8", errors="replace")
     except (struct.error, UnicodeDecodeError) as e:
         raise ValueError(f"Malformed binary header: {e}")
