@@ -64,23 +64,26 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
         track_directory = True
 
     try:
-        # Determine shell executable based on OS
+        # Configure shell execution based on OS
         if system == "Windows":
-            # Use PowerShell on Windows for better functionality
-            # Try PowerShell 7+ (pwsh) first, fallback to Windows PowerShell
-            shell_executable = "powershell.exe"
+            # Use PowerShell on Windows
+            # PowerShell requires commands to be passed with -Command flag
+            process = subprocess.Popen(
+                ["powershell.exe", "-Command", command_to_run],
+                shell=False,  # shell=False when passing command as list
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=working_dir,
+            )
         else:
-            shell_executable = None  # Use default shell on Unix
-
-        # Use subprocess.Popen to manage the process and pipes
-        process = subprocess.Popen(
-            command_to_run,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=working_dir,
-            executable=shell_executable,
-        )
+            # Use default shell on Unix (shell=True)
+            process = subprocess.Popen(
+                command_to_run,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=working_dir,
+            )
 
         # Buffer all output lines
         output_lines = []
