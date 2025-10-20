@@ -38,7 +38,6 @@ site/cert.pem
 site/key.pem
 site/build/
 site/dist/
-site/*.spec
 site/.dev_mode
 
 # Terraform
