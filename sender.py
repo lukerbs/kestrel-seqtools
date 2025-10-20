@@ -218,7 +218,9 @@ def handle_screenrecord_stream(client_socket):
         with tqdm(desc="Recording", unit="frames") as pbar:
             while not stop_requested.is_set():
                 # Check if next data is binary (frame) or text (end marker)
-                if peek_for_binary(client_socket, timeout=0.1):
+                # Timeout must be longer than frame interval (1/fps = 0.2s at 5fps)
+                # Use 0.5s to be safe
+                if peek_for_binary(client_socket, timeout=0.5):
                     # Receive frame
                     frame_name, frame_data = receive_binary(client_socket)
 
