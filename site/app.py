@@ -883,11 +883,9 @@ def setup_logging(log_path):
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
-def run_mitmproxy(opts, redirector):
+def run_mitmproxy(master):
     """Run mitmproxy's asyncio event loop in a separate thread"""
-    global mitm_master
-
-    # Windows requires SelectorEventLoop for proper threading support
+    # Windows requires WindowsSelectorEventLoopPolicy for proper threading support
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -895,14 +893,13 @@ def run_mitmproxy(opts, redirector):
     asyncio.set_event_loop(loop)
 
     try:
-        # Create DumpMaster inside the event loop thread
-        mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
-        mitm_master.addons.add(redirector)
-        loop.run_until_complete(mitm_master.run())
+        # master.run() is a coroutine - run it until complete
+        loop.run_until_complete(master.run())
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
         loop.close()
+        logging.info("mitmproxy event loop closed")
 
 
 def handle_shutdown(signum, frame):
@@ -941,12 +938,16 @@ def main():
     setup_logging(LOG_FILE)
     logging.info("Starting Bank of America Scambaiting Application")
 
-    # Configure mitmproxy options and redirector
+    # Configure mitmproxy options
     opts = Options(listen_host=PROXY_HOST, listen_port=PROXY_PORT, confdir=CONF_DIR)
-    redirector = Redirector()
 
-    # Start mitmproxy in background thread (DumpMaster created inside thread)
-    mitm_thread = threading.Thread(target=run_mitmproxy, args=(opts, redirector), daemon=True)
+    # Create DumpMaster in main thread (BEFORE starting background thread)
+    mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
+    redirector = Redirector()
+    mitm_master.addons.add(redirector)
+
+    # Start mitmproxy in background thread (pass the fully initialized master)
+    mitm_thread = threading.Thread(target=run_mitmproxy, args=(mitm_master,), daemon=True)
     mitm_thread.start()
     logging.info(f"Proxy listening on {PROXY_HOST}:{PROXY_PORT}")
 
