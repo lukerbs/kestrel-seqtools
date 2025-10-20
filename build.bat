@@ -62,6 +62,10 @@ REM Build the executable
 pyinstaller --onefile ^
             --name "%OUTPUT_NAME%" ^
             --icon=icon.ico ^
+            --hidden-import=pynput.keyboard._win32 ^
+            --hidden-import=pynput.mouse._win32 ^
+            --hidden-import=utils ^
+            --hidden-import=utils.features ^
             %CONSOLE_FLAG% ^
             receiver.py
 

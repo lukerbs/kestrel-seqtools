@@ -13,6 +13,19 @@ __pycache__/
 /assets/
 .DS_Store
 
+# RAT / Utils
+data/
+utils/__pycache__/
+utils/features/__pycache__/
+tests/__pycache__/
+*.mp4
+*.png
+*.jpg
+*.jpeg
+.pytest_cache/
+new_pyinput_features.txt
+/venv_sender/
+
 # Flask / Site Directory
 site/__pycache__/
 site/*.pyc
