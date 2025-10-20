@@ -891,20 +891,26 @@ def run_mitmproxy(opts, redirector):
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    # Create a new event loop for this thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    async def init_and_run():
+        """Initialize and run mitmproxy inside async context"""
+        global mitm_master
 
-    try:
-        # Create DumpMaster WITHOUT event_loop parameter (doesn't exist in v9)
+        # Now we're inside a running event loop, so get_running_loop() will work
         mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
         mitm_master.addons.add(redirector)
 
         logging.info("mitmproxy DumpMaster created, starting proxy...")
 
-        # Use run_loop method with loop.run_forever (from StackOverflow solution)
-        mitm_master.run_loop(loop.run_forever)
+        # Run the proxy
+        await mitm_master.run()
 
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        # Run the async initialization function
+        loop.run_until_complete(init_and_run())
     except (KeyboardInterrupt, asyncio.CancelledError):
         logging.info("mitmproxy interrupted")
     except Exception as e:
