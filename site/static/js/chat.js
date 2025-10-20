@@ -1,4 +1,4 @@
-// Fake Support Chat Widget Logic
+// Support Chat Widget Logic
 
 let chatState = {
     isOpen: false,

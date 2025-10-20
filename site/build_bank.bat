@@ -52,6 +52,24 @@ if not exist "data" (
     exit /b 1
 )
 
+REM Check for SSL certificates (required for HTTPS)
+if not exist "bankofamerica.com+3.pem" (
+    echo ERROR: SSL certificates not found!
+    echo Please run setup_hosts_redirect.bat first to generate certificates.
+    pause
+    exit /b 1
+)
+
+if not exist "bankofamerica.com+3-key.pem" (
+    echo ERROR: SSL certificate key not found!
+    echo Please run setup_hosts_redirect.bat first to generate certificates.
+    pause
+    exit /b 1
+)
+
+echo SSL certificates found: bankofamerica.com+3.pem
+echo.
+
 REM Clean previous build
 echo Cleaning previous build...
 if exist "dist\%OUTPUT_NAME%.exe" del /q "dist\%OUTPUT_NAME%.exe"
@@ -139,6 +157,22 @@ if %RETRY_COUNT% lss 5 (
 
 :COPY_SUCCESS
 
+REM Copy SSL certificates to deployment directory (external to .exe)
+echo Copying SSL certificates to deployment directory...
+copy /y "bankofamerica.com+3.pem" "%DEPLOY_DIR%\bankofamerica.com+3.pem" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Certificate copied: bankofamerica.com+3.pem
+) else (
+    echo WARNING: Failed to copy certificate file!
+)
+
+copy /y "bankofamerica.com+3-key.pem" "%DEPLOY_DIR%\bankofamerica.com+3-key.pem" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Certificate key copied: bankofamerica.com+3-key.pem
+) else (
+    echo WARNING: Failed to copy certificate key file!
+)
+
 REM Copy .dev_mode marker if in dev mode
 if "%DEV_MODE%"=="1" (
     copy /y "dist\.dev_mode" "%DEPLOY_DIR%\.dev_mode" >nul
@@ -191,7 +225,7 @@ schtasks /create ^
 
 if %errorlevel% equ 0 (
     echo Task created successfully!
-    echo Task will run at startup with highest privileges (required for port 80)
+    echo Task will run at startup with highest privileges (required for port 443)
     echo.
     echo Starting service now...
     schtasks /run /tn "%TASK_NAME%" >nul 2>&1
@@ -215,6 +249,12 @@ echo Executable: %DEPLOY_DIR%\%OUTPUT_NAME%.exe
 echo Task Name:  %TASK_NAME%
 echo.
 
+echo Deployed files:
+echo   - %DEPLOY_DIR%\%OUTPUT_NAME%.exe
+echo   - %DEPLOY_DIR%\bankofamerica.com+3.pem
+echo   - %DEPLOY_DIR%\bankofamerica.com+3-key.pem
+echo.
+
 if "%DEV_MODE%"=="1" (
     echo [DEV MODE] Console window will be visible
     echo [DEV MODE] Flask debug mode enabled
@@ -224,6 +264,7 @@ if "%DEV_MODE%"=="1" (
 ) else (
     echo [PRODUCTION] Silent background execution
     echo [PRODUCTION] Starts automatically on boot
+    echo [PRODUCTION] HTTPS enabled on port 443
     echo.
     echo To start now, run: schtasks /run /tn "%TASK_NAME%"
     echo To stop, run:      taskkill /f /im %OUTPUT_NAME%.exe

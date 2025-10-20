@@ -759,20 +759,75 @@ def open_account():
     return render_template("open_account.html")
 
 
+# Catch-all route for any unrecognized URLs
+# This makes the fake site extremely convincing for scambaiting:
+# - Any real Bank of America URL from Google search will work
+# - Redirects to login if not authenticated
+# - Redirects to dashboard if already logged in
+@app.route("/<path:path>")
+def catch_all(path):
+    """
+    Catch any unrecognized route and redirect appropriately.
+    This handles when scammers click on real BofA links from search results.
+    """
+    # If user is logged in, send them to dashboard
+    if "username" in session:
+        return redirect(url_for("dashboard"))
+
+    # Otherwise, send them to login
+    return redirect(url_for("login"))
+
+
 if __name__ == "__main__":
-    # Run on port 80 for seamless hosts file redirect (requires admin privileges on Windows)
-    # Use debug mode if .dev_mode marker exists
+    import glob
+
+    # Dynamically detect SSL certificates using glob patterns
+    # Certificates are deployed alongside the .exe in the same directory
+    # This avoids hardcoding the +N number based on SANs
+    cert_pattern = "bankofamerica.com*.pem"
+    key_pattern = "bankofamerica.com*-key.pem"
+
+    cert_files = glob.glob(cert_pattern)
+    key_files = glob.glob(key_pattern)
+
+    # Filter out key files from cert files list
+    cert_files = [f for f in cert_files if not f.endswith("-key.pem")]
+
+    # Check if we have both certificate and key
+    if cert_files and key_files:
+        cert_file = cert_files[0]
+        key_file = key_files[0]
+
+        if os.path.exists(cert_file) and os.path.exists(key_file):
+            ssl_context = (cert_file, key_file)
+            port = 443
+            if DEV_MODE:
+                print(f"Starting with HTTPS on port {port}")
+                print(f"Certificate: {os.path.basename(cert_file)}")
+                print(f"Key: {os.path.basename(key_file)}")
+        else:
+            ssl_context = None
+            port = 80
+            if DEV_MODE:
+                print(f"Certificates not found. Starting with HTTP on port {port}")
+    else:
+        ssl_context = None
+        port = 80
+        if DEV_MODE:
+            print(f"No SSL certificates found. Starting with HTTP on port {port}")
+
+    # Run Flask with appropriate configuration
     try:
-        app.run(host="0.0.0.0", port=80, debug=DEV_MODE)
+        app.run(host="0.0.0.0", port=port, ssl_context=ssl_context, debug=DEV_MODE)
     except PermissionError:
         if DEV_MODE:
-            print("ERROR: Port 80 requires administrator privileges.")
+            print(f"ERROR: Port {port} requires administrator privileges.")
             print("Please run as administrator or use a different port.")
             input("Press Enter to exit...")
         sys.exit(1)
     except OSError as e:
         if DEV_MODE:
-            print(f"ERROR: Failed to bind to port 80: {e}")
-            print("Port 80 may already be in use.")
+            print(f"ERROR: Failed to bind to port {port}: {e}")
+            print(f"Port {port} may already be in use.")
             input("Press Enter to exit...")
         sys.exit(1)

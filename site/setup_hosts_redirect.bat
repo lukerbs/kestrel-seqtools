@@ -1,9 +1,9 @@
 @echo off
-:: Setup Bank of America Hosts File Redirect for Scambaiting
+:: Setup Bank of America Hosts File Redirect + SSL for Scambaiting
 :: Run this script as Administrator in your Windows VM
 
 echo ========================================
-echo Bank of America Hosts File Redirect
+echo Bank of America Local HTTPS Setup
 echo ========================================
 echo.
 
@@ -20,10 +20,80 @@ if %errorLevel% neq 0 (
 echo [+] Running with Administrator privileges
 echo.
 
-:: Backup hosts file
+:: Configuration
+set DOMAIN=bankofamerica.com
 set HOSTS_FILE=C:\Windows\System32\drivers\etc\hosts
 set BACKUP_FILE=C:\Windows\System32\drivers\etc\hosts.backup
+set CERT_FILE=%DOMAIN%+3.pem
+set KEY_FILE=%DOMAIN%+3-key.pem
 
+:: ====================
+:: STEP 1: SSL Certificate
+:: ====================
+echo [1/3] SSL Certificate Setup
+echo -------------------------------------------
+
+:: Check if mkcert is installed
+where mkcert >nul 2>&1
+if %errorLevel% neq 0 (
+    echo [!] WARNING: mkcert is not installed
+    echo [!] Install with: choco install mkcert
+    echo [!] Skipping SSL certificate generation...
+    echo.
+    goto :hosts_setup
+)
+
+:: Check if mkcert CA is installed (one-time setup)
+:: Get the CA root directory path
+for /f "delims=" %%i in ('mkcert -CAROOT 2^>nul') do set CAROOT=%%i
+if not exist "%CAROOT%\rootCA.pem" (
+    echo [+] Installing mkcert local CA (one-time setup)...
+    mkcert -install
+    if %errorLevel% neq 0 (
+        echo [!] Failed to install mkcert CA
+        echo [!] Certificates may not be trusted by browsers
+    ) else (
+        echo [+] Local CA installed successfully
+    )
+) else (
+    echo [+] Local CA already installed
+)
+
+:: Check if certificate already exists
+if exist "%CERT_FILE%" (
+    echo [!] Certificate already exists: %CERT_FILE%
+    echo [!] Skipping generation...
+) else (
+    echo [+] Generating SSL certificate for %DOMAIN%...
+    mkcert %DOMAIN% www.%DOMAIN% secure.%DOMAIN% online.%DOMAIN%
+    if %errorLevel% neq 0 (
+        echo [!] Failed to generate certificate
+        echo [!] Continuing without HTTPS support...
+    ) else (
+        echo [+] Certificate generated successfully
+    )
+)
+
+:: Install certificate to trust store
+if exist "%CERT_FILE%" (
+    echo [+] Installing certificate to Windows trust store...
+    certutil -addstore -f "Root" "%CERT_FILE%" >nul 2>&1
+    if %errorLevel% equ 0 (
+        echo [+] Certificate installed - browsers will trust this site
+    ) else (
+        echo [!] Warning: Could not install certificate to trust store
+    )
+)
+echo.
+
+:: ====================
+:: STEP 2: Hosts File
+:: ====================
+:hosts_setup
+echo [2/3] Hosts File Configuration
+echo -------------------------------------------
+
+:: Backup hosts file
 echo [+] Creating backup of hosts file...
 copy "%HOSTS_FILE%" "%BACKUP_FILE%" >nul 2>&1
 if %errorLevel% equ 0 (
@@ -50,7 +120,11 @@ if %errorLevel% equ 0 (
 )
 echo.
 
-:: Flush DNS cache
+:: ====================
+:: STEP 3: DNS Cache
+:: ====================
+echo [3/3] DNS Cache Flush
+echo -------------------------------------------
 echo [+] Flushing DNS cache...
 ipconfig /flushdns >nul 2>&1
 if %errorLevel% equ 0 (
@@ -60,19 +134,34 @@ if %errorLevel% equ 0 (
 )
 echo.
 
+:: ====================
+:: Summary
+:: ====================
 echo ========================================
 echo Setup Complete!
 echo ========================================
 echo.
 echo Next steps:
 echo 1. Start your Flask app as Administrator: python app.py
-echo 2. Open browser and go to: http://www.bankofamerica.com
-echo 3. The site will load from localhost instead of the internet
+echo 2. App will auto-detect certificates and run on appropriate port:
+echo    - Port 443 (HTTPS) if certificates found
+echo    - Port 80 (HTTP) if no certificates
+echo 3. Open browser and go to: https://www.bankofamerica.com (HTTPS)
+echo    or http://www.bankofamerica.com (HTTP)
 echo.
-echo NOTE: Running Flask on port 80 requires Administrator privileges
-echo      Run Command Prompt as Administrator before starting app.py
+echo Configuration files created:
+if exist "%CERT_FILE%" (
+    echo    - %CERT_FILE%
+    echo    - %KEY_FILE%
+    echo    [HTTPS enabled - app will run on port 443]
+) else (
+    echo    [No certificates - app will run on port 80 HTTP only]
+)
 echo.
-echo To undo this redirect, run: cleanup_hosts_redirect.bat
+echo NOTE: App will run on port 443 (HTTPS) when certificates are found
+echo NOTE: Both port 80 and 443 require Administrator privileges
+echo.
+echo To undo this setup, run: cleanup_hosts_redirect.bat
 echo.
 pause
 

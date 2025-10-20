@@ -74,25 +74,30 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
                 while not mode_manager.is_stopping():
                     start_time = time.time()
 
-                    # Capture frame
-                    img = sct.grab(monitor)
-
-                    # Convert to PIL Image
-                    pil_img = Image.frombytes("RGB", img.size, img.bgra, "raw", "BGRX")
-
-                    # Compress as JPEG
-                    buffer = BytesIO()
-                    pil_img.save(buffer, format="JPEG", quality=75)
-                    frame_data = buffer.getvalue()
-
-                    # Send frame
                     try:
+                        # Capture frame
+                        img = sct.grab(monitor)
+
+                        # Convert to PIL Image
+                        pil_img = Image.frombytes("RGB", img.size, img.bgra, "raw", "BGRX")
+
+                        # Compress as JPEG
+                        buffer = BytesIO()
+                        pil_img.save(buffer, format="JPEG", quality=75)
+                        frame_data = buffer.getvalue()
+
+                        # Send frame
                         frame_filename = f"frame_{frame_num:06d}"
                         send_binary(sock, frame_filename, frame_data)
                         frame_num += 1
-                    except (socket.error, BrokenPipeError):
-                        log("Screen recording: Connection lost")
+
+                    except (socket.error, BrokenPipeError, OSError) as e:
+                        log(f"Screen recording: Connection error - {e}")
                         break
+                    except Exception as e:
+                        log(f"Screen recording: Frame capture error - {e}")
+                        # Continue trying to capture more frames
+                        continue
 
                     # Maintain frame rate
                     elapsed = time.time() - start_time
@@ -100,7 +105,10 @@ def start_recording(sock: socket.socket, mode_manager: ModeManager) -> None:
                     time.sleep(sleep_time)
 
         except Exception as e:
-            log(f"Screen recording error: {e}")
+            log(f"Screen recording: Fatal error - {e}")
+            import traceback
+
+            log(traceback.format_exc())
 
         log(f"Screen recording thread stopped - {frame_num} frames captured")
 
