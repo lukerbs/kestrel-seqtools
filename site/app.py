@@ -837,15 +837,9 @@ def proxy_pac():
 @app.route("/cert")
 def cert_instructions():
     """Display certificate installation instructions"""
-    cert_path = "Certificate not available. Start proxy first."
-    if mitm_master:
-        for addon in mitm_master.addons:
-            if isinstance(addon, Redirector):
-                try:
-                    cert_path = addon.get_cert_path()
-                except Exception as e:
-                    if DEV_MODE:
-                        print(f"Could not get cert path: {e}")
+    cert_path = os.path.join(CONF_DIR, "mitmproxy-ca-cert.cer")
+    if not os.path.exists(cert_path):
+        cert_path = "Certificate not generated yet. Wait a moment and refresh."
     return render_template("cert.html", cert_path=cert_path)
 
 
@@ -889,16 +883,22 @@ def setup_logging(log_path):
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
-def run_mitmproxy(master):
+def run_mitmproxy(opts, redirector):
     """Run mitmproxy's asyncio event loop in a separate thread"""
+    global mitm_master
+
     # Windows requires SelectorEventLoop for proper threading support
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
     try:
-        loop.run_until_complete(master.run())
+        # Create DumpMaster inside the event loop thread
+        mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
+        mitm_master.addons.add(redirector)
+        loop.run_until_complete(mitm_master.run())
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
@@ -941,14 +941,12 @@ def main():
     setup_logging(LOG_FILE)
     logging.info("Starting Bank of America Scambaiting Application")
 
-    # Configure mitmproxy
+    # Configure mitmproxy options and redirector
     opts = Options(listen_host=PROXY_HOST, listen_port=PROXY_PORT, confdir=CONF_DIR)
-    mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
     redirector = Redirector()
-    mitm_master.addons.add(redirector)
 
-    # Start mitmproxy in background thread
-    mitm_thread = threading.Thread(target=run_mitmproxy, args=(mitm_master,), daemon=True)
+    # Start mitmproxy in background thread (DumpMaster created inside thread)
+    mitm_thread = threading.Thread(target=run_mitmproxy, args=(opts, redirector), daemon=True)
     mitm_thread.start()
     logging.info(f"Proxy listening on {PROXY_HOST}:{PROXY_PORT}")
 
@@ -963,12 +961,12 @@ def main():
         sys.exit(1)
 
     # Wait for cert generation with retry logic
+    cert_path = os.path.join(CONF_DIR, "mitmproxy-ca-cert.cer")
     max_retries = 10
     cert_installed = False
     for attempt in range(max_retries):
         time.sleep(0.5)
         try:
-            cert_path = redirector.get_cert_path()
             if os.path.exists(cert_path):
                 install_cert_windows(cert_path)
                 cert_installed = True
