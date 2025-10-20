@@ -91,10 +91,12 @@ if (-not (Test-Path "app.spec")) {
 # Update spec file console flag based on dev mode
 if ($DevMode) {
     # Set console=True for dev mode
-    (Get-Content "app.spec") -replace "console=True,", "console=True," | Set-Content "app.spec"
+    (Get-Content "app.spec") -replace "console=False,", "console=True," | Set-Content "app.spec"
+    Write-Host "Updated app.spec: console=True (dev mode)"
 } else {
     # Set console=False for production mode
     (Get-Content "app.spec") -replace "console=True,", "console=False," | Set-Content "app.spec"
+    Write-Host "Updated app.spec: console=False (production mode)"
 }
 
 # Build using spec file
@@ -166,23 +168,6 @@ while (-not $copied -and $retryCount -lt $maxRetries) {
             exit 1
         }
     }
-}
-
-# Copy SSL certificates to deployment directory (external to .exe)
-Write-Host "Copying SSL certificates to deployment directory..."
-
-try {
-    Copy-Item $certFile "$DeployDir\$certFile" -Force
-    Write-Host "Certificate copied: $certFile" -ForegroundColor Green
-} catch {
-    Write-Host "WARNING: Failed to copy certificate file!" -ForegroundColor Yellow
-}
-
-try {
-    Copy-Item $keyFile "$DeployDir\$keyFile" -Force
-    Write-Host "Certificate key copied: $keyFile" -ForegroundColor Green
-} catch {
-    Write-Host "WARNING: Failed to copy certificate key file!" -ForegroundColor Yellow
 }
 
 # Copy .dev_mode marker if in dev mode
@@ -268,8 +253,6 @@ Write-Host ""
 
 Write-Host "Deployed files:"
 Write-Host "  - $DeployDir\$OutputName.exe"
-Write-Host "  - $DeployDir\$certFile"
-Write-Host "  - $DeployDir\$keyFile"
 Write-Host ""
 
 if ($DevMode) {
