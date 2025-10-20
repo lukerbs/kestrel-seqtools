@@ -891,6 +891,10 @@ def setup_logging(log_path):
 
 def run_mitmproxy(master):
     """Run mitmproxy's asyncio event loop in a separate thread"""
+    # Windows requires SelectorEventLoop for proper threading support
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
