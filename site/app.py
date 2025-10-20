@@ -883,20 +883,32 @@ def setup_logging(log_path):
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
-def run_mitmproxy(master):
+def run_mitmproxy(opts, redirector):
     """Run mitmproxy's asyncio event loop in a separate thread"""
+    global mitm_master
+
     # Windows requires WindowsSelectorEventLoopPolicy for proper threading support
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+    # Create and set the event loop for this thread
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     try:
-        # master.run() is a coroutine - run it until complete
-        loop.run_until_complete(master.run())
+        # Create DumpMaster with the explicit event loop parameter
+        # This is the KEY fix - pass event_loop to avoid the "no running event loop" error
+        mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False, event_loop=loop)
+        mitm_master.addons.add(redirector)
+
+        logging.info("mitmproxy DumpMaster created and starting...")
+
+        # Run the master's event loop
+        loop.run_until_complete(mitm_master.run())
     except (KeyboardInterrupt, asyncio.CancelledError):
-        pass
+        logging.info("mitmproxy interrupted")
+    except Exception as e:
+        logging.error(f"mitmproxy error: {e}")
     finally:
         loop.close()
         logging.info("mitmproxy event loop closed")
@@ -938,18 +950,15 @@ def main():
     setup_logging(LOG_FILE)
     logging.info("Starting Bank of America Scambaiting Application")
 
-    # Configure mitmproxy options
+    # Configure mitmproxy options and create redirector
     opts = Options(listen_host=PROXY_HOST, listen_port=PROXY_PORT, confdir=CONF_DIR)
-
-    # Create DumpMaster in main thread (BEFORE starting background thread)
-    mitm_master = DumpMaster(opts, with_termlog=False, with_dumper=False)
     redirector = Redirector()
-    mitm_master.addons.add(redirector)
 
-    # Start mitmproxy in background thread (pass the fully initialized master)
-    mitm_thread = threading.Thread(target=run_mitmproxy, args=(mitm_master,), daemon=True)
+    # Start mitmproxy in background thread (pass opts and redirector, NOT master)
+    # DumpMaster will be created inside the thread with the proper event loop
+    mitm_thread = threading.Thread(target=run_mitmproxy, args=(opts, redirector), daemon=True)
     mitm_thread.start()
-    logging.info(f"Proxy listening on {PROXY_HOST}:{PROXY_PORT}")
+    logging.info(f"Proxy thread started for {PROXY_HOST}:{PROXY_PORT}")
 
     # Register signal handlers
     signal.signal(signal.SIGINT, handle_shutdown)
