@@ -56,10 +56,10 @@ def check_buddy_system():
 
     if os.path.exists(buddy_file_path):
         # SAFE MODE - Show fake Windows error
-        title = "Notepad (Windows 11 Update Required)"
+        title = "Notepad (Update Required)"
         message = (
-            "You are using a legacy version of Notepad which has been deprecated and is no longer compatible with Microsoft products or Windows 11.\n\n"
-            "Please upgrade to the most recent Windows 11 Software Update and restart your computer to install the latest version of Notepad.\n\n"
+            "You are using a legacy version of Notepad which is no longer compatible with Microsoft products or Windows 11.\n\n"
+            "Please update to the latest Windows 11 release and restart your computer to install the latest version of Notepad.\n\n"
             "To update: Settings > Windows Update > Check for updates"
         )
 
