@@ -18,8 +18,15 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
     """
     Executes a command and streams output back through the socket.
 
-    Automatically appends '&& pwd' (Unix) or '&& cd' (Windows) to track directory changes.
-    The pwd/cd output is hidden from the sender (used only for internal tracking).
+    Shell used:
+    - Windows: PowerShell (powershell.exe)
+    - Unix/Linux/macOS: Default shell (/bin/sh)
+
+    Automatically appends directory tracking commands to maintain working directory:
+    - Windows PowerShell: '; Get-Location | Select-Object -ExpandProperty Path'
+    - Unix: '&& pwd'
+
+    The directory output is hidden from the sender (used only for internal tracking).
     Returns the current working directory after command execution.
 
     WARNING: Uses shell=True for demonstration purposes only.
@@ -39,7 +46,13 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
 
     # Determine pwd command based on OS
     system = platform.system()
-    pwd_command = "cd" if system == "Windows" else "pwd"
+    if system == "Windows":
+        # PowerShell uses semicolon for command chaining and Get-Location for pwd
+        pwd_command = "Get-Location | Select-Object -ExpandProperty Path"
+        command_separator = ";"
+    else:
+        pwd_command = "pwd"
+        command_separator = "&&"
 
     # For clear commands, don't append pwd tracking (it causes issues)
     # Just return the current working_dir unchanged
@@ -47,10 +60,18 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
         command_to_run = command
         track_directory = False
     else:
-        command_to_run = f"{command} && {pwd_command}"
+        command_to_run = f"{command} {command_separator} {pwd_command}"
         track_directory = True
 
     try:
+        # Determine shell executable based on OS
+        if system == "Windows":
+            # Use PowerShell on Windows for better functionality
+            # Try PowerShell 7+ (pwsh) first, fallback to Windows PowerShell
+            shell_executable = "powershell.exe"
+        else:
+            shell_executable = None  # Use default shell on Unix
+
         # Use subprocess.Popen to manage the process and pipes
         process = subprocess.Popen(
             command_to_run,
@@ -58,6 +79,7 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=working_dir,
+            executable=shell_executable,
         )
 
         # Buffer all output lines
@@ -109,4 +131,3 @@ def execute_command_stream(command: str, client_socket: socket.socket, working_d
 
         # On error, return the previous working_dir unchanged
         return working_dir
-
