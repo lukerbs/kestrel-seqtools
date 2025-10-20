@@ -32,9 +32,9 @@ def take_screenshot(sock: socket.socket, mode_manager: ModeManager) -> None:
             # Convert to PNG bytes
             png_data = mss.tools.to_png(screenshot.rgb, screenshot.size)
 
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"screenshot_{timestamp}.png"
+            # Generate filename with timestamp (compact format to fit 20-char protocol limit)
+            timestamp = datetime.now().strftime("%m%d%H%M%S")  # MMDDHHMISS = 10 chars
+            filename = f"ss_{timestamp}.png"  # ss_ (3) + timestamp (10) + .png (4) = 17 chars
 
             # Send binary data
             send_binary(sock, filename, png_data)

@@ -51,9 +51,9 @@ def take_webcam_snapshot(sock: socket.socket, mode_manager: ModeManager) -> None
         # Convert to bytes
         jpeg_bytes = jpeg_data.tobytes()
 
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"snapshot_{timestamp}.jpg"
+        # Generate filename with timestamp (compact format to fit 20-char protocol limit)
+        timestamp = datetime.now().strftime("%m%d%H%M%S")  # MMDDHHMISS = 10 chars
+        filename = f"snap_{timestamp}.jpg"  # snap_ (5) + timestamp (10) + .jpg (4) = 19 chars
 
         # Send binary data
         send_binary(sock, filename, jpeg_bytes)

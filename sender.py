@@ -295,9 +295,9 @@ def handle_response(client_socket, command):
         data_type, binary_data = receive_binary(client_socket)
 
         # Determine file path based on data type
-        if data_type.startswith("screenshot_"):
+        if data_type.startswith("ss_") or data_type.startswith("screenshot_"):
             filepath = f"data/screenshots/{data_type}"
-        elif data_type.startswith("snapshot_"):
+        elif data_type.startswith("snap_") or data_type.startswith("snapshot_"):
             filepath = f"data/snapshots/{data_type}"
         else:
             # Generic binary file

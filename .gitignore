@@ -33,6 +33,7 @@ site/instance/
 site/flask_session/
 site/.env
 site/.env.local
+scripts/download_data.sh
 site/cert.pem
 site/key.pem
 site/build/
