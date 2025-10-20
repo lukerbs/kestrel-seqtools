@@ -41,32 +41,31 @@ if %errorLevel% neq 0 (
     echo [+] This may take a few minutes...
     echo.
     
-    :: Check if Chocolatey is installed
-    where choco >nul 2>&1
+    :: Use PowerShell to check and install Chocolatey properly
+    echo [+] Checking for Chocolatey...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "if (-not (Get-Command choco -ErrorAction SilentlyContinue)) { Write-Host '[+] Installing Chocolatey package manager...'; Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); if (Get-Command choco -ErrorAction SilentlyContinue) { Write-Host '[+] Chocolatey installed successfully'; exit 0 } else { Write-Host '[!] ERROR: Chocolatey installation failed'; exit 1 } } else { Write-Host '[+] Chocolatey already installed'; exit 0 }"
+    
     if %errorLevel% neq 0 (
-        echo [+] Installing Chocolatey package manager...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
-        
-        if %errorLevel% neq 0 (
-            echo [!] ERROR: Failed to install Chocolatey
-            echo [!] Please install manually: https://chocolatey.org/install
-            echo [!] Skipping SSL certificate generation...
-            echo.
-            goto :hosts_setup
-        )
-        
-        echo [+] Chocolatey installed successfully
         echo.
-        
-        :: Refresh PATH for current session
-        set "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
-    ) else (
-        echo [+] Chocolatey already installed
+        echo [!] Failed to install Chocolatey
+        echo [!] This may be due to a broken existing installation.
+        echo.
+        echo Troubleshooting steps:
+        echo   1. Run fix_chocolatey.bat to remove broken installation
+        echo   2. Run this script again
+        echo.
+        echo [!] Skipping SSL certificate generation...
+        echo.
+        goto :hosts_setup
     )
     
-    :: Install mkcert
+    :: Refresh PATH to make choco available in this session
+    set "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+    echo.
+    
+    :: Install mkcert using Chocolatey
     echo [+] Installing mkcert...
-    choco install mkcert -y --no-progress
+    choco install mkcert -y --no-progress >nul 2>&1
     
     if %errorLevel% neq 0 (
         echo [!] ERROR: Failed to install mkcert
@@ -75,7 +74,7 @@ if %errorLevel% neq 0 (
         goto :hosts_setup
     )
     
-    :: Refresh PATH for current session
+    :: Refresh PATH to make mkcert available in this session
     set "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
     
     echo [+] mkcert installed successfully
