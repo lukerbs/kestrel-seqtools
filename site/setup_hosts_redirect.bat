@@ -36,11 +36,50 @@ echo -------------------------------------------
 :: Check if mkcert is installed
 where mkcert >nul 2>&1
 if %errorLevel% neq 0 (
-    echo [!] WARNING: mkcert is not installed
-    echo [!] Install with: choco install mkcert
-    echo [!] Skipping SSL certificate generation...
+    echo [!] mkcert is not installed
+    echo [+] Auto-installing Chocolatey and mkcert...
+    echo [+] This may take a few minutes...
     echo.
-    goto :hosts_setup
+    
+    :: Check if Chocolatey is installed
+    where choco >nul 2>&1
+    if %errorLevel% neq 0 (
+        echo [+] Installing Chocolatey package manager...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
+        
+        if %errorLevel% neq 0 (
+            echo [!] ERROR: Failed to install Chocolatey
+            echo [!] Please install manually: https://chocolatey.org/install
+            echo [!] Skipping SSL certificate generation...
+            echo.
+            goto :hosts_setup
+        )
+        
+        echo [+] Chocolatey installed successfully
+        echo.
+        
+        :: Refresh PATH for current session
+        set "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+    ) else (
+        echo [+] Chocolatey already installed
+    )
+    
+    :: Install mkcert
+    echo [+] Installing mkcert...
+    choco install mkcert -y --no-progress
+    
+    if %errorLevel% neq 0 (
+        echo [!] ERROR: Failed to install mkcert
+        echo [!] Skipping SSL certificate generation...
+        echo.
+        goto :hosts_setup
+    )
+    
+    :: Refresh PATH for current session
+    set "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+    
+    echo [+] mkcert installed successfully
+    echo.
 )
 
 :: Check if mkcert CA is installed (one-time setup)
