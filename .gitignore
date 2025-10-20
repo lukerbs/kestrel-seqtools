@@ -12,6 +12,7 @@ DOCS/
 *.pyzwzw
 /assets/
 .DS_Store
+push.sh
 
 # RAT / Utils
 data/
