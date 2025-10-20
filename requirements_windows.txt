@@ -1,0 +1,31 @@
+# Kestrel Seqtools - Windows Requirements
+# Core dependencies for RAT functionality on Windows
+
+# Screen capture
+mss>=9.0.0
+
+# Video processing (screen recording)
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Image processing (JPEG compression)
+pillow>=10.0.0
+
+# Input control (keylogger, mouse, blackhole)
+pynput>=1.7.6
+
+# Progress bars
+tqdm>=4.65.0
+
+# Windows-specific (Win32 API)
+pywin32>=306
+
+# Packaging
+pyinstaller>=6.0.0
+
+# Testing
+pytest>=7.4.0
+
+# Note: Do NOT use the macOS requirements.txt on Windows
+# This file excludes PyObjC and other macOS-specific packages
+
