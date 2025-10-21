@@ -55,7 +55,9 @@ def build_whitelist():
     # Get device list
     device_list_buffer = (RAWINPUTDEVICELIST * device_count.value)()
     res = user32.GetRawInputDeviceList(
-        ctypes.byref(device_list_buffer), ctypes.byref(device_count), ctypes.sizeof(RAWINPUTDEVICELIST)
+        ctypes.cast(device_list_buffer, ctypes.POINTER(RAWINPUTDEVICELIST)),
+        ctypes.byref(device_count),
+        ctypes.sizeof(RAWINPUTDEVICELIST),
     )
     if res == -1:
         g_log_func(f"[ERROR] GetRawInputDeviceList failed: {get_last_error_string()}")
