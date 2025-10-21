@@ -9,10 +9,8 @@ import os
 import sys
 import time
 
-from utils.config import TOGGLE_HOTKEY, DEFAULT_FIREWALL_STATE
+from utils.config import DEFAULT_FIREWALL_STATE
 from utils.gatekeeper import InputGatekeeper
-from utils.hotkeys import HotkeyListener
-from utils.notifications import show_activated_popup, show_deactivated_popup
 
 
 # ============================================================================
@@ -102,77 +100,36 @@ class BlackholeService:
 
         # Initialize components
         self.gatekeeper = InputGatekeeper(log_func=self.log)
-        self.hotkey_listener = HotkeyListener(
-            hotkey_set=TOGGLE_HOTKEY, callback=self.on_hotkey_pressed, log_func=self.log
-        )
 
         self.log("\n" + "=" * 60)
         self.log("  Blackhole Input Firewall Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
-        self.log(f"Hotkey: Ctrl+Alt+F")
+        self.log(f"Control: Service start/stop (no hotkey)")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
         self.log("=" * 60 + "\n")
-
-    def on_hotkey_pressed(self):
-        """
-        Callback when the toggle hotkey is pressed.
-        Toggles the firewall state.
-        """
-        if self.firewall_active:
-            # Currently blocking → deactivate
-            self.log("\n[TOGGLE] Deactivating firewall...")
-            self.gatekeeper.stop()
-
-            if self.dev_mode:
-                show_deactivated_popup()
-
-            self.firewall_active = False
-            self.log("[TOGGLE] Firewall is now INACTIVE (remote input allowed)\n")
-        else:
-            # Currently allowing → activate
-            self.log("\n[TOGGLE] Activating firewall...")
-            self.gatekeeper.start()
-
-            # Check if activation succeeded (gatekeeper sets _active flag)
-            if self.gatekeeper.is_active():
-                if self.dev_mode:
-                    show_activated_popup()
-                self.firewall_active = True
-                self.log("[TOGGLE] Firewall is now ACTIVE (remote input blocked)\n")
-            else:
-                # Activation failed (fail-safe triggered)
-                if self.dev_mode:
-                    import ctypes
-
-                    ctypes.windll.user32.MessageBoxW(
-                        0,
-                        "Failed to activate firewall!\n\n"
-                        "No whitelisted devices found.\n"
-                        "This is a safety feature to prevent lockout.\n\n"
-                        "Check console for details or run debug_devices.ps1",
-                        "Blackhole - Activation Failed",
-                        0x30,  # Warning icon
-                    )
-                self.log("[TOGGLE] Firewall activation FAILED (fail-safe triggered)\n")
 
     def start(self):
         """Start the service"""
         self.log("[SERVICE] Starting Blackhole service...")
 
-        # Apply default state
+        # Apply default state (always ACTIVE now)
         if DEFAULT_FIREWALL_STATE:
-            self.log("[SERVICE] Applying default state: ACTIVE")
+            self.log("[SERVICE] Activating firewall...")
             self.gatekeeper.start()
-            self.firewall_active = True
+
+            # Check if activation succeeded
+            if self.gatekeeper.is_active():
+                self.firewall_active = True
+                self.log("[SERVICE] Firewall is ACTIVE - remote input will be blocked")
+            else:
+                self.firewall_active = False
+                self.log("[SERVICE] Firewall activation FAILED (fail-safe triggered)")
+                self.log("[SERVICE] No whitelisted devices found - check HYPERVISOR_IDENTIFIERS")
         else:
-            self.log("[SERVICE] Applying default state: INACTIVE")
+            self.log("[SERVICE] Firewall is INACTIVE - all input allowed")
 
-        # Start hotkey listener
-        self.hotkey_listener.start()
-
-        self.log("[SERVICE] Service is running. Press Ctrl+Alt+F to toggle.")
-        self.log("[SERVICE] Press Ctrl+C to exit.\n")
+        self.log("[SERVICE] Service is running. Press Ctrl+C to exit.\n")
 
     def run(self):
         """Run the service until interrupted"""
@@ -202,8 +159,7 @@ class BlackholeService:
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
 
-        # Stop components
-        self.hotkey_listener.stop()
+        # Stop firewall if active
         if self.firewall_active:
             self.gatekeeper.stop()
 

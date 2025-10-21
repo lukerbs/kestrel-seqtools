@@ -8,14 +8,9 @@ from pynput.keyboard import Key
 # HOTKEY CONFIGURATION
 # ============================================================================
 
-# Toggle hotkey: Ctrl + Alt + F
-# Press once to activate firewall (block remote input)
-# Press again to deactivate firewall (allow remote input)
-# Note: Using Ctrl+Alt+F instead of Win+Shift+F for reliability:
-#   - Not reserved by Windows OS
-#   - Works consistently in VMs without keyboard capture issues
-#   - Scammer won't accidentally trigger it
-TOGGLE_HOTKEY = {Key.ctrl, Key.alt, "f"}
+# Hotkey system removed - firewall is controlled by service start/stop only
+# When service is running, firewall is ACTIVE (blocks remote input)
+# When service is stopped, firewall is INACTIVE (allows all input)
 
 # ============================================================================
 # SERVICE CONFIGURATION
@@ -27,8 +22,8 @@ SERVICE_NAME = "blackhole"
 # Executable name
 EXE_NAME = "blackhole.exe"
 
-# Default state on startup (False = firewall OFF, allow all input)
-DEFAULT_FIREWALL_STATE = False
+# Default state on startup (True = firewall ON, block remote input)
+DEFAULT_FIREWALL_STATE = True
 
 # ============================================================================
 # GATEKEEPER CONFIGURATION
