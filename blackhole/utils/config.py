@@ -8,11 +8,14 @@ from pynput.keyboard import Key
 # HOTKEY CONFIGURATION
 # ============================================================================
 
-# Toggle hotkey: Command + Shift + F (Mac) → Win + Shift + F (Windows VM)
+# Toggle hotkey: Ctrl + Alt + F
 # Press once to activate firewall (block remote input)
 # Press again to deactivate firewall (allow remote input)
-# Note: On Windows, use Key.cmd (not Key.cmd_l which is Mac-specific)
-TOGGLE_HOTKEY = {Key.cmd, Key.shift, "f"}
+# Note: Using Ctrl+Alt+F instead of Win+Shift+F for reliability:
+#   - Not reserved by Windows OS
+#   - Works consistently in VMs without keyboard capture issues
+#   - Scammer won't accidentally trigger it
+TOGGLE_HOTKEY = {Key.ctrl, Key.alt, "f"}
 
 # ============================================================================
 # SERVICE CONFIGURATION

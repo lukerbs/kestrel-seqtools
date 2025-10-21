@@ -110,7 +110,7 @@ class BlackholeService:
         self.log("  Blackhole Input Firewall Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
-        self.log(f"Hotkey: Command+Shift+F")
+        self.log(f"Hotkey: Ctrl+Alt+F")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
         self.log("=" * 60 + "\n")
 
@@ -171,7 +171,7 @@ class BlackholeService:
         # Start hotkey listener
         self.hotkey_listener.start()
 
-        self.log("[SERVICE] Service is running. Press Command+Shift+F to toggle.")
+        self.log("[SERVICE] Service is running. Press Ctrl+Alt+F to toggle.")
         self.log("[SERVICE] Press Ctrl+C to exit.\n")
 
     def run(self):

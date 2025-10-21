@@ -122,7 +122,15 @@ class HotkeyListener:
             # Create and start listener
             self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
             self._listener.start()
-            self._log("[HOTKEY] Listener started successfully")
+
+            # Wait for listener to be ready (ensures hook is installed and message loop is running)
+            self._listener.wait()
+
+            self._log(f"[HOTKEY] Listener ready (running={self._listener.running})")
+
+            if not self._listener.running:
+                self._log("[ERROR] Listener started but is not running - hook installation may have failed")
+
         except Exception as e:
             self._log(f"[ERROR] Failed to start hotkey listener: {e}")
             self._log("[ERROR] This may be due to insufficient permissions (need Administrator)")
