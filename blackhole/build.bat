@@ -27,11 +27,10 @@ if %errorLevel% neq 0 (
 )
 
 REM Clean previous builds
-if exist "dist" rmdir /s /q dist
-if exist "build" rmdir /s /q build
-if exist "blackhole.spec" del /f /q blackhole.spec
-
 echo Cleaning previous builds...
+if exist "dist" rmdir /s /q "dist" 2>nul
+if exist "build" rmdir /s /q "build" 2>nul
+if exist "blackhole.spec" del /f /q "blackhole.spec" 2>nul
 echo.
 
 REM Build based on mode
