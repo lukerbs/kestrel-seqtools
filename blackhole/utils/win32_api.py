@@ -227,6 +227,119 @@ user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
 # ============================================================================
+# FUNCTION SIGNATURES
+# ============================================================================
+# Explicitly declare function signatures for type safety and correct conversions
+
+# Window Management
+user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
+user32.DefWindowProcW.restype = LRESULT
+
+user32.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
+user32.RegisterClassExW.restype = wintypes.ATOM
+
+user32.CreateWindowExW.argtypes = [
+    wintypes.DWORD,  # dwExStyle
+    wintypes.LPCWSTR,  # lpClassName
+    wintypes.LPCWSTR,  # lpWindowName
+    wintypes.DWORD,  # dwStyle
+    wintypes.INT,  # x
+    wintypes.INT,  # y
+    wintypes.INT,  # nWidth
+    wintypes.INT,  # nHeight
+    wintypes.HWND,  # hWndParent
+    wintypes.HMENU,  # hMenu
+    HINSTANCE,  # hInstance
+    wintypes.LPVOID,  # lpParam
+]
+user32.CreateWindowExW.restype = wintypes.HWND
+
+user32.DestroyWindow.argtypes = [wintypes.HWND]
+user32.DestroyWindow.restype = wintypes.BOOL
+
+user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, HINSTANCE]
+user32.UnregisterClassW.restype = wintypes.BOOL
+
+# Message Loop
+user32.GetMessageW.argtypes = [ctypes.POINTER(MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+user32.GetMessageW.restype = wintypes.BOOL
+
+user32.TranslateMessage.argtypes = [ctypes.POINTER(MSG)]
+user32.TranslateMessage.restype = wintypes.BOOL
+
+user32.DispatchMessageW.argtypes = [ctypes.POINTER(MSG)]
+user32.DispatchMessageW.restype = LRESULT
+
+user32.PostQuitMessage.argtypes = [wintypes.INT]
+user32.PostQuitMessage.restype = None
+
+user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, WPARAM, LPARAM]
+user32.PostThreadMessageW.restype = wintypes.BOOL
+
+# Raw Input
+user32.GetRawInputDeviceList.argtypes = [
+    ctypes.POINTER(RAWINPUTDEVICELIST),
+    ctypes.POINTER(wintypes.UINT),
+    wintypes.UINT,
+]
+user32.GetRawInputDeviceList.restype = wintypes.UINT
+
+user32.GetRawInputDeviceInfoW.argtypes = [
+    wintypes.HANDLE,
+    wintypes.UINT,
+    wintypes.LPVOID,
+    ctypes.POINTER(wintypes.UINT),
+]
+user32.GetRawInputDeviceInfoW.restype = wintypes.UINT
+
+user32.RegisterRawInputDevices.argtypes = [
+    ctypes.POINTER(RAWINPUTDEVICE),
+    wintypes.UINT,
+    wintypes.UINT,
+]
+user32.RegisterRawInputDevices.restype = wintypes.BOOL
+
+user32.GetRawInputData.argtypes = [
+    LPARAM,  # hRawInput (passed as lParam)
+    wintypes.UINT,
+    wintypes.LPVOID,
+    ctypes.POINTER(wintypes.UINT),
+    wintypes.UINT,
+]
+user32.GetRawInputData.restype = wintypes.UINT
+
+# Hooks
+user32.SetWindowsHookExW.argtypes = [wintypes.INT, HOOKPROC, HINSTANCE, wintypes.DWORD]
+user32.SetWindowsHookExW.restype = wintypes.HHOOK
+
+user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+user32.UnhookWindowsHookEx.restype = wintypes.BOOL
+
+user32.CallNextHookEx.argtypes = [wintypes.HHOOK, wintypes.INT, WPARAM, LPARAM]
+user32.CallNextHookEx.restype = LRESULT
+
+# Kernel Functions
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetModuleHandleW.restype = HINSTANCE
+
+kernel32.GetCurrentThreadId.argtypes = []
+kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+kernel32.GetLastError.argtypes = []
+kernel32.GetLastError.restype = wintypes.DWORD
+
+kernel32.FormatMessageW.argtypes = [
+    wintypes.DWORD,
+    wintypes.LPVOID,
+    wintypes.DWORD,
+    wintypes.DWORD,
+    wintypes.LPWSTR,
+    wintypes.DWORD,
+    wintypes.LPVOID,
+]
+kernel32.FormatMessageW.restype = wintypes.DWORD
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
