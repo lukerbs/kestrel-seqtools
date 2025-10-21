@@ -39,6 +39,7 @@ if %DEV_MODE%==1 (
     echo.
     
     pyinstaller --onefile ^
+                --console ^
                 --name blackhole ^
                 --hidden-import=pynput.keyboard._win32 ^
                 --hidden-import=pynput.mouse._win32 ^
