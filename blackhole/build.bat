@@ -27,7 +27,7 @@ if %errorLevel% neq 0 (
 )
 
 REM Clean previous builds
-echo Cleaning previous builds...
+echo Cleaning previous builds
 if exist "dist" rmdir /s /q "dist" 2>nul
 if exist "build" rmdir /s /q "build" 2>nul
 if exist "blackhole.spec" del /f /q "blackhole.spec" 2>nul
@@ -35,7 +35,7 @@ echo.
 
 REM Build based on mode
 if %DEV_MODE%==1 (
-    echo Building in DEV mode (with console window)...
+    echo Building in DEV mode (with console window)
     echo.
     
     pyinstaller --onefile ^
@@ -63,7 +63,7 @@ if %DEV_MODE%==1 (
     echo.
     
 ) else (
-    echo Building in PRODUCTION mode (headless, no console)...
+    echo Building in PRODUCTION mode (headless, no console)
     echo.
     
     pyinstaller --onefile ^
