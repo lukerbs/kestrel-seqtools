@@ -8,7 +8,7 @@ and pynput hooks for enforcement. This version also retains the original
 import queue
 import threading
 from pynput import keyboard, mouse
-from .config import MAX_QUEUE_SIZE, WORKER_TIMEOUT, HYPERVISOR_IDENTIFIERS
+from .config import MAX_QUEUE_SIZE, WORKER_TIMEOUT, HYPERVISOR_IDENTIFIERS, TOGGLE_HOTKEY
 from . import win32_raw_input
 
 
@@ -50,6 +50,9 @@ class InputGatekeeper:
         # Whitelist for hypervisor device handles
         self._device_whitelist = set()
 
+        # Track currently pressed keys for hotkey detection
+        self._pressed_keys = set()
+
         # Statistics
         self.stats = {
             "blocked_keys": 0,
@@ -61,46 +64,96 @@ class InputGatekeeper:
         }
 
     # ========================================================================
+    # HOTKEY WHITELIST HELPERS
+    # ========================================================================
+
+    def _normalize_key(self, key):
+        """
+        Normalize a key for comparison.
+        - Character keys (with .char attribute) → lowercase string
+        - Special keys (Key.shift, Key.cmd_l, etc.) → the Key object itself
+        """
+        try:
+            if hasattr(key, "char") and key.char is not None:
+                return key.char.lower()
+            else:
+                # Special key (Key.shift, Key.cmd_l, etc.)
+                return key
+        except AttributeError:
+            return key
+
+    def _is_hotkey_pressed(self):
+        """
+        Check if the toggle hotkey combination is currently pressed.
+        TOGGLE_HOTKEY is a set like {Key.cmd_l, Key.shift, "f"}
+        We need to normalize it the same way we normalize pressed keys.
+        """
+        normalized_hotkey = set()
+        for key in TOGGLE_HOTKEY:
+            if isinstance(key, str):
+                # String keys (like "f") should be lowercase
+                normalized_hotkey.add(key.lower())
+            else:
+                # Key objects (like Key.shift) stay as-is
+                normalized_hotkey.add(key)
+
+        # Check if all hotkey keys are currently pressed
+        return normalized_hotkey.issubset(self._pressed_keys)
+
+    # ========================================================================
     # LISTENER CALLBACKS (Time-Critical - Must be Fast!)
     # ========================================================================
 
     def _get_decision(self, injected):
         """
         Gets a decision from the Raw Input thread or the injected flag.
-        - If 'injected' is True, it's a simple injected event. DENY.
-        - Otherwise, check the Raw Input queue.
-        - If queue has a decision, use it.
-        - If queue is empty, it could be a UIAccess event OR a legitimate
-          host event that the pynput hook saw before the Raw Input thread.
-          To prevent blocking the user, we default to ALLOW in this case.
+
+        PRIORITY ORDER (most reliable first):
+        1. Raw Input device handle (most reliable - hardware-level)
+        2. Injected flag (fallback - can have false positives with VMs)
+        3. Default ALLOW (safety - prevents lockout on race conditions)
 
         Args:
             injected: Boolean flag from pynput indicating if event was programmatically injected
 
         Returns:
-            str: Decision string - "ALLOW", "DENY_INJECTED", or "DENY"
+            str: Decision string - "ALLOW", "DENY", or "DENY_INJECTED"
         """
-        # First check: simple injected flag (catches non-UIAccess tools)
+        # FIRST CHECK: Raw Input queue (most reliable - checks actual device handle)
+        try:
+            decision = self._decision_queue.get_nowait()
+            # If Raw Input says ALLOW, trust it even if injected flag is True
+            # (This handles VMs that inject input but use whitelisted devices)
+            return decision
+        except queue.Empty:
+            pass  # Queue empty, fall through to next check
+
+        # SECOND CHECK: Injected flag (fallback for events without Raw Input data)
         if injected:
+            # Only block if Raw Input didn't explicitly allow it
             return "DENY_INJECTED"
 
-        # Second check: Raw Input queue (catches UIAccess tools by device handle)
-        try:
-            # Check if the Raw Input thread has already made a decision
-            return self._decision_queue.get_nowait()
-        except queue.Empty:
-            # The queue is empty. This can mean two things:
-            # 1. It's a UIAccess event that doesn't generate Raw Input.
-            # 2. It's a legitimate host event, but this hook thread won the
-            #    race against the Raw Input thread.
-            #
-            # To prioritize usability and never block the host, we choose
-            # to ALLOW the event. The risk of a UIAccess event slipping
-            # through in this tiny time window is negligible.
-            return "ALLOW"
+        # THIRD CHECK: Default ALLOW (safety - prevents lockout)
+        # This handles race conditions where pynput hook fires before Raw Input thread
+        return "ALLOW"
 
     def _on_press(self, key, injected):
         """Keyboard press callback - runs on OS input thread"""
+        # Track pressed keys for hotkey detection
+        normalized_key = self._normalize_key(key)
+        self._pressed_keys.add(normalized_key)
+
+        # ALWAYS allow the toggle hotkey combination, regardless of source
+        if self._is_hotkey_pressed():
+            try:
+                self._keyboard_queue.put_nowait(("press", key))
+                self.stats["allowed_keys"] += 1
+            except queue.Full:
+                self.stats["dropped_events"] += 1
+                self._log("[GATEKEEPER] Keyboard queue full, dropped event")
+            return
+
+        # For all other keys, check device/injected status
         decision = self._get_decision(injected)
 
         if decision == "ALLOW":
@@ -117,6 +170,23 @@ class InputGatekeeper:
 
     def _on_release(self, key, injected):
         """Keyboard release callback"""
+        # Check if hotkey is currently pressed BEFORE removing this key
+        hotkey_was_pressed = self._is_hotkey_pressed()
+
+        # Remove key from pressed set
+        normalized_key = self._normalize_key(key)
+        self._pressed_keys.discard(normalized_key)
+
+        # ALWAYS allow release if the hotkey combo was active when this key was released
+        # This ensures the complete hotkey sequence (press AND release) goes through
+        if hotkey_was_pressed:
+            try:
+                self._keyboard_queue.put_nowait(("release", key))
+            except queue.Full:
+                self.stats["dropped_events"] += 1
+            return
+
+        # For all other keys, check device/injected status
         decision = self._get_decision(injected)
 
         if decision == "ALLOW":
@@ -235,6 +305,9 @@ class InputGatekeeper:
         self._active = True
         self._stop_event.clear()
 
+        # Clear any stale key state from previous session
+        self._pressed_keys.clear()
+
         # 2. Start Raw Input identification thread
         self._raw_input_thread = win32_raw_input.RawInputThread(self._device_whitelist, self._decision_queue, self._log)
         self._raw_input_thread.start()
@@ -282,6 +355,9 @@ class InputGatekeeper:
             self._kbd_worker.join(timeout=2)
         if self._mouse_worker:
             self._mouse_worker.join(timeout=2)
+
+        # Clear pressed keys tracking
+        self._pressed_keys.clear()
 
         self._log("[GATEKEEPER] Input firewall INACTIVE - all input restored")
 
