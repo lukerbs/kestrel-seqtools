@@ -53,19 +53,37 @@ if (-not (Test-Path $ExePath)) {
 Write-Host "  - Copied: blackhole.exe"
 Write-Host ""
 
-# Create .dev_mode marker if in dev mode
+# Handle .dev_mode marker
 if ($Dev) {
-    Write-Host "[3/4] Creating .dev_mode marker (DEV MODE)"
-    New-Item -ItemType File -Path "$InstallDir\.dev_mode" -Force | Out-Null
-    Write-Host "  - Created: .dev_mode marker"
+    Write-Host "[3/4] Copying .dev_mode marker (DEV MODE)"
+    
+    # Check if .dev_mode exists in dist folder (from build)
+    if (Test-Path "dist\.dev_mode") {
+        Copy-Item "dist\.dev_mode" "$InstallDir\.dev_mode" -Force
+        Write-Host "  - Copied: .dev_mode marker from dist folder"
+    } else {
+        # Create it if it doesn't exist (fallback)
+        New-Item -ItemType File -Path "$InstallDir\.dev_mode" -Force | Out-Null
+        Write-Host "  - Created: .dev_mode marker (fallback)"
+    }
+    
     Write-Host "  - Console window will be VISIBLE"
     Write-Host ""
 } else {
-    Write-Host "[3/4] Skipping .dev_mode marker (PRODUCTION MODE)"
-    # Delete marker if it exists from previous dev install
+    Write-Host "[3/4] Removing .dev_mode marker (PRODUCTION MODE)"
+    
+    # Delete marker from install dir if it exists
     if (Test-Path "$InstallDir\.dev_mode") {
         Remove-Item "$InstallDir\.dev_mode" -Force
+        Write-Host "  - Removed: .dev_mode marker from install directory"
     }
+    
+    # Also clean up dist folder if it exists
+    if (Test-Path "dist\.dev_mode") {
+        Remove-Item "dist\.dev_mode" -Force
+        Write-Host "  - Removed: .dev_mode marker from dist folder"
+    }
+    
     Write-Host "  - Service will run SILENTLY in background"
     Write-Host ""
 }

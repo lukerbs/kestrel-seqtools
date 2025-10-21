@@ -53,12 +53,18 @@ if ($Dev) {
         exit 1
     }
     
+    # Create .dev_mode marker in dist folder
+    Write-Host "Creating .dev_mode marker in dist folder"
+    New-Item -ItemType File -Path "dist\.dev_mode" -Force | Out-Null
+    Write-Host "  - Created: dist\.dev_mode"
+    
     Write-Host ""
     Write-Host "========================================"
     Write-Host "  Build Complete (DEV MODE)"
     Write-Host "========================================"
     Write-Host ""
     Write-Host "Output: dist\blackhole.exe"
+    Write-Host "Dev Marker: dist\.dev_mode"
     Write-Host "Console: VISIBLE (for debugging)"
     Write-Host ""
     Write-Host "To install: .\install.ps1 -Dev"
@@ -80,6 +86,12 @@ if ($Dev) {
         Write-Host "ERROR: Build failed!" -ForegroundColor Red
         Read-Host "Press Enter to exit"
         exit 1
+    }
+    
+    # Remove .dev_mode marker if it exists from previous dev build
+    if (Test-Path "dist\.dev_mode") {
+        Remove-Item "dist\.dev_mode" -Force
+        Write-Host "Removed old .dev_mode marker from dist folder"
     }
     
     Write-Host ""
