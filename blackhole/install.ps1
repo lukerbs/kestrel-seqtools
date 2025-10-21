@@ -1,0 +1,132 @@
+# ============================================================================
+# Blackhole Input Firewall - Installation Script (PowerShell)
+# Installs the service to auto-start on Windows boot via Task Scheduler
+# ============================================================================
+
+param(
+    [switch]$Dev
+)
+
+# Require administrator privileges
+if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
+    Write-Host "Please right-click and select 'Run as Administrator'."
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+Write-Host ""
+Write-Host "========================================"
+Write-Host "  Blackhole Input Firewall - Install"
+Write-Host "========================================"
+Write-Host ""
+
+# Check if executable exists
+if (-not (Test-Path "dist\blackhole.exe")) {
+    Write-Host "ERROR: blackhole.exe not found in dist\ directory." -ForegroundColor Red
+    Write-Host "Please run build.ps1 first to create the executable."
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+# Define installation paths
+$InstallDir = "$env:LOCALAPPDATA\Temp"
+$ExePath = "$InstallDir\blackhole.exe"
+$TaskName = "blackhole"
+
+Write-Host "[1/4] Creating installation directory"
+if (-not (Test-Path $InstallDir)) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+}
+Write-Host "  - Directory: $InstallDir"
+Write-Host ""
+
+Write-Host "[2/4] Copying executable"
+Copy-Item "dist\blackhole.exe" $ExePath -Force
+if (-not (Test-Path $ExePath)) {
+    Write-Host "ERROR: Failed to copy executable." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+Write-Host "  - Copied: blackhole.exe"
+Write-Host ""
+
+# Create .dev_mode marker if in dev mode
+if ($Dev) {
+    Write-Host "[3/4] Creating .dev_mode marker (DEV MODE)"
+    New-Item -ItemType File -Path "$InstallDir\.dev_mode" -Force | Out-Null
+    Write-Host "  - Created: .dev_mode marker"
+    Write-Host "  - Console window will be VISIBLE"
+    Write-Host ""
+} else {
+    Write-Host "[3/4] Skipping .dev_mode marker (PRODUCTION MODE)"
+    # Delete marker if it exists from previous dev install
+    if (Test-Path "$InstallDir\.dev_mode") {
+        Remove-Item "$InstallDir\.dev_mode" -Force
+    }
+    Write-Host "  - Service will run SILENTLY in background"
+    Write-Host ""
+}
+
+Write-Host "[4/4] Creating Task Scheduler service"
+
+# Delete existing task if it exists
+$existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($existingTask) {
+    Write-Host "  - Removing existing task"
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+}
+
+# Create new task
+$action = New-ScheduledTaskAction -Execute $ExePath
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+
+if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: Failed to create Task Scheduler entry." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+Write-Host "  - Task created: $TaskName"
+Write-Host "  - Trigger: At system startup"
+Write-Host "  - User: SYSTEM"
+Write-Host ""
+
+Write-Host "[5/5] Starting service"
+Start-ScheduledTask -TaskName $TaskName
+Start-Sleep -Seconds 2
+
+$task = Get-ScheduledTask -TaskName $TaskName
+if ($task.State -eq "Running") {
+    Write-Host "  - Service started successfully" -ForegroundColor Green
+} else {
+    Write-Host "  - Warning: Service scheduled but not running yet" -ForegroundColor Yellow
+    Write-Host "  - Service will start on next system boot"
+}
+Write-Host ""
+
+Write-Host "========================================"
+Write-Host "  Installation Complete!"
+Write-Host "========================================"
+Write-Host ""
+if ($Dev) {
+    Write-Host "Mode: DEV (console visible)"
+} else {
+    Write-Host "Mode: PRODUCTION (silent background service)"
+}
+Write-Host ""
+Write-Host "Service: $TaskName"
+Write-Host "Location: $ExePath"
+Write-Host "Hotkey: Win+Shift+F (toggle firewall)"
+Write-Host ""
+Write-Host "To uninstall: .\uninstall.ps1"
+Write-Host ""
+
+Read-Host "Press Enter to exit"
+
