@@ -58,16 +58,7 @@ if errorlevel 1 (
 echo Building executable...
 echo.
 
-REM Create temporary .pyw copy for building
-echo Creating temporary receiver.pyw...
-copy receiver.py receiver.pyw >nul
-if errorlevel 1 (
-    echo ERROR: Failed to create receiver.pyw
-    pause
-    exit /b 1
-)
-
-REM Build the executable from .pyw
+REM Build the executable
 pyinstaller --onefile ^
             --name "%OUTPUT_NAME%" ^
             --icon=icon.ico ^
@@ -76,17 +67,9 @@ pyinstaller --onefile ^
             --hidden-import=utils ^
             --hidden-import=utils.features ^
             %CONSOLE_FLAG% ^
-            receiver.pyw
+            receiver.py
 
-REM Save build result
-set BUILD_RESULT=%errorlevel%
-
-REM Clean up temporary .pyw file
-echo Cleaning up receiver.pyw...
-del receiver.pyw >nul 2>&1
-
-REM Check if build succeeded
-if %BUILD_RESULT% neq 0 (
+if errorlevel 1 (
     echo.
     echo ERROR: Build failed!
     pause
@@ -117,9 +100,6 @@ echo Cleaning up build artifacts...
 
 REM Clean up temporary build folder
 if exist build rmdir /s /q build
-
-REM Clean up receiver.pyw.spec (we built from .pyw)
-if exist receiver.pyw.spec del receiver.pyw.spec >nul 2>&1
 
 REM Keep the .spec file - it's useful for customizing future builds!
 echo Build artifacts cleaned (kept %OUTPUT_NAME%.spec for future use)
