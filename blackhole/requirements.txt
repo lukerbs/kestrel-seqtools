@@ -1,2 +1,5 @@
-pynput>=1.8.0
+# Runtime dependencies
+pynput
 
+# Build dependencies
+pyinstaller
