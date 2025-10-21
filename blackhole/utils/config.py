@@ -39,10 +39,10 @@ WORKER_TIMEOUT = 0.1
 # Identifiers used to whitelist hypervisor's virtual input devices.
 # Add substrings from your VM's virtual device names if they are not detected.
 # Common names:
-# - UTM/QEMU: "QEMU"
+# - UTM/QEMU: "HID" (shows as generic HID with VID_0627)
 # - VMware: "VMware"
 # - VirtualBox: "VirtualBox"
 # - Hyper-V: "Hyper-V"
 HYPERVISOR_IDENTIFIERS = [
-    "QEMU",  # UTM uses QEMU devices
+    "HID",  # UTM/QEMU devices show as generic HID devices
 ]
