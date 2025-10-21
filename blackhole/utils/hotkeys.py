@@ -118,9 +118,15 @@ class HotkeyListener:
 
         self._log(f"[HOTKEY] Listening for: {self.hotkey_set}")
 
-        # Create and start listener
-        self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
-        self._listener.start()
+        try:
+            # Create and start listener
+            self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
+            self._listener.start()
+            self._log("[HOTKEY] Listener started successfully")
+        except Exception as e:
+            self._log(f"[ERROR] Failed to start hotkey listener: {e}")
+            self._log("[ERROR] This may be due to insufficient permissions (need Administrator)")
+            self._listener = None
 
     def stop(self):
         """Stop listening for the hotkey"""
