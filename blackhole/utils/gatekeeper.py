@@ -28,6 +28,11 @@ g_hook_thread_id = None
 g_log_func = lambda msg: None
 g_stats = {"blocked_events": 0, "allowed_events": 0}
 
+# CRITICAL: Keep references to prevent garbage collection
+g_wndproc_ref = None
+g_keyboard_hook_ref = None
+g_mouse_hook_ref = None
+
 # ============================================================================
 # DEVICE WHITELIST BUILDER
 # ============================================================================
@@ -137,7 +142,7 @@ def RawInputWndProc(hwnd, msg, wParam, lParam):
 
 def _raw_input_thread_func():
     """Thread function to handle Raw Input messages"""
-    global g_message_window_handle, g_raw_input_thread_id, g_log_func
+    global g_message_window_handle, g_raw_input_thread_id, g_log_func, g_wndproc_ref
 
     g_raw_input_thread_id = kernel32.GetCurrentThreadId()
     g_log_func("[RAW_INPUT] Thread started")
@@ -145,10 +150,13 @@ def _raw_input_thread_func():
     hInstance = kernel32.GetModuleHandleW(None)
     class_name = "BlackholeRawInputWindow"
 
+    # CRITICAL: Keep reference to prevent garbage collection
+    g_wndproc_ref = RawInputWndProc
+
     # Register window class
     wnd_class = WNDCLASSEXW()
     wnd_class.cbSize = ctypes.sizeof(WNDCLASSEXW)
-    wnd_class.lpfnWndProc = RawInputWndProc
+    wnd_class.lpfnWndProc = g_wndproc_ref
     wnd_class.hInstance = hInstance
     wnd_class.lpszClassName = class_name
 
@@ -259,15 +267,20 @@ def LowLevelMouseProc(nCode, wParam, lParam):
 def _hook_thread_func():
     """Thread function to install hooks and run message loop"""
     global g_keyboard_hook_handle, g_mouse_hook_handle, g_hook_thread_id, g_log_func
+    global g_keyboard_hook_ref, g_mouse_hook_ref
 
     g_hook_thread_id = kernel32.GetCurrentThreadId()
     g_log_func("[HOOKS] Thread started")
 
     hInstance = kernel32.GetModuleHandleW(None)
 
+    # CRITICAL: Keep references to prevent garbage collection
+    g_keyboard_hook_ref = LowLevelKeyboardProc
+    g_mouse_hook_ref = LowLevelMouseProc
+
     # Install hooks
-    g_keyboard_hook_handle = user32.SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKeyboardProc, hInstance, 0)
-    g_mouse_hook_handle = user32.SetWindowsHookExW(WH_MOUSE_LL, LowLevelMouseProc, hInstance, 0)
+    g_keyboard_hook_handle = user32.SetWindowsHookExW(WH_KEYBOARD_LL, g_keyboard_hook_ref, hInstance, 0)
+    g_mouse_hook_handle = user32.SetWindowsHookExW(WH_MOUSE_LL, g_mouse_hook_ref, hInstance, 0)
 
     if not g_keyboard_hook_handle or not g_mouse_hook_handle:
         g_log_func(f"[ERROR] Failed to install hooks: KBD={g_keyboard_hook_handle}, MOUSE={g_mouse_hook_handle}")
