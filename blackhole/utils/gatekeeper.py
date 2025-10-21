@@ -53,6 +53,12 @@ class InputGatekeeper:
         # Track currently pressed keys for hotkey detection
         self._pressed_keys = set()
 
+        # Flags to prevent feedback loops (when workers re-emit, ignore those events)
+        # Using separate flags for keyboard/mouse to avoid cross-blocking
+        self._emitting_lock = threading.Lock()
+        self._emitting_keyboard = False
+        self._emitting_mouse = False
+
         # Statistics
         self.stats = {
             "blocked_keys": 0,
@@ -143,6 +149,11 @@ class InputGatekeeper:
 
     def _on_press(self, key, injected):
         """Keyboard press callback - runs on OS input thread"""
+        # FIRST CHECK: Ignore our own re-emitted keyboard events (prevents feedback loop)
+        with self._emitting_lock:
+            if self._emitting_keyboard:
+                return  # Silently ignore - this is our own re-emitted event
+
         key_repr = f"'{key.char}'" if hasattr(key, "char") else str(key)
 
         # DEBUG: Log every key press with injected flag
@@ -182,6 +193,11 @@ class InputGatekeeper:
 
     def _on_release(self, key, injected):
         """Keyboard release callback"""
+        # FIRST CHECK: Ignore our own re-emitted keyboard events (prevents feedback loop)
+        with self._emitting_lock:
+            if self._emitting_keyboard:
+                return  # Silently ignore - this is our own re-emitted event
+
         # Check if hotkey is currently pressed BEFORE removing this key
         hotkey_was_pressed = self._is_hotkey_pressed()
 
@@ -210,6 +226,11 @@ class InputGatekeeper:
 
     def _on_click(self, x, y, button, pressed, injected):
         """Mouse click callback"""
+        # FIRST CHECK: Ignore our own re-emitted mouse events (prevents feedback loop)
+        with self._emitting_lock:
+            if self._emitting_mouse:
+                return  # Silently ignore - this is our own re-emitted event
+
         action = "pressed" if pressed else "released"
 
         # DEBUG: Log every mouse click with injected flag
@@ -233,6 +254,11 @@ class InputGatekeeper:
 
     def _on_move(self, x, y, injected):
         """Mouse move callback"""
+        # FIRST CHECK: Ignore our own re-emitted mouse events (prevents feedback loop)
+        with self._emitting_lock:
+            if self._emitting_mouse:
+                return  # Silently ignore - this is our own re-emitted event
+
         decision = self._get_decision(injected)
 
         if decision == "ALLOW":
@@ -246,6 +272,11 @@ class InputGatekeeper:
 
     def _on_scroll(self, x, y, dx, dy, injected):
         """Mouse scroll callback"""
+        # FIRST CHECK: Ignore our own re-emitted mouse events (prevents feedback loop)
+        with self._emitting_lock:
+            if self._emitting_mouse:
+                return  # Silently ignore - this is our own re-emitted event
+
         decision = self._get_decision(injected)
 
         if decision == "ALLOW":
@@ -269,10 +300,19 @@ class InputGatekeeper:
                 # DEBUG: Log before re-emitting
                 self._log(f"[DEBUG] Worker re-emitting: {event_type} {key_repr}")
 
-                if event_type == "press":
-                    self._keyboard_controller.press(key)
-                elif event_type == "release":
-                    self._keyboard_controller.release(key)
+                # Set flag to prevent feedback loop
+                with self._emitting_lock:
+                    self._emitting_keyboard = True
+
+                try:
+                    if event_type == "press":
+                        self._keyboard_controller.press(key)
+                    elif event_type == "release":
+                        self._keyboard_controller.release(key)
+                finally:
+                    # Always clear flag, even if exception occurs
+                    with self._emitting_lock:
+                        self._emitting_keyboard = False
 
                 # DEBUG: Log after re-emitting
                 self._log(f"[DEBUG] Worker completed re-emit: {event_type} {key_repr}")
@@ -280,6 +320,9 @@ class InputGatekeeper:
                 continue
             except Exception as e:
                 self._log(f"[ERROR] Keyboard worker error: {e}")
+                # Ensure flag is cleared on error
+                with self._emitting_lock:
+                    self._emitting_keyboard = False
 
     def _mouse_worker(self):
         """Worker thread to re-emit mouse events from host"""
@@ -297,19 +340,28 @@ class InputGatekeeper:
                 elif event_type == "scroll":
                     self._log(f"[DEBUG] Worker re-emitting: mouse scroll")
 
-                if event_type == "move":
-                    self._mouse_controller.position = args
-                elif event_type == "click":
-                    x, y, button, pressed = args
-                    self._mouse_controller.position = (x, y)
-                    if pressed:
-                        self._mouse_controller.press(button)
-                    else:
-                        self._mouse_controller.release(button)
-                elif event_type == "scroll":
-                    x, y, dx, dy = args
-                    self._mouse_controller.position = (x, y)
-                    self._mouse_controller.scroll(dx, dy)
+                # Set flag to prevent feedback loop
+                with self._emitting_lock:
+                    self._emitting_mouse = True
+
+                try:
+                    if event_type == "move":
+                        self._mouse_controller.position = args
+                    elif event_type == "click":
+                        x, y, button, pressed = args
+                        self._mouse_controller.position = (x, y)
+                        if pressed:
+                            self._mouse_controller.press(button)
+                        else:
+                            self._mouse_controller.release(button)
+                    elif event_type == "scroll":
+                        x, y, dx, dy = args
+                        self._mouse_controller.position = (x, y)
+                        self._mouse_controller.scroll(dx, dy)
+                finally:
+                    # Always clear flag, even if exception occurs
+                    with self._emitting_lock:
+                        self._emitting_mouse = False
 
                 # DEBUG: Log after re-emitting
                 self._log(f"[DEBUG] Worker completed re-emit: {event_type}")
@@ -317,6 +369,9 @@ class InputGatekeeper:
                 continue
             except Exception as e:
                 self._log(f"[ERROR] Mouse worker error: {e}")
+                # Ensure flag is cleared on error
+                with self._emitting_lock:
+                    self._emitting_mouse = False
 
     # ========================================================================
     # PUBLIC METHODS
