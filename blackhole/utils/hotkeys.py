@@ -50,6 +50,11 @@ class HotkeyListener:
         except AttributeError:
             normalized_key = key
 
+        # Debug: Log all key presses
+        self._log(f"[HOTKEY DEBUG] Key pressed: {key} → normalized: {normalized_key}")
+        self._log(f"[HOTKEY DEBUG] Current keys: {self._current_keys}")
+        self._log(f"[HOTKEY DEBUG] Expected hotkey: {self._normalize_hotkey_set()}")
+
         # Add to current keys
         self._current_keys.add(normalized_key)
 
