@@ -124,30 +124,41 @@ class InputGatekeeper:
             decision = self._decision_queue.get_nowait()
             # If Raw Input says ALLOW, trust it even if injected flag is True
             # (This handles VMs that inject input but use whitelisted devices)
+            self._log(f"[DEBUG] Raw Input decision from queue: {decision}")
             return decision
         except queue.Empty:
+            self._log(f"[DEBUG] Raw Input queue empty, checking injected flag")
             pass  # Queue empty, fall through to next check
 
         # SECOND CHECK: Injected flag (fallback for events without Raw Input data)
         if injected:
             # Only block if Raw Input didn't explicitly allow it
+            self._log(f"[DEBUG] Event marked as injected, returning DENY_INJECTED")
             return "DENY_INJECTED"
 
         # THIRD CHECK: Default ALLOW (safety - prevents lockout)
         # This handles race conditions where pynput hook fires before Raw Input thread
+        self._log(f"[DEBUG] No queue data and not injected, defaulting to ALLOW")
         return "ALLOW"
 
     def _on_press(self, key, injected):
         """Keyboard press callback - runs on OS input thread"""
+        key_repr = f"'{key.char}'" if hasattr(key, "char") else str(key)
+
+        # DEBUG: Log every key press with injected flag
+        self._log(f"[DEBUG] _on_press fired: key={key_repr}, injected={injected}")
+
         # Track pressed keys for hotkey detection
         normalized_key = self._normalize_key(key)
         self._pressed_keys.add(normalized_key)
 
         # ALWAYS allow the toggle hotkey combination, regardless of source
         if self._is_hotkey_pressed():
+            self._log(f"[DEBUG] Hotkey detected, allowing {key_repr}")
             try:
                 self._keyboard_queue.put_nowait(("press", key))
                 self.stats["allowed_keys"] += 1
+                self._log(f"[DEBUG] Added {key_repr} to re-emit queue (hotkey)")
             except queue.Full:
                 self.stats["dropped_events"] += 1
                 self._log("[GATEKEEPER] Keyboard queue full, dropped event")
@@ -155,17 +166,18 @@ class InputGatekeeper:
 
         # For all other keys, check device/injected status
         decision = self._get_decision(injected)
+        self._log(f"[DEBUG] Decision for {key_repr}: {decision}")
 
         if decision == "ALLOW":
             try:
                 self._keyboard_queue.put_nowait(("press", key))
                 self.stats["allowed_keys"] += 1
+                self._log(f"[DEBUG] Added {key_repr} to re-emit queue (allowed)")
             except queue.Full:
                 self.stats["dropped_events"] += 1
                 self._log("[GATEKEEPER] Keyboard queue full, dropped event")
         else:  # DENY_INJECTED or DENY
             self.stats["blocked_keys"] += 1
-            key_repr = f"'{key.char}'" if hasattr(key, "char") else str(key)
             self._log(f"[BLOCKED] Remote key press: {key_repr} (Reason: {decision})")
 
     def _on_release(self, key, injected):
@@ -198,20 +210,26 @@ class InputGatekeeper:
 
     def _on_click(self, x, y, button, pressed, injected):
         """Mouse click callback"""
+        action = "pressed" if pressed else "released"
+
+        # DEBUG: Log every mouse click with injected flag
+        self._log(f"[DEBUG] _on_click fired: button={button} {action} at ({x},{y}), injected={injected}")
+
         decision = self._get_decision(injected)
+        self._log(f"[DEBUG] Decision for mouse {action}: {decision}")
 
         if decision == "ALLOW":
             try:
                 self._mouse_queue.put_nowait(("click", (x, y, button, pressed)))
                 if pressed:
                     self.stats["allowed_clicks"] += 1
+                self._log(f"[DEBUG] Added mouse {action} to re-emit queue (allowed)")
             except queue.Full:
                 self.stats["dropped_events"] += 1
         else:  # DENY
             if pressed:
                 self.stats["blocked_clicks"] += 1
-                action = "pressed" if pressed else "released"
-                self._log(f"[BLOCKED] Remote mouse {action}: {button} at ({x}, {y}) (Reason: {decision})")
+            self._log(f"[BLOCKED] Remote mouse {action}: {button} at ({x}, {y}) (Reason: {decision})")
 
     def _on_move(self, x, y, injected):
         """Mouse move callback"""
@@ -246,10 +264,18 @@ class InputGatekeeper:
         while not self._stop_event.is_set():
             try:
                 event_type, key = self._keyboard_queue.get(timeout=WORKER_TIMEOUT)
+                key_repr = f"'{key.char}'" if hasattr(key, "char") else str(key)
+
+                # DEBUG: Log before re-emitting
+                self._log(f"[DEBUG] Worker re-emitting: {event_type} {key_repr}")
+
                 if event_type == "press":
                     self._keyboard_controller.press(key)
                 elif event_type == "release":
                     self._keyboard_controller.release(key)
+
+                # DEBUG: Log after re-emitting
+                self._log(f"[DEBUG] Worker completed re-emit: {event_type} {key_repr}")
             except queue.Empty:
                 continue
             except Exception as e:
@@ -260,6 +286,17 @@ class InputGatekeeper:
         while not self._stop_event.is_set():
             try:
                 event_type, args = self._mouse_queue.get(timeout=WORKER_TIMEOUT)
+
+                # DEBUG: Log before re-emitting
+                if event_type == "click":
+                    x, y, button, pressed = args
+                    action = "press" if pressed else "release"
+                    self._log(f"[DEBUG] Worker re-emitting: mouse {action} {button} at ({x},{y})")
+                elif event_type == "move":
+                    self._log(f"[DEBUG] Worker re-emitting: mouse move to {args}")
+                elif event_type == "scroll":
+                    self._log(f"[DEBUG] Worker re-emitting: mouse scroll")
+
                 if event_type == "move":
                     self._mouse_controller.position = args
                 elif event_type == "click":
@@ -273,6 +310,9 @@ class InputGatekeeper:
                     x, y, dx, dy = args
                     self._mouse_controller.position = (x, y)
                     self._mouse_controller.scroll(dx, dy)
+
+                # DEBUG: Log after re-emitting
+                self._log(f"[DEBUG] Worker completed re-emit: {event_type}")
             except queue.Empty:
                 continue
             except Exception as e:
