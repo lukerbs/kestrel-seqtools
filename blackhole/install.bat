@@ -79,12 +79,11 @@ if %errorLevel% equ 0 (
     schtasks /delete /tn "%TASK_NAME%" /f >nul
 )
 
-REM Create new task
+REM Create new task (run as current user for console visibility)
 schtasks /create ^
     /tn "%TASK_NAME%" ^
     /tr "\"%EXE_PATH%\"" ^
-    /sc onstart ^
-    /ru SYSTEM ^
+    /sc onlogon ^
     /rl highest ^
     /f >nul
 
@@ -95,8 +94,8 @@ if %errorLevel% neq 0 (
 )
 
 echo   - Task created: %TASK_NAME%
-echo   - Trigger: At system startup
-echo   - User: SYSTEM
+echo   - Trigger: At user logon
+echo   - User: Current user
 echo.
 
 echo [5/5] Starting service
