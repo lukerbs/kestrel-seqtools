@@ -26,7 +26,7 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
-echo [1/4] Stopping Task Scheduler service...
+echo [1/4] Stopping Task Scheduler service
 schtasks /end /tn "%TASK_NAME%" >nul 2>&1
 if %errorLevel% equ 0 (
     echo   - Service stopped.
@@ -35,7 +35,7 @@ if %errorLevel% equ 0 (
 )
 echo.
 
-echo [2/4] Deleting Task Scheduler service...
+echo [2/4] Deleting Task Scheduler service
 schtasks /delete /tn "%TASK_NAME%" /f >nul 2>&1
 if %errorLevel% equ 0 (
     echo   - Service deleted.
@@ -44,7 +44,7 @@ if %errorLevel% equ 0 (
 )
 echo.
 
-echo [3/4] Terminating running processes...
+echo [3/4] Terminating running processes
 taskkill /f /im "%EXE_NAME%" >nul 2>&1
 if %errorLevel% equ 0 (
     echo   - Process terminated.
@@ -53,7 +53,7 @@ if %errorLevel% equ 0 (
 )
 echo.
 
-echo [4/4] Deleting files...
+echo [4/4] Deleting files
 
 if exist "%INSTALL_DIR%\%EXE_NAME%" (
     del /f /q "%INSTALL_DIR%\%EXE_NAME%" >nul 2>&1
