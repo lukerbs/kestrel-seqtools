@@ -66,6 +66,7 @@ pyinstaller --onefile ^
             --hidden-import=pynput.mouse._win32 ^
             --hidden-import=utils ^
             --hidden-import=utils.features ^
+            --win-private-assemblies ^
             %CONSOLE_FLAG% ^
             receiver.py
 
