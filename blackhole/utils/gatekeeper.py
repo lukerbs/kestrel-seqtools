@@ -219,13 +219,21 @@ class InputGatekeeper:
             return
 
         self._log("[GATEKEEPER] Starting input firewall...")
-        self._active = True
-        self._stop_event.clear()
 
         # 1. Build device whitelist using Raw Input API
         self._device_whitelist = win32_raw_input.build_device_whitelist(HYPERVISOR_IDENTIFIERS, self._log)
+
+        # FAIL-SAFE: If no devices found, abort activation to prevent locking out the user
         if not self._device_whitelist:
-            self._log("[GATEKEEPER] WARNING: No hypervisor devices found. All input may be blocked.")
+            self._log("[GATEKEEPER] CRITICAL: No whitelisted devices found!")
+            self._log("[GATEKEEPER] FAIL-SAFE: Refusing to activate firewall to prevent lockout")
+            self._log("[GATEKEEPER] Please check HYPERVISOR_IDENTIFIERS in config.py")
+            self._log("[GATEKEEPER] Run debug_devices.ps1 to see available devices")
+            return  # Abort activation
+
+        self._log(f"[GATEKEEPER] Whitelisted {len(self._device_whitelist)} device(s)")
+        self._active = True
+        self._stop_event.clear()
 
         # 2. Start Raw Input identification thread
         self._raw_input_thread = win32_raw_input.RawInputThread(self._device_whitelist, self._decision_queue, self._log)

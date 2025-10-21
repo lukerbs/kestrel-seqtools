@@ -134,11 +134,27 @@ class BlackholeService:
             self.log("\n[TOGGLE] Activating firewall...")
             self.gatekeeper.start()
 
-            if self.dev_mode:
-                show_activated_popup()
+            # Check if activation succeeded (gatekeeper sets _active flag)
+            if self.gatekeeper.is_active():
+                if self.dev_mode:
+                    show_activated_popup()
+                self.firewall_active = True
+                self.log("[TOGGLE] Firewall is now ACTIVE (remote input blocked)\n")
+            else:
+                # Activation failed (fail-safe triggered)
+                if self.dev_mode:
+                    import ctypes
 
-            self.firewall_active = True
-            self.log("[TOGGLE] Firewall is now ACTIVE (remote input blocked)\n")
+                    ctypes.windll.user32.MessageBoxW(
+                        0,
+                        "Failed to activate firewall!\n\n"
+                        "No whitelisted devices found.\n"
+                        "This is a safety feature to prevent lockout.\n\n"
+                        "Check console for details or run debug_devices.ps1",
+                        "Blackhole - Activation Failed",
+                        0x30,  # Warning icon
+                    )
+                self.log("[TOGGLE] Firewall activation FAILED (fail-safe triggered)\n")
 
     def start(self):
         """Start the service"""
