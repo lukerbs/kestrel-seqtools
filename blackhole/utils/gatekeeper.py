@@ -120,9 +120,19 @@ def RawInputWndProc(hwnd, msg, wParam, lParam):
         user32.GetRawInputData(lParam, RID_INPUT, data_buffer, ctypes.byref(data_size), ctypes.sizeof(RAWINPUTHEADER))
         raw_input = ctypes.cast(data_buffer, ctypes.POINTER(RAWINPUT)).contents
         device_handle = raw_input.header.hDevice
+        device_type = raw_input.header.dwType
 
         # Make decision based on whitelist
         decision = "ALLOW" if device_handle in g_whitelist_set else "DENY"
+
+        # Detailed logging
+        device_type_str = (
+            "Keyboard" if device_type == RIM_TYPEKEYBOARD else "Mouse" if device_type == RIM_TYPEMOUSE else "HID"
+        )
+        in_whitelist = "YES" if device_handle in g_whitelist_set else "NO"
+        g_log_func(
+            f"[RAW_INPUT] {device_type_str} event from handle {device_handle} | In whitelist: {in_whitelist} | Decision: {decision}"
+        )
 
         # Put decision on queue
         try:
@@ -226,16 +236,20 @@ def LowLevelKeyboardProc(nCode, wParam, lParam):
     if nCode == HC_ACTION:
         try:
             decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
+            kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+
             if decision == "DENY":
                 g_stats["blocked_events"] += 1
-                kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-                g_log_func(f"[BLOCKED] Keyboard event (vkCode={kb_struct.vkCode})")
+                g_log_func(f"[HOOK BLOCKED] Keyboard vkCode={kb_struct.vkCode} | Reason: Device not whitelisted")
                 return 1  # Block the event
             else:
                 g_stats["allowed_events"] += 1
+                g_log_func(f"[HOOK ALLOWED] Keyboard vkCode={kb_struct.vkCode} | Reason: Device whitelisted")
         except queue.Empty:
             # Queue empty - default to ALLOW to prevent lockout
             g_stats["allowed_events"] += 1
+            kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            g_log_func(f"[HOOK ALLOWED] Keyboard vkCode={kb_struct.vkCode} | Reason: Queue empty (default allow)")
         except Exception as e:
             g_log_func(f"[ERROR] Keyboard hook error: {e}")
 
@@ -250,16 +264,23 @@ def LowLevelMouseProc(nCode, wParam, lParam):
     if nCode == HC_ACTION:
         try:
             decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
+            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+
             if decision == "DENY":
                 g_stats["blocked_events"] += 1
-                # Uncomment for verbose mouse logging:
-                # ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-                # g_log_func(f"[BLOCKED] Mouse event at ({ms_struct.pt.x}, {ms_struct.pt.y})")
+                g_log_func(
+                    f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device not whitelisted"
+                )
                 return 1  # Block the event
             else:
                 g_stats["allowed_events"] += 1
+                g_log_func(f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device whitelisted")
         except queue.Empty:
             g_stats["allowed_events"] += 1
+            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+            g_log_func(
+                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Queue empty (default allow)"
+            )
         except Exception as e:
             g_log_func(f"[ERROR] Mouse hook error: {e}")
 
