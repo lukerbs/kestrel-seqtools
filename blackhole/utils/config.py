@@ -30,19 +30,18 @@ DEFAULT_FIREWALL_STATE = False
 # GATEKEEPER CONFIGURATION
 # ============================================================================
 
-# Maximum queue size for input events (prevents memory issues)
+# Maximum queue size for decision queue (Raw Input → Hooks communication)
 MAX_QUEUE_SIZE = 1000
-
-# Worker thread timeout (seconds)
-WORKER_TIMEOUT = 0.1
 
 # Identifiers used to whitelist hypervisor's virtual input devices.
 # Add substrings from your VM's virtual device names if they are not detected.
-# Common names:
-# - UTM/QEMU: "HID" (shows as generic HID with VID_0627)
-# - VMware: "VMware"
-# - VirtualBox: "VirtualBox"
-# - Hyper-V: "Hyper-V"
+# Common identifiers:
+# - UTM/QEMU: "HID", "VID_0627", "QEMU"
+# - VMware: "VMWARE"
+# - VirtualBox: "VBOX", "VirtualBox"
+# - Hyper-V: "VMBUS", "Hyper-V"
 HYPERVISOR_IDENTIFIERS = [
     "HID",  # UTM/QEMU devices show as generic HID devices
+    "VID_0627",  # QEMU vendor ID
+    "QEMU",  # QEMU identifier
 ]

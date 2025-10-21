@@ -180,8 +180,20 @@ class BlackholeService:
 
         try:
             # Keep the main thread alive
-            while True:
-                time.sleep(1)
+            if self.dev_mode:
+                # DEV MODE: Auto-shutdown after 60 seconds to prevent lockouts
+                self.log("[DEV MODE] Auto-shutdown enabled: service will stop in 60 seconds")
+                countdown = 60
+                while countdown > 0:
+                    time.sleep(1)
+                    countdown -= 1
+                    if countdown in [30, 10, 5, 4, 3, 2, 1]:
+                        self.log(f"[DEV MODE] Auto-shutdown in {countdown} second(s)...")
+                self.log("\n[DEV MODE] Auto-shutdown triggered after 60 seconds")
+            else:
+                # PRODUCTION MODE: Run indefinitely
+                while True:
+                    time.sleep(1)
         except KeyboardInterrupt:
             self.log("\n[SERVICE] Received interrupt signal")
             self.stop()
@@ -197,17 +209,16 @@ class BlackholeService:
 
         # Print statistics in dev mode
         if self.dev_mode:
-            stats = self.gatekeeper.get_stats()
-            self.log("\n" + "=" * 60)
-            self.log("  Session Statistics")
-            self.log("=" * 60)
-            self.log(f"Blocked keys:    {stats['blocked_keys']}")
-            self.log(f"Blocked clicks:  {stats['blocked_clicks']}")
-            self.log(f"Blocked moves:   {stats['blocked_moves']}")
-            self.log(f"Allowed keys:    {stats['allowed_keys']}")
-            self.log(f"Allowed clicks:  {stats['allowed_clicks']}")
-            self.log(f"Dropped events:  {stats['dropped_events']}")
-            self.log("=" * 60 + "\n")
+            try:
+                stats = self.gatekeeper.get_stats()
+                self.log("\n" + "=" * 60)
+                self.log("  Session Statistics")
+                self.log("=" * 60)
+                self.log(f"Blocked events:  {stats.get('blocked_events', 0)}")
+                self.log(f"Allowed events:  {stats.get('allowed_events', 0)}")
+                self.log("=" * 60 + "\n")
+            except Exception as e:
+                self.log(f"[ERROR] Failed to get stats: {e}")
 
         self.log("[SERVICE] Service stopped.\n")
 
