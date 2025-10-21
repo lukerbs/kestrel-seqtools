@@ -8,6 +8,26 @@ import ctypes
 from ctypes import wintypes
 
 # ============================================================================
+# CUSTOM TYPE DEFINITIONS (not in wintypes)
+# ============================================================================
+
+# LRESULT is a signed pointer-sized integer (LONG_PTR)
+# Must match platform pointer size: 64-bit on x64, 32-bit on x86
+if ctypes.sizeof(ctypes.c_void_p) == 8:
+    # 64-bit platform
+    LRESULT = ctypes.c_int64
+else:
+    # 32-bit platform
+    LRESULT = ctypes.c_long
+
+# Handle types - these are all just opaque pointers (HANDLE wrappers)
+# wintypes doesn't define these, so we define them as void pointers
+HINSTANCE = ctypes.c_void_p
+HICON = ctypes.c_void_p
+HCURSOR = ctypes.c_void_p
+HBRUSH = ctypes.c_void_p
+
+# ============================================================================
 # CONSTANTS
 # ============================================================================
 
@@ -86,17 +106,17 @@ class WNDCLASSEXW(ctypes.Structure):
         ("style", wintypes.UINT),
         (
             "lpfnWndProc",
-            ctypes.WINFUNCTYPE(wintypes.LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM),
+            ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM),
         ),
         ("cbClsExtra", wintypes.INT),
         ("cbWndExtra", wintypes.INT),
-        ("hInstance", wintypes.HINSTANCE),
-        ("hIcon", wintypes.HICON),
-        ("hCursor", wintypes.HCURSOR),
-        ("hbrBackground", wintypes.HBRUSH),
+        ("hInstance", HINSTANCE),
+        ("hIcon", HICON),
+        ("hCursor", HCURSOR),
+        ("hbrBackground", HBRUSH),
         ("lpszMenuName", wintypes.LPCWSTR),
         ("lpszClassName", wintypes.LPCWSTR),
-        ("hIconSm", wintypes.HICON),
+        ("hIconSm", HICON),
     ]
 
 
@@ -182,8 +202,8 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
 # CALLBACK TYPES
 # ============================================================================
 
-WNDPROC = ctypes.WINFUNCTYPE(wintypes.LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
-HOOKPROC = ctypes.CFUNCTYPE(wintypes.LRESULT, wintypes.INT, wintypes.WPARAM, wintypes.LPARAM)
+WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+HOOKPROC = ctypes.CFUNCTYPE(LRESULT, wintypes.INT, wintypes.WPARAM, wintypes.LPARAM)
 
 # ============================================================================
 # LIBRARY HANDLES
