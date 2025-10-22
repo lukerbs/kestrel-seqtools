@@ -134,14 +134,15 @@ def RawInputWndProc(hwnd, msg, wParam, lParam):
             decision = "DENY"
             reason = "Device not whitelisted"
 
-        # Detailed logging
-        device_type_str = (
-            "Keyboard" if device_type == RIM_TYPEKEYBOARD else "Mouse" if device_type == RIM_TYPEMOUSE else "HID"
-        )
-        in_whitelist = "YES" if device_handle in g_whitelist_set else "NO" if device_handle else "UNKNOWN"
-        g_log_func(
-            f"[RAW_INPUT] {device_type_str} event from handle {device_handle} | In whitelist: {in_whitelist} | Decision: {decision} ({reason})"
-        )
+        # Only log blocked events or unknown devices (not every single allowed event)
+        if decision == "DENY" or (device_handle is None or device_handle == 0):
+            device_type_str = (
+                "Keyboard" if device_type == RIM_TYPEKEYBOARD else "Mouse" if device_type == RIM_TYPEMOUSE else "HID"
+            )
+            in_whitelist = "YES" if device_handle in g_whitelist_set else "NO" if device_handle else "UNKNOWN"
+            g_log_func(
+                f"[RAW_INPUT] {device_type_str} event from handle {device_handle} | In whitelist: {in_whitelist} | Decision: {decision} ({reason})"
+            )
 
         # Put decision on queue
         try:
@@ -245,20 +246,18 @@ def LowLevelKeyboardProc(nCode, wParam, lParam):
     if nCode == HC_ACTION:
         try:
             decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
-            kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
 
             if decision == "DENY":
                 g_stats["blocked_events"] += 1
-                g_log_func(f"[HOOK BLOCKED] Keyboard vkCode={kb_struct.vkCode} | Reason: Device not whitelisted")
+                kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+                g_log_func(f"[BLOCKED] Keyboard vkCode={kb_struct.vkCode}")
                 return 1  # Block the event
             else:
                 g_stats["allowed_events"] += 1
-                g_log_func(f"[HOOK ALLOWED] Keyboard vkCode={kb_struct.vkCode} | Reason: Device whitelisted")
+                # Don't log allowed events - too much spam
         except queue.Empty:
             # Queue empty - default to ALLOW to prevent lockout
             g_stats["allowed_events"] += 1
-            kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            g_log_func(f"[HOOK ALLOWED] Keyboard vkCode={kb_struct.vkCode} | Reason: Queue empty (default allow)")
         except Exception as e:
             g_log_func(f"[ERROR] Keyboard hook error: {e}")
 
@@ -273,25 +272,17 @@ def LowLevelMouseProc(nCode, wParam, lParam):
     if nCode == HC_ACTION:
         try:
             decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
-            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
 
             if decision == "DENY":
                 g_stats["blocked_events"] += 1
-                g_log_func(
-                    f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device not whitelisted"
-                )
+                ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+                g_log_func(f"[BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y})")
                 return 1  # Block the event
             else:
                 g_stats["allowed_events"] += 1
-                g_log_func(
-                    f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device whitelisted or unknown"
-                )
+                # Don't log allowed events - too much spam, causes lag
         except queue.Empty:
             g_stats["allowed_events"] += 1
-            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-            g_log_func(
-                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Queue empty (default allow)"
-            )
         except Exception as e:
             g_log_func(f"[ERROR] Mouse hook error: {e}")
 
