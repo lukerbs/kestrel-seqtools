@@ -94,6 +94,31 @@ CS_HREDRAW = 0x0002
 CS_VREDRAW = 0x0001
 CW_USEDEFAULT = 0x80000000
 
+# SendInput Constants
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+INPUT_HARDWARE = 2
+
+# Keyboard Event Flags
+KEYEVENTF_EXTENDEDKEY = 0x0001
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
+KEYEVENTF_SCANCODE = 0x0008
+
+# Mouse Event Flags
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_ABSOLUTE = 0x8000
+
+# System Metrics
+SM_CXSCREEN = 0
+SM_CYSCREEN = 1
+
 # ============================================================================
 # STRUCTURES
 # ============================================================================
@@ -212,6 +237,51 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
+# SendInput structures
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD),
+        ("wParamL", wintypes.WORD),
+        ("wParamH", wintypes.WORD),
+    ]
+
+
+class INPUT_UNION(ctypes.Union):
+    _fields_ = [
+        ("mi", MOUSEINPUT),
+        ("ki", KEYBDINPUT),
+        ("hi", HARDWAREINPUT),
+    ]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [
+        ("type", wintypes.DWORD),
+        ("union", INPUT_UNION),
+    ]
+
+
 # ============================================================================
 # CALLBACK TYPES
 # ============================================================================
@@ -307,6 +377,18 @@ user32.GetRawInputData.argtypes = [
     wintypes.UINT,
 ]
 user32.GetRawInputData.restype = wintypes.UINT
+
+# SendInput function
+user32.SendInput.argtypes = [
+    wintypes.UINT,  # cInputs
+    ctypes.POINTER(INPUT),  # pInputs
+    wintypes.INT,  # cbSize
+]
+user32.SendInput.restype = wintypes.UINT
+
+# GetSystemMetrics function
+user32.GetSystemMetrics.argtypes = [wintypes.INT]
+user32.GetSystemMetrics.restype = wintypes.INT
 
 # Hooks
 user32.SetWindowsHookExW.argtypes = [wintypes.INT, HOOKPROC, HINSTANCE, wintypes.DWORD]

@@ -15,12 +15,21 @@ import os
 import sys
 import time
 
-from utils.config import DEFAULT_FIREWALL_STATE, TOGGLE_HOTKEY, DRIVER_ERROR_HOTKEY, DRIVER_DOWNLOAD_URL
+from utils.config import (
+    DEFAULT_FIREWALL_MODE,
+    FIREWALL_MODE_OFF,
+    FIREWALL_MODE_BLOCK,
+    FIREWALL_MODE_CHAOS,
+    TOGGLE_HOTKEY,
+    DRIVER_ERROR_HOTKEY,
+    CHAOS_MODE_HOTKEY,
+    DRIVER_DOWNLOAD_URL,
+)
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
 from utils.hotkeys import HotkeyListener
-from utils.notifications import show_notification, show_driver_error
+from utils.notifications import show_notification, show_driver_error, show_chaos_notification
 
 
 # ============================================================================
@@ -105,24 +114,29 @@ class BlackholeService:
         self.dev_mode = dev_mode
         self.log = create_log_func(dev_mode)
 
-        # Firewall state
-        self.firewall_active = DEFAULT_FIREWALL_STATE
+        # Firewall mode
+        self.firewall_mode = DEFAULT_FIREWALL_MODE
 
         # Initialize components
-        self.gatekeeper = InputGatekeeper(log_func=self.log)
+        self.gatekeeper = InputGatekeeper(log_func=self.log, mode=DEFAULT_FIREWALL_MODE)
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
         self.api_hooker = APIHooker(log_func=self.log)
         self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
         self.driver_error_listener = HotkeyListener(DRIVER_ERROR_HOTKEY, self.show_fake_driver_error, log_func=self.log)
+        self.chaos_mode_listener = HotkeyListener(CHAOS_MODE_HOTKEY, self.toggle_chaos_mode, log_func=self.log)
 
         self.log("\n" + "=" * 60)
         self.log("  Blackhole Input Firewall Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
         self.log(f"Architecture: API Hooking + Low-Level Hooks")
-        self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
-        self.log(f"Hotkey: Command+Shift+F (toggle firewall)")
+
+        mode_names = {0: "OFF", 1: "BLOCK", 2: "CHAOS"}
+        self.log(f"Default mode: {mode_names.get(DEFAULT_FIREWALL_MODE, 'UNKNOWN')}")
+
+        self.log(f"Hotkey: Command+Shift+F (toggle firewall ON/OFF)")
         self.log(f"Hotkey: Command+Shift+G (fake driver error)")
+        self.log(f"Hotkey: Command+Shift+H (toggle chaos mode)")
         self.log("=" * 60 + "\n")
 
     def _on_process_event(self, event_type, pid, process_name):
@@ -149,35 +163,46 @@ class BlackholeService:
         show_driver_error(DRIVER_DOWNLOAD_URL)
         self.log(f"[SERVICE] Driver download URL displayed: {DRIVER_DOWNLOAD_URL}")
 
+    def toggle_chaos_mode(self):
+        """Toggle between OFF, BLOCK, and CHAOS modes (called by Command+Shift+H hotkey)"""
+        # Cycle: OFF -> BLOCK -> CHAOS -> OFF
+        if self.firewall_mode == FIREWALL_MODE_OFF:
+            new_mode = FIREWALL_MODE_BLOCK
+        elif self.firewall_mode == FIREWALL_MODE_BLOCK:
+            new_mode = FIREWALL_MODE_CHAOS
+        else:  # CHAOS
+            new_mode = FIREWALL_MODE_OFF
+
+        self.firewall_mode = new_mode
+        self.gatekeeper.set_mode(new_mode)
+
+        mode_names = {FIREWALL_MODE_OFF: "OFF", FIREWALL_MODE_BLOCK: "BLOCK", FIREWALL_MODE_CHAOS: "CHAOS"}
+
+        self.log(f"[SERVICE] Mode changed to: {mode_names[new_mode]}")
+
+        if self.dev_mode:
+            show_chaos_notification(new_mode)
+
     def toggle_firewall(self):
-        """Toggle firewall on/off (called by hotkey)"""
-        if self.firewall_active:
+        """Toggle firewall on/off (called by Command+Shift+F hotkey)"""
+        if self.firewall_mode != FIREWALL_MODE_OFF:
             # Turn OFF
             self.log("[SERVICE] Hotkey pressed - DISABLING firewall...")
-            self.gatekeeper.stop()
-            self.firewall_active = False
-            self.log("[SERVICE] Firewall is now INACTIVE - all input allowed")
+            self.firewall_mode = FIREWALL_MODE_OFF
+            self.gatekeeper.set_mode(FIREWALL_MODE_OFF)
+            self.log("[SERVICE] Firewall is now OFF - all input allowed")
 
             if self.dev_mode:
-                show_notification(title="Blackhole Firewall", message="Firewall DISABLED\nRemote input is now ALLOWED")
+                show_notification(title="Blackhole Firewall", message="Firewall OFF\nAll input allowed")
         else:
-            # Turn ON
-            self.log("[SERVICE] Hotkey pressed - ENABLING firewall...")
-            self.gatekeeper.start()
+            # Turn ON (to BLOCK mode)
+            self.log("[SERVICE] Hotkey pressed - ENABLING firewall (BLOCK mode)...")
+            self.firewall_mode = FIREWALL_MODE_BLOCK
+            self.gatekeeper.set_mode(FIREWALL_MODE_BLOCK)
+            self.log("[SERVICE] Firewall is now BLOCKING - blocking tagged input")
 
-            if self.gatekeeper.is_active():
-                self.firewall_active = True
-                self.log("[SERVICE] Firewall is now ACTIVE - blocking tagged input")
-
-                if self.dev_mode:
-                    show_notification(
-                        title="Blackhole Firewall", message="Firewall ENABLED\nBlocking remote desktop input"
-                    )
-            else:
-                self.log("[SERVICE] Firewall activation FAILED")
-
-                if self.dev_mode:
-                    show_notification(title="Blackhole Firewall", message="ERROR: Failed to activate firewall")
+            if self.dev_mode:
+                show_notification(title="Blackhole Firewall", message="Firewall BLOCKING\nRemote input blocked")
 
     def start(self):
         """Start the service"""
@@ -189,22 +214,14 @@ class BlackholeService:
         # Start hotkey listeners
         self.hotkey_listener.start()
         self.driver_error_listener.start()
+        self.chaos_mode_listener.start()
         self.log("[SERVICE] Hotkey listeners active")
 
-        # Apply default state
-        if DEFAULT_FIREWALL_STATE:
-            self.log("[SERVICE] Activating firewall...")
-            self.gatekeeper.start()
+        # Start gatekeeper with default mode
+        self.gatekeeper.start()
 
-            # Check if activation succeeded
-            if self.gatekeeper.is_active():
-                self.firewall_active = True
-                self.log("[SERVICE] Firewall is ACTIVE - blocking tagged input")
-            else:
-                self.firewall_active = False
-                self.log("[SERVICE] Firewall activation FAILED")
-        else:
-            self.log("[SERVICE] Firewall is INACTIVE - all input allowed")
+        mode_names = {0: "OFF", 1: "BLOCK", 2: "CHAOS"}
+        self.log(f"[SERVICE] Firewall mode: {mode_names.get(self.firewall_mode, 'UNKNOWN')}")
 
         self.log("[SERVICE] Service is running. Press Ctrl+C to exit.\n")
 
@@ -239,6 +256,7 @@ class BlackholeService:
         # Stop hotkey listeners
         self.hotkey_listener.stop()
         self.driver_error_listener.stop()
+        self.chaos_mode_listener.stop()
 
         # Stop process monitor
         self.process_monitor.stop()
@@ -246,9 +264,8 @@ class BlackholeService:
         # Unhook all processes
         self.api_hooker.unhook_all()
 
-        # Stop firewall if active
-        if self.firewall_active:
-            self.gatekeeper.stop()
+        # Stop gatekeeper
+        self.gatekeeper.stop()
 
         # Print statistics in dev mode
         if self.dev_mode:
@@ -259,11 +276,13 @@ class BlackholeService:
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")
                 self.log("=" * 60)
-                self.log(f"Blocked keyboard:  {stats.get('blocked_keys', 0)}")
-                self.log(f"Blocked mouse:     {stats.get('blocked_mouse', 0)}")
-                self.log(f"Allowed keyboard:  {stats.get('allowed_keys', 0)}")
-                self.log(f"Allowed mouse:     {stats.get('allowed_mouse', 0)}")
-                self.log(f"Hooked processes:  {len(hooked_pids)}")
+                self.log(f"Blocked keyboard:   {stats.get('blocked_keys', 0)}")
+                self.log(f"Blocked mouse:      {stats.get('blocked_mouse', 0)}")
+                self.log(f"Scrambled keyboard: {stats.get('scrambled_keys', 0)}")
+                self.log(f"Inverted mouse:     {stats.get('inverted_mouse', 0)}")
+                self.log(f"Allowed keyboard:   {stats.get('allowed_keys', 0)}")
+                self.log(f"Allowed mouse:      {stats.get('allowed_mouse', 0)}")
+                self.log(f"Hooked processes:   {len(hooked_pids)}")
                 self.log("=" * 60 + "\n")
             except Exception as e:
                 self.log(f"[ERROR] Failed to get stats: {e}")

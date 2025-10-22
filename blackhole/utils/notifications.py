@@ -57,3 +57,31 @@ def show_driver_error(download_url):
     except Exception as e:
         # Silently fail if notification can't be shown
         pass
+
+
+def show_chaos_notification(mode):
+    """
+    Show a notification for chaos mode changes (dev mode only).
+
+    Args:
+        mode: Current firewall mode (0=OFF, 1=BLOCK, 2=CHAOS)
+    """
+    try:
+        MB_ICONINFORMATION = 0x40
+        MB_TOPMOST = 0x00040000
+
+        title = "Blackhole Firewall"
+
+        if mode == 0:  # OFF
+            message = "Firewall OFF\nAll input allowed"
+        elif mode == 1:  # BLOCK
+            message = "Firewall BLOCKING\nRemote input blocked"
+        elif mode == 2:  # CHAOS
+            message = "Firewall CHAOS MODE\nScrambling keyboard & inverting mouse!"
+        else:
+            message = f"Unknown mode: {mode}"
+
+        ctypes.windll.user32.MessageBoxW(None, message, title, MB_ICONINFORMATION | MB_TOPMOST)
+    except Exception as e:
+        # Silently fail if notification can't be shown
+        pass
