@@ -12,7 +12,7 @@ from .config import MAGIC_TAG
 # This hooks user32.dll!SendInput and tags all INPUT structures with our magic value
 FRIDA_SCRIPT = f"""
 // Get SendInput function from user32.dll
-var sendInput = Module.getExportByName('user32.dll', 'SendInput');
+var sendInput = Module.findExportByName('user32.dll', 'SendInput');
 
 if (!sendInput) {{
     send({{type: 'error', message: 'SendInput not found in user32.dll'}});
