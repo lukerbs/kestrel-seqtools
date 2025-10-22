@@ -99,8 +99,8 @@ if ($existingTask) {
 
 # Create new task
 $action = New-ScheduledTaskAction -Execute $ExePath
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$trigger = New-ScheduledTaskTrigger -AtLogon
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
@@ -112,8 +112,8 @@ if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) 
 }
 
 Write-Host "  - Task created: $TaskName"
-Write-Host "  - Trigger: At system startup"
-Write-Host "  - User: SYSTEM"
+Write-Host "  - Trigger: At user logon"
+Write-Host "  - User: $env:USERNAME"
 Write-Host ""
 
 Write-Host "[5/5] Starting service"
