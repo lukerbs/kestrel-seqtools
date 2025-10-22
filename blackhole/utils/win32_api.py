@@ -198,7 +198,7 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
         ("scanCode", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ULONG_PTR),  # Pointer-sized unsigned integer, not a pointer
     ]
 
 
@@ -208,7 +208,7 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
         ("mouseData", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ULONG_PTR),  # Pointer-sized unsigned integer, not a pointer
     ]
 
 

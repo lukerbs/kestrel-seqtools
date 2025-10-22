@@ -2,16 +2,6 @@
 Configuration for Blackhole Input Firewall Service
 """
 
-from pynput.keyboard import Key
-
-# ============================================================================
-# HOTKEY CONFIGURATION
-# ============================================================================
-
-# Hotkey system removed - firewall is controlled by service start/stop only
-# When service is running, firewall is ACTIVE (blocks remote input)
-# When service is stopped, firewall is INACTIVE (allows all input)
-
 # ============================================================================
 # SERVICE CONFIGURATION
 # ============================================================================
@@ -26,21 +16,28 @@ EXE_NAME = "blackhole.exe"
 DEFAULT_FIREWALL_STATE = True
 
 # ============================================================================
-# GATEKEEPER CONFIGURATION
+# API HOOKING CONFIGURATION
 # ============================================================================
 
-# Maximum queue size for decision queue (Raw Input → Hooks communication)
-MAX_QUEUE_SIZE = 1000
+# Magic tag value used to mark input from hooked remote desktop processes
+# This value is written to dwExtraInfo field of INPUT structures
+MAGIC_TAG = 0xDEADBEEF
 
-# Identifiers used to whitelist hypervisor's virtual input devices.
-# Add substrings from your VM's virtual device names if they are not detected.
-# Common identifiers:
-# - UTM/QEMU: "HID", "VID_0627", "QEMU"
-# - VMware: "VMWARE"
-# - VirtualBox: "VBOX", "VirtualBox"
-# - Hyper-V: "VMBUS", "Hyper-V"
-HYPERVISOR_IDENTIFIERS = [
-    "HID",  # UTM/QEMU devices show as generic HID devices
-    "VID_0627",  # QEMU vendor ID
-    "QEMU",  # QEMU identifier
+# Target processes to hook (remote desktop applications)
+# The service will automatically detect and hook SendInput() in these processes
+TARGET_PROCESSES = [
+    "AnyDesk.exe",
+    "TeamViewer.exe",
+    "RemotePC.exe",
+    "Chrome Remote Desktop.exe",
+    "LogMeIn.exe",
+    "GoToMyPC.exe",
+    "Splashtop.exe",
 ]
+
+# ============================================================================
+# PROCESS MONITOR CONFIGURATION
+# ============================================================================
+
+# How often to scan for target processes (seconds)
+PROCESS_SCAN_INTERVAL = 2.0

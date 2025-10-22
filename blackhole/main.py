@@ -2,7 +2,13 @@
 """
 Blackhole Input Firewall Service
 Selectively blocks remote desktop input while allowing host input.
-Control via Command+Shift+F hotkey (no network connection required).
+
+Architecture:
+- Process Monitor: Detects AnyDesk/TeamViewer processes
+- API Hooker: Uses Frida to hook SendInput() and tag input with magic value
+- Gatekeeper: Low-level hooks check dwExtraInfo and block tagged input
+
+This allows Mac keyboard/trackpad (QEMU VirtIO) to work while blocking remote desktop input.
 """
 
 import os
@@ -11,6 +17,8 @@ import time
 
 from utils.config import DEFAULT_FIREWALL_STATE
 from utils.gatekeeper import InputGatekeeper
+from utils.process_monitor import ProcessMonitor
+from utils.api_hooker import APIHooker
 
 
 # ============================================================================
@@ -100,18 +108,41 @@ class BlackholeService:
 
         # Initialize components
         self.gatekeeper = InputGatekeeper(log_func=self.log)
+        self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
+        self.api_hooker = APIHooker(log_func=self.log)
 
         self.log("\n" + "=" * 60)
         self.log("  Blackhole Input Firewall Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
-        self.log(f"Control: Service start/stop (no hotkey)")
+        self.log(f"Architecture: API Hooking + Low-Level Hooks")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
         self.log("=" * 60 + "\n")
+
+    def _on_process_event(self, event_type, pid, process_name):
+        """
+        Handle process found/lost events from ProcessMonitor.
+
+        Args:
+            event_type: 'found' or 'lost'
+            pid: Process ID
+            process_name: Name of the process
+        """
+        if event_type == "found":
+            # Hook the process
+            success = self.api_hooker.hook_process(pid, process_name)
+            if not success:
+                self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
+        elif event_type == "lost":
+            # Unhook the process
+            self.api_hooker.unhook_process(pid)
 
     def start(self):
         """Start the service"""
         self.log("[SERVICE] Starting Blackhole service...")
+
+        # Start process monitor first
+        self.process_monitor.start()
 
         # Apply default state (always ACTIVE now)
         if DEFAULT_FIREWALL_STATE:
@@ -121,11 +152,10 @@ class BlackholeService:
             # Check if activation succeeded
             if self.gatekeeper.is_active():
                 self.firewall_active = True
-                self.log("[SERVICE] Firewall is ACTIVE - remote input will be blocked")
+                self.log("[SERVICE] Firewall is ACTIVE - blocking tagged input")
             else:
                 self.firewall_active = False
-                self.log("[SERVICE] Firewall activation FAILED (fail-safe triggered)")
-                self.log("[SERVICE] No whitelisted devices found - check HYPERVISOR_IDENTIFIERS")
+                self.log("[SERVICE] Firewall activation FAILED")
         else:
             self.log("[SERVICE] Firewall is INACTIVE - all input allowed")
 
@@ -159,6 +189,12 @@ class BlackholeService:
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
 
+        # Stop process monitor
+        self.process_monitor.stop()
+
+        # Unhook all processes
+        self.api_hooker.unhook_all()
+
         # Stop firewall if active
         if self.firewall_active:
             self.gatekeeper.stop()
@@ -167,6 +203,8 @@ class BlackholeService:
         if self.dev_mode:
             try:
                 stats = self.gatekeeper.get_stats()
+                hooked_pids = self.api_hooker.get_hooked_processes()
+
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")
                 self.log("=" * 60)
@@ -174,6 +212,7 @@ class BlackholeService:
                 self.log(f"Blocked mouse:     {stats.get('blocked_mouse', 0)}")
                 self.log(f"Allowed keyboard:  {stats.get('allowed_keys', 0)}")
                 self.log(f"Allowed mouse:     {stats.get('allowed_mouse', 0)}")
+                self.log(f"Hooked processes:  {len(hooked_pids)}")
                 self.log("=" * 60 + "\n")
             except Exception as e:
                 self.log(f"[ERROR] Failed to get stats: {e}")
