@@ -15,10 +15,12 @@ import os
 import sys
 import time
 
-from utils.config import DEFAULT_FIREWALL_STATE
+from utils.config import DEFAULT_FIREWALL_STATE, TOGGLE_HOTKEY
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
+from utils.hotkeys import HotkeyListener
+from utils.notifications import show_notification
 
 
 # ============================================================================
@@ -110,6 +112,7 @@ class BlackholeService:
         self.gatekeeper = InputGatekeeper(log_func=self.log)
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
         self.api_hooker = APIHooker(log_func=self.log)
+        self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
 
         self.log("\n" + "=" * 60)
         self.log("  Blackhole Input Firewall Service")
@@ -117,6 +120,7 @@ class BlackholeService:
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
         self.log(f"Architecture: API Hooking + Low-Level Hooks")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
+        self.log(f"Hotkey: Ctrl+Shift+F (toggle)")
         self.log("=" * 60 + "\n")
 
     def _on_process_event(self, event_type, pid, process_name):
@@ -137,6 +141,34 @@ class BlackholeService:
             # Unhook the process
             self.api_hooker.unhook_process(pid)
 
+    def toggle_firewall(self):
+        """Toggle firewall on/off (called by hotkey)"""
+        if self.firewall_active:
+            # Turn OFF
+            self.log("[SERVICE] Hotkey pressed - DISABLING firewall...")
+            self.gatekeeper.stop()
+            self.firewall_active = False
+            self.log("[SERVICE] Firewall is now INACTIVE - all input allowed")
+
+            if self.dev_mode:
+                show_notification("Blackhole Firewall", "Firewall DISABLED\nRemote input is now ALLOWED")
+        else:
+            # Turn ON
+            self.log("[SERVICE] Hotkey pressed - ENABLING firewall...")
+            self.gatekeeper.start()
+
+            if self.gatekeeper.is_active():
+                self.firewall_active = True
+                self.log("[SERVICE] Firewall is now ACTIVE - blocking tagged input")
+
+                if self.dev_mode:
+                    show_notification("Blackhole Firewall", "Firewall ENABLED\nBlocking remote desktop input")
+            else:
+                self.log("[SERVICE] Firewall activation FAILED")
+
+                if self.dev_mode:
+                    show_notification("Blackhole Firewall", "ERROR: Failed to activate firewall")
+
     def start(self):
         """Start the service"""
         self.log("[SERVICE] Starting Blackhole service...")
@@ -144,7 +176,11 @@ class BlackholeService:
         # Start process monitor first
         self.process_monitor.start()
 
-        # Apply default state (always ACTIVE now)
+        # Start hotkey listener
+        self.hotkey_listener.start()
+        self.log("[SERVICE] Hotkey listener active (Ctrl+Shift+F to toggle)")
+
+        # Apply default state
         if DEFAULT_FIREWALL_STATE:
             self.log("[SERVICE] Activating firewall...")
             self.gatekeeper.start()
@@ -188,6 +224,9 @@ class BlackholeService:
     def stop(self):
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
+
+        # Stop hotkey listener
+        self.hotkey_listener.stop()
 
         # Stop process monitor
         self.process_monitor.stop()

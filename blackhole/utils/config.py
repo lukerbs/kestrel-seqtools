@@ -41,3 +41,13 @@ TARGET_PROCESSES = [
 
 # How often to scan for target processes (seconds)
 PROCESS_SCAN_INTERVAL = 2.0
+
+# ============================================================================
+# HOTKEY CONFIGURATION
+# ============================================================================
+
+# Import pynput Key for hotkey definition
+from pynput.keyboard import Key
+
+# Hotkey to toggle firewall on/off (Ctrl+Shift+F)
+TOGGLE_HOTKEY = {Key.ctrl, Key.shift, "f"}
