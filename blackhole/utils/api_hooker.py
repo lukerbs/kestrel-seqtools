@@ -4,69 +4,36 @@ API Hooker - Uses Frida to hook SendInput() in target processes
 
 import frida
 import sys
+import os
 
 from .config import MAGIC_TAG
 
 
-# Frida JavaScript payload to inject into target process
-# This hooks user32.dll!SendInput and tags all INPUT structures with our magic value
-FRIDA_SCRIPT = f"""
-// Get SendInput function from user32.dll
-var sendInput = Module.findExportByName('user32.dll', 'SendInput');
+def _load_frida_script():
+    """
+    Load the Frida JavaScript hook script from file.
+    Returns the script content with MAGIC_TAG substituted.
 
-if (!sendInput) {{
-    send({{type: 'error', message: 'SendInput not found in user32.dll'}});
-}} else {{
-    // Determine INPUT structure size based on architecture
-    var inputSize = Process.pointerSize === 8 ? 40 : 28;  // 64-bit: 40 bytes, 32-bit: 28 bytes
-    
-    // Hook SendInput
-    Interceptor.attach(sendInput, {{
-        onEnter: function(args) {{
-            try {{
-                // args[0] = cInputs (number of INPUT structures)
-                // args[1] = pInputs (pointer to INPUT array)
-                // args[2] = cbSize (size of INPUT structure)
-                
-                var count = args[0].toInt32();
-                var pInputs = args[1];  // args[1] is already a NativePointer
-                
-                if (count > 0 && pInputs && !pInputs.isNull()) {{
-                    // Iterate through INPUT structures and tag them
-                    for (var i = 0; i < count; i++) {{
-                        var pInput = pInputs.add(i * inputSize);
-                        var type = pInput.readU32();  // INPUT.type (first 4 bytes)
-                        
-                        if (type === 1) {{  // INPUT_KEYBOARD
-                            // Offset to ki.dwExtraInfo
-                            // 64-bit: 4 (type) + 4 (pad) + 12 (ki fields) = 20
-                            // 32-bit: 4 (type) + 12 (ki fields) = 16
-                            var extraInfoOffset = Process.pointerSize === 8 ? 20 : 16;
-                            // Use writePointer to automatically write 32 or 64 bits
-                            pInput.add(extraInfoOffset).writePointer(ptr('{MAGIC_TAG:#x}'));
-                        }}
-                        else if (type === 0) {{  // INPUT_MOUSE
-                            // Offset to mi.dwExtraInfo
-                            // 64-bit: 4 (type) + 4 (pad) + 20 (mi fields) = 28
-                            // 32-bit: 4 (type) + 20 (mi fields) = 24
-                            var extraInfoOffset = Process.pointerSize === 8 ? 28 : 24;
-                            // Use writePointer to automatically write 32 or 64 bits
-                            pInput.add(extraInfoOffset).writePointer(ptr('{MAGIC_TAG:#x}'));
-                        }}
-                    }}
-                    
-                    // Notify that we tagged events (only in verbose mode)
-                    // send({{type: 'tagged', count: count}});
-                }}
-            }} catch (e) {{
-                send({{type: 'error', message: 'Error in onEnter: ' + e.message}});
-            }}
-        }}
-    }});
-    
-    send({{type: 'ready'}});
-}}
-"""
+    Handles both development mode (running as .py) and production mode (running as .exe).
+    """
+    # Check if running as a PyInstaller bundle
+    if getattr(sys, "frozen", False):
+        # Running as compiled executable - use PyInstaller's _MEIPASS
+        script_dir = os.path.join(sys._MEIPASS, "utils")
+    else:
+        # Running as .py script - use the directory where this file is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    script_path = os.path.join(script_dir, "frida_hook.js")
+
+    # Read the JavaScript file
+    with open(script_path, "r", encoding="utf-8") as f:
+        script_content = f.read()
+
+    # Replace the MAGIC_TAG placeholder with the actual value
+    script_content = script_content.replace("{{MAGIC_TAG}}", f"'{MAGIC_TAG:#x}'")
+
+    return script_content
 
 
 class APIHooker:
@@ -107,8 +74,11 @@ class APIHooker:
             # Attach to the process
             session = frida.attach(pid)
 
+            # Load the Frida JavaScript hook script
+            frida_script_content = _load_frida_script()
+
             # Create and load the Frida script
-            script = session.create_script(FRIDA_SCRIPT)
+            script = session.create_script(frida_script_content)
             script.on("message", lambda msg, data: self._on_message(pid, process_name, msg, data))
             script.load()
 

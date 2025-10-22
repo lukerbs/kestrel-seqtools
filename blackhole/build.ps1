@@ -42,6 +42,7 @@ if ($Dev) {
     pyinstaller --onefile `
                 --console `
                 --name blackhole `
+                --add-data "utils/frida_hook.js;utils" `
                 --hidden-import=pynput.keyboard._win32 `
                 --hidden-import=pynput.mouse._win32 `
                 main.py
@@ -77,6 +78,7 @@ if ($Dev) {
     pyinstaller --onefile `
                 --noconsole `
                 --name blackhole `
+                --add-data "utils/frida_hook.js;utils" `
                 --hidden-import=pynput.keyboard._win32 `
                 --hidden-import=pynput.mouse._win32 `
                 main.py
