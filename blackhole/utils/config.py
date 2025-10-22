@@ -46,6 +46,7 @@ PROCESS_SCAN_INTERVAL = 2.0
 # HOTKEY CONFIGURATION
 # ============================================================================
 
-# Hotkey to toggle firewall on/off (Ctrl+Shift+F)
+# Hotkey to toggle firewall on/off (Windows+Shift+F)
 # Format: pynput hotkey string format
-TOGGLE_HOTKEY = "<ctrl>+<shift>+f"
+# Note: <cmd> is the Windows key on Windows, Command key on Mac
+TOGGLE_HOTKEY = "<cmd>+<shift>+f"
