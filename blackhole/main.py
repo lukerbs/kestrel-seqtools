@@ -170,8 +170,10 @@ class BlackholeService:
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")
                 self.log("=" * 60)
-                self.log(f"Blocked events:  {stats.get('blocked_events', 0)}")
-                self.log(f"Allowed events:  {stats.get('allowed_events', 0)}")
+                self.log(f"Blocked keyboard:  {stats.get('blocked_keys', 0)}")
+                self.log(f"Blocked mouse:     {stats.get('blocked_mouse', 0)}")
+                self.log(f"Allowed keyboard:  {stats.get('allowed_keys', 0)}")
+                self.log(f"Allowed mouse:     {stats.get('allowed_mouse', 0)}")
                 self.log("=" * 60 + "\n")
             except Exception as e:
                 self.log(f"[ERROR] Failed to get stats: {e}")
