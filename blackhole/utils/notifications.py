@@ -1,37 +1,27 @@
 """
-Windows notification popups for dev mode feedback
+Notifications - Windows popup notifications for dev mode
 """
 
 import ctypes
+from ctypes import wintypes
 
 
-def show_activated_popup():
+def show_notification(title, message):
     """
-    Show popup notification when firewall is activated (blocking remote input).
-    Uses native Windows MessageBox for consistency with receiver.py buddy system.
+    Show a Windows notification popup (MessageBox).
+
+    Args:
+        title: Title of the notification
+        message: Message content
     """
-    title = "Input Firewall - ACTIVE"
-    message = (
-        "Remote desktop input is now BLOCKED.\n\n"
-        "Your host input (from Mac) still works.\n\n"
-        "Press Command+Shift+F again to deactivate."
-    )
+    try:
+        # MB_ICONINFORMATION = 0x40
+        # MB_OK = 0x0
+        # MB_TOPMOST = 0x00040000
+        MB_ICONINFORMATION = 0x40
+        MB_TOPMOST = 0x00040000
 
-    # Display native Windows message box with information icon (0x40)
-    ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)
-
-
-def show_deactivated_popup():
-    """
-    Show popup notification when firewall is deactivated (allowing all input).
-    Uses native Windows MessageBox for consistency with receiver.py buddy system.
-    """
-    title = "Input Firewall - INACTIVE"
-    message = (
-        "Remote desktop input is now ALLOWED.\n\n"
-        "All input is passing through normally.\n\n"
-        "Press Command+Shift+F to activate blocking."
-    )
-
-    # Display native Windows message box with information icon (0x40)
-    ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)
+        ctypes.windll.user32.MessageBoxW(None, message, title, MB_ICONINFORMATION | MB_TOPMOST)
+    except Exception as e:
+        # Silently fail if notification can't be shown
+        pass

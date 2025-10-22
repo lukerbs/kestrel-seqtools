@@ -151,7 +151,7 @@ class BlackholeService:
             self.log("[SERVICE] Firewall is now INACTIVE - all input allowed")
 
             if self.dev_mode:
-                show_notification("Blackhole Firewall", "Firewall DISABLED\nRemote input is now ALLOWED")
+                show_notification(title="Blackhole Firewall", message="Firewall DISABLED\nRemote input is now ALLOWED")
         else:
             # Turn ON
             self.log("[SERVICE] Hotkey pressed - ENABLING firewall...")
@@ -162,12 +162,14 @@ class BlackholeService:
                 self.log("[SERVICE] Firewall is now ACTIVE - blocking tagged input")
 
                 if self.dev_mode:
-                    show_notification("Blackhole Firewall", "Firewall ENABLED\nBlocking remote desktop input")
+                    show_notification(
+                        title="Blackhole Firewall", message="Firewall ENABLED\nBlocking remote desktop input"
+                    )
             else:
                 self.log("[SERVICE] Firewall activation FAILED")
 
                 if self.dev_mode:
-                    show_notification("Blackhole Firewall", "ERROR: Failed to activate firewall")
+                    show_notification(title="Blackhole Firewall", message="ERROR: Failed to activate firewall")
 
     def start(self):
         """Start the service"""
