@@ -15,12 +15,12 @@ import os
 import sys
 import time
 
-from utils.config import DEFAULT_FIREWALL_STATE, TOGGLE_HOTKEY
+from utils.config import DEFAULT_FIREWALL_STATE, TOGGLE_HOTKEY, DRIVER_ERROR_HOTKEY, DRIVER_DOWNLOAD_URL
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
 from utils.hotkeys import HotkeyListener
-from utils.notifications import show_notification
+from utils.notifications import show_notification, show_driver_error
 
 
 # ============================================================================
@@ -113,6 +113,7 @@ class BlackholeService:
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
         self.api_hooker = APIHooker(log_func=self.log)
         self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
+        self.driver_error_listener = HotkeyListener(DRIVER_ERROR_HOTKEY, self.show_fake_driver_error, log_func=self.log)
 
         self.log("\n" + "=" * 60)
         self.log("  Blackhole Input Firewall Service")
@@ -120,7 +121,8 @@ class BlackholeService:
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
         self.log(f"Architecture: API Hooking + Low-Level Hooks")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
-        self.log(f"Hotkey: Ctrl+Shift+F (toggle)")
+        self.log(f"Hotkey: Command+Shift+F (toggle firewall)")
+        self.log(f"Hotkey: Command+Shift+G (fake driver error)")
         self.log("=" * 60 + "\n")
 
     def _on_process_event(self, event_type, pid, process_name):
@@ -140,6 +142,12 @@ class BlackholeService:
         elif event_type == "lost":
             # Unhook the process
             self.api_hooker.unhook_process(pid)
+
+    def show_fake_driver_error(self):
+        """Show fake driver error popup (called by Command+Shift+G hotkey)"""
+        self.log("[SERVICE] Fake driver error triggered - showing popup to scammer...")
+        show_driver_error(DRIVER_DOWNLOAD_URL)
+        self.log(f"[SERVICE] Driver download URL displayed: {DRIVER_DOWNLOAD_URL}")
 
     def toggle_firewall(self):
         """Toggle firewall on/off (called by hotkey)"""
@@ -178,9 +186,10 @@ class BlackholeService:
         # Start process monitor first
         self.process_monitor.start()
 
-        # Start hotkey listener
+        # Start hotkey listeners
         self.hotkey_listener.start()
-        self.log("[SERVICE] Hotkey listener active (Ctrl+Shift+F to toggle)")
+        self.driver_error_listener.start()
+        self.log("[SERVICE] Hotkey listeners active")
 
         # Apply default state
         if DEFAULT_FIREWALL_STATE:
@@ -227,8 +236,9 @@ class BlackholeService:
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
 
-        # Stop hotkey listener
+        # Stop hotkey listeners
         self.hotkey_listener.stop()
+        self.driver_error_listener.stop()
 
         # Stop process monitor
         self.process_monitor.stop()

