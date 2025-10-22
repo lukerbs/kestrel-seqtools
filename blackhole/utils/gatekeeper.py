@@ -123,15 +123,24 @@ def RawInputWndProc(hwnd, msg, wParam, lParam):
         device_type = raw_input.header.dwType
 
         # Make decision based on whitelist
-        decision = "ALLOW" if device_handle in g_whitelist_set else "DENY"
+        # CRITICAL: If device_handle is None/0, we can't identify it - default to ALLOW to prevent lockout
+        if device_handle is None or device_handle == 0:
+            decision = "ALLOW"
+            reason = "Unknown device (default allow)"
+        elif device_handle in g_whitelist_set:
+            decision = "ALLOW"
+            reason = "Device whitelisted"
+        else:
+            decision = "DENY"
+            reason = "Device not whitelisted"
 
         # Detailed logging
         device_type_str = (
             "Keyboard" if device_type == RIM_TYPEKEYBOARD else "Mouse" if device_type == RIM_TYPEMOUSE else "HID"
         )
-        in_whitelist = "YES" if device_handle in g_whitelist_set else "NO"
+        in_whitelist = "YES" if device_handle in g_whitelist_set else "NO" if device_handle else "UNKNOWN"
         g_log_func(
-            f"[RAW_INPUT] {device_type_str} event from handle {device_handle} | In whitelist: {in_whitelist} | Decision: {decision}"
+            f"[RAW_INPUT] {device_type_str} event from handle {device_handle} | In whitelist: {in_whitelist} | Decision: {decision} ({reason})"
         )
 
         # Put decision on queue
@@ -262,31 +271,29 @@ def LowLevelMouseProc(nCode, wParam, lParam):
     global g_shared_queue, g_log_func, g_stats
 
     if nCode == HC_ACTION:
-        ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+        try:
+            decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
+            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
 
-        # WORKAROUND: Raw Input doesn't provide device handles for mouse in VMs
-        # Instead, check if the event is injected (remote desktop tools use SendInput)
-        is_injected = (ms_struct.flags & LLMHF_INJECTED) != 0
-
-        if is_injected:
-            # Injected event - likely from remote desktop tool
-            g_stats["blocked_events"] += 1
-            g_log_func(
-                f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Injected input (remote desktop)"
-            )
-            return 1  # Block the event
-        else:
-            # Not injected - allow (host input)
+            if decision == "DENY":
+                g_stats["blocked_events"] += 1
+                g_log_func(
+                    f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device not whitelisted"
+                )
+                return 1  # Block the event
+            else:
+                g_stats["allowed_events"] += 1
+                g_log_func(
+                    f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device whitelisted or unknown"
+                )
+        except queue.Empty:
             g_stats["allowed_events"] += 1
+            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
             g_log_func(
-                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Not injected (host input)"
+                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Queue empty (default allow)"
             )
-
-            # Drain the queue to keep it in sync
-            try:
-                g_shared_queue.get_nowait()
-            except queue.Empty:
-                pass
+        except Exception as e:
+            g_log_func(f"[ERROR] Mouse hook error: {e}")
 
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
@@ -371,13 +378,19 @@ class InputGatekeeper:
 
         g_log_func("[GATEKEEPER] Starting input firewall...")
 
-        # Check if whitelist is empty (fail-safe)
+        # Check if whitelist is empty (fail-safe #1)
         if not g_whitelist_set:
             g_log_func("[GATEKEEPER] CRITICAL: No whitelisted devices found!")
             g_log_func("[GATEKEEPER] FAIL-SAFE: Refusing to activate firewall to prevent lockout")
             g_log_func("[GATEKEEPER] Please check HYPERVISOR_IDENTIFIERS in config.py")
             g_log_func("[GATEKEEPER] Run debug_devices.ps1 to see available devices")
             return  # Abort activation
+
+        # Fail-safe #2: Warn if Raw Input might not be working properly
+        # If we can't identify devices, the firewall won't be able to distinguish host from remote input
+        g_log_func("[GATEKEEPER] WARNING: If Raw Input returns 'None' for device handles,")
+        g_log_func("[GATEKEEPER] the firewall will allow ALL input (cannot distinguish sources)")
+        g_log_func("[GATEKEEPER] Monitor logs to ensure device identification is working")
 
         # Clear queue
         while not g_shared_queue.empty():
