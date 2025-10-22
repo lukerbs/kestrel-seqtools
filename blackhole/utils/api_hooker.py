@@ -29,7 +29,7 @@ if (!sendInput) {{
                 // args[2] = cbSize (size of INPUT structure)
                 
                 var count = args[0].toInt32();
-                var pInputs = ptr(args[1]);
+                var pInputs = args[1];  // args[1] is already a NativePointer
                 
                 if (count > 0 && pInputs && !pInputs.isNull()) {{
                     // Iterate through INPUT structures and tag them
