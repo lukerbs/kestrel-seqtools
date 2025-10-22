@@ -49,6 +49,7 @@ class InputGatekeeper:
 
         # Message loop thread
         self._hook_thread = None
+        self._hook_thread_id = None  # Store the hook thread's ID for clean shutdown
         self._active = False
         self._stop_event = threading.Event()
 
@@ -123,6 +124,9 @@ class InputGatekeeper:
         Thread function that installs hooks and runs message loop.
         This must run in its own thread to process hook messages.
         """
+        # Store this thread's ID for clean shutdown
+        self._hook_thread_id = kernel32.GetCurrentThreadId()
+
         try:
             self._log("[GATEKEEPER] Hook thread started")
 
@@ -206,9 +210,9 @@ class InputGatekeeper:
         # Signal hook thread to stop
         self._stop_event.set()
 
-        # Post WM_QUIT to message loop
-        if self._hook_thread and self._hook_thread.is_alive():
-            user32.PostThreadMessageW(kernel32.GetCurrentThreadId(), 0x0012, 0, 0)  # WM_QUIT
+        # Post WM_QUIT to the correct hook thread (not the calling thread)
+        if self._hook_thread and self._hook_thread.is_alive() and self._hook_thread_id:
+            user32.PostThreadMessageW(self._hook_thread_id, 0x0012, 0, 0)  # WM_QUIT
 
         # Wait for hook thread to finish
         if self._hook_thread:
