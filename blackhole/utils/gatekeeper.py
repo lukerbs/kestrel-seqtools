@@ -262,27 +262,31 @@ def LowLevelMouseProc(nCode, wParam, lParam):
     global g_shared_queue, g_log_func, g_stats
 
     if nCode == HC_ACTION:
-        try:
-            decision = g_shared_queue.get_nowait() if g_shared_queue else "ALLOW"
-            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+        ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
 
-            if decision == "DENY":
-                g_stats["blocked_events"] += 1
-                g_log_func(
-                    f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device not whitelisted"
-                )
-                return 1  # Block the event
-            else:
-                g_stats["allowed_events"] += 1
-                g_log_func(f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Device whitelisted")
-        except queue.Empty:
-            g_stats["allowed_events"] += 1
-            ms_struct = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+        # WORKAROUND: Raw Input doesn't provide device handles for mouse in VMs
+        # Instead, check if the event is injected (remote desktop tools use SendInput)
+        is_injected = (ms_struct.flags & LLMHF_INJECTED) != 0
+
+        if is_injected:
+            # Injected event - likely from remote desktop tool
+            g_stats["blocked_events"] += 1
             g_log_func(
-                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Queue empty (default allow)"
+                f"[HOOK BLOCKED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Injected input (remote desktop)"
             )
-        except Exception as e:
-            g_log_func(f"[ERROR] Mouse hook error: {e}")
+            return 1  # Block the event
+        else:
+            # Not injected - allow (host input)
+            g_stats["allowed_events"] += 1
+            g_log_func(
+                f"[HOOK ALLOWED] Mouse at ({ms_struct.pt.x}, {ms_struct.pt.y}) | Reason: Not injected (host input)"
+            )
+
+            # Drain the queue to keep it in sync
+            try:
+                g_shared_queue.get_nowait()
+            except queue.Empty:
+                pass
 
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
