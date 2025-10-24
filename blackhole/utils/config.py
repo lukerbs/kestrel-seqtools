@@ -26,13 +26,37 @@ MAGIC_TAG = 0xDEADBEEF
 # Target processes to hook (remote desktop applications)
 # The service will automatically detect and hook SendInput() in these processes
 TARGET_PROCESSES = [
+    # Common scammer tools
     "AnyDesk.exe",
     "TeamViewer.exe",
+    "ammyy.exe",  # Ammyy Admin (very popular with scammers)
+    "SupRemo.exe",  # SupRemo
+    "UltraViewer.exe",  # UltraViewer
+    "ZohoMeeting.exe",  # Zoho Assist
+    "ZohoAssist.exe",  # Zoho Assist (alternate)
+    # Enterprise/commercial tools
     "RemotePC.exe",
-    "Chrome Remote Desktop.exe",
     "LogMeIn.exe",
     "GoToMyPC.exe",
     "Splashtop.exe",
+    "bomgar-scc.exe",  # BeyondTrust (formerly Bomgar)
+    "vncviewer.exe",  # VNC variants
+    "tvnserver.exe",  # TightVNC Server
+    "winvnc.exe",  # RealVNC
+    "vncserver.exe",  # Generic VNC
+    "uvnc_server.exe",  # UltraVNC
+    # Open source / newer tools
+    "rustdesk.exe",  # RustDesk
+    "dwagent.exe",  # DWAgent
+    "RemoteUtilities.exe",  # Remote Utilities
+    "radmin.exe",  # Radmin
+    "Viewer.exe",  # Remote Utilities Viewer
+    # Web-based clients
+    "remotedesktop.exe",  # Chrome Remote Desktop
+    "Chrome Remote Desktop.exe",  # Chrome Remote Desktop (alternate)
+    # Windows built-in (if needed)
+    "mstsc.exe",  # Windows RDP client
+    "msra.exe",  # Windows Remote Assistance
 ]
 
 # ============================================================================
