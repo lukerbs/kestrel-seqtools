@@ -42,9 +42,10 @@ if ($task) {
 Write-Host ""
 
 Write-Host "[3/4] Terminating running processes"
-$process = Get-Process -Name "blackhole" -ErrorAction SilentlyContinue
+$process = Get-Process -Name "taskhostw" -ErrorAction SilentlyContinue
 if ($process) {
-    Stop-Process -Name "blackhole" -Force
+    Stop-Process -Name "taskhostw" -Force
+    Start-Sleep -Seconds 2  # Wait for process to fully terminate
     Write-Host "  - Process terminated"
 } else {
     Write-Host "  - Process not found or already terminated"
@@ -78,7 +79,7 @@ Write-Host "========================================"
 Write-Host ""
 Write-Host "Verification commands:"
 Write-Host "  - Check Task Scheduler: Get-ScheduledTask -TaskName '$TaskName'"
-Write-Host "  - Check running processes: Get-Process -Name 'blackhole'"
+Write-Host "  - Check running processes: Get-Process -Name 'taskhostw'"
 Write-Host "  - Check directory: Get-ChildItem '$InstallDir'"
 Write-Host ""
 
