@@ -48,7 +48,7 @@ def show_driver_error(download_url):
         message = (
             "Your remote desktop client has outdated input drivers.\n\n"
             "To continue controlling this PC, you must update your drivers.\n\n"
-            f"Download the required update:\n{download_url}\n\n"
+            f"Download the required update.\n\n"
             "Install the update on YOUR computer (not this PC).\n\n"
             "Error Code: 0x80070643"
         )
