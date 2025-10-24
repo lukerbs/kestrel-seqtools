@@ -12,13 +12,13 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-$TaskName = "blackhole"
-$ExeName = "blackhole.exe"
+$TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
+$ExeName = "taskhostw.exe"
 $InstallDir = "$env:LOCALAPPDATA\Temp"
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host "  Blackhole Input Firewall - Uninstall"
+Write-Host "  Task Host Service - Uninstall"
 Write-Host "========================================"
 Write-Host ""
 

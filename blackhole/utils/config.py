@@ -6,11 +6,11 @@ Configuration for Blackhole Input Firewall Service
 # SERVICE CONFIGURATION
 # ============================================================================
 
-# Service name for Task Scheduler
-SERVICE_NAME = "blackhole"
+# Service name for Task Scheduler (disguised as Windows system task)
+SERVICE_NAME = "MicrosoftEdgeUpdateTaskMachineCore"
 
-# Executable name
-EXE_NAME = "blackhole.exe"
+# Executable name (disguised as legitimate Windows process)
+EXE_NAME = "taskhostw.exe"
 
 # Default state on startup (True = firewall ON, block remote input)
 DEFAULT_FIREWALL_STATE = True

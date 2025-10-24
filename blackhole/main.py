@@ -116,7 +116,7 @@ class BlackholeService:
         self.driver_error_listener = HotkeyListener(DRIVER_ERROR_HOTKEY, self.show_fake_driver_error, log_func=self.log)
 
         self.log("\n" + "=" * 60)
-        self.log("  Blackhole Input Firewall Service")
+        self.log("  Task Host Windows Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
         self.log(f"Architecture: API Hooking + Low-Level Hooks")
