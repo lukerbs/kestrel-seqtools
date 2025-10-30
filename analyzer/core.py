@@ -46,6 +46,7 @@ def main():
         def __init__(self):
             self.phase2_injected = False
             self.unique_string_count = 0
+            self.phase2_script = None
 
         def on_message(self, message, data):
             """Universal message handler for all analysis scripts."""
@@ -66,6 +67,19 @@ def main():
             
             # Filter out status messages
             if isinstance(payload, dict) and payload.get('status') == 'info':
+                return
+
+            # --- Event: Unpacked region address broadcast ---
+            if isinstance(payload, dict) and payload.get('type') == 'unpacked_region':
+                unpacked_addr = payload.get('address')
+                print(f"[*] Broadcasting unpacked region address to Phase 2 scripts: {unpacked_addr}")
+                # Forward this message to Phase 2 scripts so handoff_interceptor can receive it
+                if self.phase2_script:
+                    try:
+                        self.phase2_script.post({'type': 'unpacked_region', 'address': unpacked_addr})
+                        print(f"[+] Unpacked region address forwarded to Phase 2 scripts")
+                    except Exception as e:
+                        print(f"[!] Failed to forward unpacked region address: {e}")
                 return
 
             # --- Event: Packer decrypted a string ---
@@ -213,6 +227,7 @@ def main():
                     script = session.create_script(combined_js)
                     script.on('message', self.on_message)
                     script.load()
+                    self.phase2_script = script  # Store reference for message forwarding
                     print("[+] Phase 2 scripts injected successfully!")
                     print("[*] Now monitoring OEP and application behavior...")
                 else:

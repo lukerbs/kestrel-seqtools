@@ -122,6 +122,9 @@ setImmediate(function() {
                                 caller: this.returnAddress.toString(),
                                 note: "!!! This is likely the unpacked payload region !!!"
                             }, dump);
+                            
+                            // ⭐ NEW: Broadcast the unpacked region address to other scripts
+                            send({ type: 'unpacked_region', address: address.toString() });
                         } else {
                             // For non-highlighted events, just log (don't send to reduce noise)
                             console.log(`[*] NtProtectVirtualMemory: ${address} (${size} bytes) -> ${protectionString}`);

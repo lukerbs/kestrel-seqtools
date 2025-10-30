@@ -1,31 +1,41 @@
 /*
- * Handoff Structure Interceptor (ASLR-Compatible)
+ * Handoff Structure Interceptor (ASLR-Compatible) - CORRECTED
  * 
- * Hooks the TRUE OEP (FUN_01562950) to intercept the handoff structure
- * passed from the packer. This structure contains pre-decrypted Unicode
- * strings that the application will use.
+ * Hooks the TRUE OEP (FUN_01562950) to intercept the handoff structure.
  * 
- * Target: FUN_01562950 at offset 0x162950 from original base 0x00400000
+ * CRITICAL: FUN_01562950 is at 0x01562950 in Ghidra's analysis of the
+ * unpacked payload, which was loaded at base 0x00F95000.
+ * 
+ * Offset within unpacked payload = 0x01562950 - 0x00F95000 = 0x5CD950
  */
 
 console.log("[+] Handoff Structure Interceptor Loaded.");
 console.log("[*] Targeting TRUE OEP: FUN_01562950");
 
-setImmediate(function() {
-    try {
-        // ASLR-AWARE CALCULATION
-        const mainModule = Process.enumerateModules()[0];
-        const baseAddr = mainModule.base;
-        const originalBase = ptr("0x00400000");
-        
-        // FUN_01562950 is at 0x01562950 in the unpacked code
-        // That's offset 0x162950 from the original base 0x00400000
-        const trueOepOffset = ptr("0x01562950").sub(originalBase);
-        const actualTrueOep = baseAddr.add(trueOepOffset);
+// Wait for the unpack event to get the actual unpacked region address
+let unpackedRegionBase = null;
 
-        console.log(`[*] Main module: ${mainModule.name}`);
-        console.log(`[*] Current base: ${baseAddr}`);
-        console.log(`[*] TRUE OEP offset: 0x${trueOepOffset.toString(16)}`);
+// Subscribe to messages from other scripts
+recv('unpacked_region', function(message) {
+    unpackedRegionBase = ptr(message.address);
+    console.log(`[*] Received unpacked region base: ${unpackedRegionBase}`);
+    installHook();
+});
+
+function installHook() {
+    if (!unpackedRegionBase) {
+        console.log("[!] Cannot install hook: unpacked region base unknown");
+        return;
+    }
+
+    try {
+        // FUN_01562950 is at offset 0x5CD950 from the start of unpacked payload
+        // (0x01562950 in Ghidra - 0x00F95000 Ghidra base = 0x5CD950 offset)
+        const trueOepOffset = 0x5CD950;
+        const actualTrueOep = unpackedRegionBase.add(trueOepOffset);
+
+        console.log(`[*] Unpacked region base: ${unpackedRegionBase}`);
+        console.log(`[*] TRUE OEP offset within payload: 0x${trueOepOffset.toString(16)}`);
         console.log(`[*] Calculated TRUE OEP address: ${actualTrueOep}`);
 
         Interceptor.attach(actualTrueOep, {
@@ -34,7 +44,6 @@ setImmediate(function() {
                 console.log(`[!] TRUE OEP (FUN_01562950) HAS BEEN HIT!`);
                 console.log("=".repeat(80));
                 
-                // args[0] = param_1 = pointer to PackerHandoffStructure
                 const handoffStructPtr = args[0];
                 console.log(`[+] Handoff structure pointer: ${handoffStructPtr}`);
                 
@@ -45,23 +54,18 @@ setImmediate(function() {
                 }
 
                 try {
-                    // Read the handoff structure
                     console.log("\n[*] Reading Handoff Structure:");
                     console.log("-".repeat(80));
                     
-                    // Offset +0x04: String Set #1 Length
                     const stringSet1Length = handoffStructPtr.add(0x04).readInt();
                     console.log(`[+] String Set #1 Length: ${stringSet1Length} characters`);
                     
-                    // Offset +0x08: String Set #1 Data Pointer
                     const stringSet1Ptr = handoffStructPtr.add(0x08).readPointer();
                     console.log(`[+] String Set #1 Pointer: ${stringSet1Ptr}`);
                     
-                    // Offset +0x0C: String Set #2 Length
                     const stringSet2Length = handoffStructPtr.add(0x0C).readInt();
                     console.log(`[+] String Set #2 Length: ${stringSet2Length} characters`);
                     
-                    // Offset +0x10: String Set #2 Data Pointer
                     const stringSet2Ptr = handoffStructPtr.add(0x10).readPointer();
                     console.log(`[+] String Set #2 Pointer: ${stringSet2Ptr}`);
                     
@@ -85,13 +89,6 @@ setImmediate(function() {
                             });
                         } catch (e) {
                             console.log(`[!] Error reading String Set #1: ${e.message}`);
-                            console.log(`[*] Attempting byte dump instead...`);
-                            try {
-                                const bytes = stringSet1Ptr.readByteArray(Math.min(stringSet1Length * 2, 256));
-                                console.log(hexdump(bytes, { length: 256, ansi: true }));
-                            } catch (e2) {
-                                console.log(`[!] Could not dump bytes: ${e2.message}`);
-                            }
                         }
                     } else {
                         console.log("\n[*] STRING SET #1: NULL or invalid");
@@ -115,13 +112,6 @@ setImmediate(function() {
                             });
                         } catch (e) {
                             console.log(`[!] Error reading String Set #2: ${e.message}`);
-                            console.log(`[*] Attempting byte dump instead...`);
-                            try {
-                                const bytes = stringSet2Ptr.readByteArray(Math.min(stringSet2Length * 2, 256));
-                                console.log(hexdump(bytes, { length: 256, ansi: true }));
-                            } catch (e2) {
-                                console.log(`[!] Could not dump bytes: ${e2.message}`);
-                            }
                         }
                     } else {
                         console.log("\n[*] STRING SET #2: NULL or invalid");
@@ -138,7 +128,6 @@ setImmediate(function() {
                     send({ event: 'handoff_error', message: e.message });
                 }
                 
-                // Only run once
                 this.detach();
             }
         });
@@ -150,5 +139,9 @@ setImmediate(function() {
         console.log(`[!] Failed to hook TRUE OEP: ${e.message}`);
         send({ type: 'error', message: `Failed to hook TRUE OEP: ${e.message}` });
     }
-});
+}
 
+// Initial check if we already received the message
+setImmediate(function() {
+    console.log("[*] Waiting for unpacked region address from Phase 1...");
+});
