@@ -34,7 +34,7 @@ function getProtectionString(prot) {
 console.log("[+] Starting VirtualProtect monitor...");
 send({ status: 'info', message: 'Script loaded. Monitoring for VirtualProtect calls...' });
 
-const vpAddress = Module.findExportByName('kernel32.dll', 'VirtualProtect');
+const vpAddress = Module.findExportByName('kernel32', 'VirtualProtect');
 if (vpAddress) {
     send({ status: 'info', message: `[*] VirtualProtect found at: ${vpAddress}` });
 
@@ -85,5 +85,5 @@ if (vpAddress) {
         }
     });
 } else {
-    send({ status: 'error', message: "[!] Could not find VirtualProtect export in kernel32.dll" });
+    send({ status: 'error', message: "[!] Could not find VirtualProtect export in kernel32" });
 }
