@@ -96,7 +96,7 @@ def main():
                     
                     # Save metadata for Ghidra import
                     metadata_file = UNPACKED_FILE + ".meta.txt"
-                    with open(metadata_file, "w") as f:
+                    with open(metadata_file, "w", encoding="utf-8") as f:
                         f.write(f"AnyDesk Unpacked Payload Metadata\n")
                         f.write(f"=" * 60 + "\n")
                         f.write(f"Original File: {TARGET_EXE_PATH}\n")
