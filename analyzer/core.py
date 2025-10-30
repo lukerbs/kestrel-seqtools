@@ -98,20 +98,35 @@ def main():
         print(f"[!] An unexpected error occurred: {e}")
         sys.exit(1)
 
-    script_path = "js/virtualprotect_monitor.js"
-    try:
-        with open(script_path, "r", encoding="utf-8") as f:
-            jscode = f.read()
-    except FileNotFoundError:
-        print(f"[!] JavaScript agent file not found: {script_path}")
-        print(f"[!] Make sure you're running this script from the analyzer/ directory")
+    # Load ALL JavaScript files from the js/ directory
+    import os
+    import glob
+    
+    js_files = glob.glob("js/*.js")
+    if not js_files:
+        print("[!] No JavaScript files found in js/ directory")
         sys.exit(1)
+    
+    print(f"[*] Found {len(js_files)} JavaScript modules to load")
+    
+    # Combine all JavaScript files into one script
+    combined_js = ""
+    for js_file in sorted(js_files):
+        print(f"    - Loading: {js_file}")
+        try:
+            with open(js_file, "r", encoding="utf-8") as f:
+                combined_js += f"\n// --- {js_file} ---\n"
+                combined_js += f.read()
+                combined_js += "\n\n"
+        except Exception as e:
+            print(f"[!] Error loading {js_file}: {e}")
+            sys.exit(1)
 
     try:
-        script = session.create_script(jscode)
+        script = session.create_script(combined_js)
         script.on('message', on_message)
         script.load()
-        print("[*] JavaScript payload injected successfully!")
+        print(f"[*] All {len(js_files)} JavaScript modules injected successfully!")
         
         # NOW resume the process - this is when AnyDesk actually starts executing
         print("[*] Resuming process execution...")
