@@ -38,6 +38,9 @@ function getProtectionString(prot) {
 console.log("[+] VirtualProtect Monitor Loaded. Setting up hooks...");
 send({ status: 'info', message: 'VirtualProtect monitor loading...' });
 
+// Track regions we've already dumped to avoid duplicates
+const dumpedRegions = new Set();
+
 // ✅ FIX: Wrap the main logic in setImmediate to avoid race conditions on spawn
 setImmediate(function() {
     let vpAddress = null;
@@ -76,6 +79,14 @@ setImmediate(function() {
 
                     // The .itext section starts at 0x00404000. Highlight this region.
                     if (address.compare(ptr("0x404000")) >= 0 && address.compare(ptr("0x2000000")) < 0) {
+                        // Check if we've already dumped this region
+                        const regionKey = `${address}-${size}`;
+                        if (dumpedRegions.has(regionKey)) {
+                            console.log(`[*] Region ${address} (${size} bytes) already dumped, skipping`);
+                            return;
+                        }
+                        dumpedRegions.add(regionKey);
+                        
                         message.highlight = true;
                         message.note = "!!! This is likely the unpacked payload region !!!";
 
@@ -84,7 +95,7 @@ setImmediate(function() {
 
                         // Log to console
                         console.log(`[!] VirtualProtect called from ${this.returnAddress} on address: ${address}`);
-                        console.log(`    - Size: ${size} bytes`);
+                        console.log(`    - Size: ${size} bytes (0x${size.toString(16)})`);
                         console.log(`    - New Protection: ${protectionString}`);
                         console.log(`    - NOTE: ${message.note}`);
 

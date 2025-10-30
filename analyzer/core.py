@@ -49,15 +49,42 @@ def on_message(message, data):
     # --- Logic for the Unpacker ---
     if isinstance(payload, dict) and payload.get('type') == 'VirtualProtect' and payload.get('highlight') and data:
         print(f"\n[!] Unpacker: Target memory region identified at {payload['address']}")
+        print(f"[!] Unpacker: Size: {len(data)} bytes (0x{len(data):x})")
         print(f"[!] Unpacker: Called from: {payload.get('caller', 'N/A')}")
-        print(f"[+] Unpacker: Dumping {len(data)} bytes to '{UNPACKED_FILE}'...")
+        print(f"[+] Unpacker: Dumping to '{UNPACKED_FILE}'...")
         try:
+            # Save the binary payload
             with open(UNPACKED_FILE, "wb") as f:
                 f.write(data)
             print(f"[+] Unpacker: Successfully saved payload to '{UNPACKED_FILE}'!")
-            print("\n--- Payload Preview ---")
+            
+            # Save metadata for Ghidra import
+            metadata_file = UNPACKED_FILE + ".meta.txt"
+            with open(metadata_file, "w") as f:
+                f.write(f"AnyDesk Unpacked Payload Metadata\n")
+                f.write(f"=" * 60 + "\n")
+                f.write(f"Original File: {TARGET_EXE_PATH}\n")
+                f.write(f"Dump Time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Memory Address: {payload['address']}\n")
+                f.write(f"Size: {len(data)} bytes (0x{len(data):x})\n")
+                f.write(f"Called From: {payload.get('caller', 'N/A')}\n")
+                f.write(f"Protection: {payload.get('protection', 'N/A')}\n")
+                f.write(f"\n")
+                f.write(f"Ghidra Import Instructions:\n")
+                f.write(f"-" * 60 + "\n")
+                f.write(f"1. File → Import File → Select '{UNPACKED_FILE}'\n")
+                f.write(f"2. Format: Raw Binary\n")
+                f.write(f"3. Language: x86:LE:32:default (Windows)\n")
+                f.write(f"4. Click 'Options...' button\n")
+                f.write(f"5. Set Base Address: {payload['address']}\n")
+                f.write(f"6. After import, go to address {payload['address']}\n")
+                f.write(f"7. Press 'D' to disassemble, then 'F' to create function\n")
+                f.write(f"8. This is the Original Entry Point (OEP)\n")
+            print(f"[+] Unpacker: Metadata saved to '{metadata_file}'")
+            
+            print("\n--- Payload Preview (First 256 bytes) ---")
             print(hexdump(data))
-            print("-----------------------\n")
+            print("------------------------------------------\n")
             TASK_COMPLETE = True
         except IOError as e:
             print(f"[!] Unpacker: Error writing to file: {e}")

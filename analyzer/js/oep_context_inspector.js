@@ -21,25 +21,59 @@ setImmediate(function() {
                 // Assume the first argument is a pointer to the context/API table
                 const contextPtr = args[0];
                 console.log(`[+] OEP received context pointer: ${contextPtr}`);
+                
+                // Expected APIs from static analysis (Section 6.3)
+                const expectedApis = [
+                    'VirtualAlloc', 'VirtualProtect', 'VirtualFree',
+                    'GetProcAddress', 'LoadLibraryA', 'GetModuleHandleA',
+                    'CreateThread', 'ExitProcess'
+                ];
+
+                // First, validate that this looks like a valid structure
+                try {
+                    const firstPtr = contextPtr.readPointer();
+                    if (firstPtr.isNull()) {
+                        console.log("[!] Warning: First pointer in structure is NULL");
+                    } else if (!Process.findRangeByAddress(firstPtr)) {
+                        console.log("[!] Warning: First pointer doesn't point to valid memory");
+                    }
+                } catch (e) {
+                    console.log(`[!] Warning: Cannot read context structure: ${e.message}`);
+                }
 
                 const resolvedApis = [];
+                console.log(`[+] Inspecting resolved API table:`);
+                
                 // Inspect the first 16 pointers in this structure
                 for (let i = 0; i < 16; i++) {
                     try {
                         const functionPtr = contextPtr.add(i * Process.pointerSize).readPointer();
-                        if (functionPtr.isNull()) continue;
+                        
+                        if (functionPtr.isNull()) {
+                            console.log(`  [${i}] NULL (end of table?)`);
+                            break; // Likely end of table
+                        }
 
                         const debugSymbol = DebugSymbol.fromAddress(functionPtr);
+                        const apiName = debugSymbol.name || "Unknown";
+                        const moduleName = debugSymbol.moduleName || "N/A";
+                        
+                        // Check if this matches our expected APIs
+                        const isExpected = expectedApis.some(exp => apiName.includes(exp));
+                        const marker = isExpected ? " ✓" : "";
+                        
                         resolvedApis.push({
                             index: i,
                             address: functionPtr.toString(),
-                            name: debugSymbol.name || "Unknown",
-                            module: debugSymbol.moduleName || "N/A"
+                            name: apiName,
+                            module: moduleName,
+                            expected: isExpected
                         });
                         
-                        console.log(`  [${i}] ${functionPtr} -> ${debugSymbol.moduleName}!${debugSymbol.name}`);
+                        console.log(`  [${i}] ${functionPtr} -> ${moduleName}!${apiName}${marker}`);
                     } catch (e) { 
-                        // Reached end of table or invalid pointer
+                        console.log(`  [${i}] <error reading pointer: ${e.message}>`);
+                        break; // Stop on first error
                     }
                 }
 

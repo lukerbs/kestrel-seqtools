@@ -20,6 +20,9 @@ setImmediate(function() {
                 this.seed = args[0];
                 this.dataPtr = args[1];
                 this.length = args[2].toInt32();
+                
+                // Log the decryption attempt for correlation
+                console.log(`[*] Decrypting from ${this.dataPtr} (seed: 0x${this.seed.toString(16)}, len: ${this.length})`);
             },
             onLeave: function(retval) {
                 // The return value is a pointer to the decrypted string buffer
