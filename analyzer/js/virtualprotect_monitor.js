@@ -1,7 +1,11 @@
 /*
- * Frida script to monitor VirtualProtect calls, and automatically dump
- * memory regions that are made executable. This is crucial for capturing
- * the AnyDesk packer's Stage 2 payload.
+ * VirtualProtect Monitor
+ * 
+ * Monitors VirtualProtect calls to detect when memory regions are made executable.
+ * This is crucial for capturing the AnyDesk packer's Stage 2 payload.
+ * 
+ * When the .itext section at 0x00404000 is made executable, this script
+ * automatically dumps it to a file for further analysis.
  */
 
 // Mapping of Windows memory protection constants to human-readable strings.
@@ -31,12 +35,23 @@ function getProtectionString(prot) {
     return protections.join(' | ') || "UNKNOWN";
 }
 
-console.log("[+] Starting VirtualProtect monitor...");
-send({ status: 'info', message: 'Script loaded. Now setting up hooks...' });
+console.log("[+] VirtualProtect Monitor Loaded. Setting up hooks...");
+send({ status: 'info', message: 'VirtualProtect monitor loading...' });
 
 // ✅ FIX: Wrap the main logic in setImmediate to avoid race conditions on spawn
 setImmediate(function() {
-    const vpAddress = Module.findExportByName('kernel32', 'VirtualProtect');
+    let vpAddress = null;
+    try {
+        vpAddress = Module.findExportByName('kernel32', 'VirtualProtect');
+    } catch (e) {
+        // Retry with full module name
+        try {
+            vpAddress = Module.findExportByName('kernel32.dll', 'VirtualProtect');
+        } catch (e2) {
+            send({ status: 'error', message: `[!] Failed to find VirtualProtect: ${e2.message}` });
+        }
+    }
+    
     if (vpAddress) {
         send({ status: 'info', message: `[*] VirtualProtect found at: ${vpAddress}` });
 
@@ -53,10 +68,10 @@ setImmediate(function() {
                 if (protection & 0xf0) {
                     const message = {
                         type: 'VirtualProtect',
-                        address: address,
+                        address: address.toString(),
                         size: size,
                         protection: protectionString,
-                        caller: this.returnAddress
+                        caller: this.returnAddress.toString()
                     };
 
                     // The .itext section starts at 0x00404000. Highlight this region.
@@ -67,23 +82,23 @@ setImmediate(function() {
                         // Read the memory region now that it's being made executable
                         const dump = ptr(address).readByteArray(size);
 
+                        // Log to console
+                        console.log(`[!] VirtualProtect called from ${this.returnAddress} on address: ${address}`);
+                        console.log(`    - Size: ${size} bytes`);
+                        console.log(`    - New Protection: ${protectionString}`);
+                        console.log(`    - NOTE: ${message.note}`);
+
                         // Send the metadata AND the binary dump back to Python
                         send(message, dump);
                     } else {
-                        // For non-highlighted events, just send the metadata
-                        send(message);
-                    }
-
-                    // Log to the console as well
-                    console.log(`[!] VirtualProtect called from ${this.returnAddress} on address: ${address}`);
-                    console.log(`    - Size: ${size} bytes`);
-                    console.log(`    - New Protection: ${protectionString}`);
-                    if (message.highlight) {
-                        console.log(`    - NOTE: ${message.note}`);
+                        // For non-highlighted events, just log (don't send to reduce noise)
+                        console.log(`[*] VirtualProtect: ${address} (${size} bytes) -> ${protectionString}`);
                     }
                 }
             }
         });
+        console.log("[+] VirtualProtect hook installed successfully!");
+        send({ status: 'info', message: 'VirtualProtect hook ready' });
     } else {
         send({ status: 'error', message: "[!] Could not find VirtualProtect export in kernel32" });
     }

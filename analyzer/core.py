@@ -1,154 +1,174 @@
 import frida
 import sys
 import time
+import os
 
 # --- Configuration ---
-# Full path to AnyDesk.exe on your Windows VM
 TARGET_EXE_PATH = r"C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
-OUTPUT_FILE = "unpacked_payload.bin"
-TIMEOUT = 60  # in seconds, or None to wait forever
+UNPACKED_FILE = "unpacked_payload.bin"
+TIMEOUT = 60  # Timeout for each analysis step in seconds
 # ---------------------
 
-# Global flag to signal when the dump is complete
-DUMP_COMPLETE = False
+# Global flag to signal when a one-shot task is complete
+TASK_COMPLETE = False
 
 def hexdump(data, length=256):
     """Generates a hexdump of the first `length` bytes of data."""
     if not data:
         return "<empty>"
-    
     data_to_dump = data[:length]
     lines = []
     bytes_per_line = 16
-
     for i in range(0, len(data_to_dump), bytes_per_line):
         chunk = data_to_dump[i:i + bytes_per_line]
-        
         hex_part = ' '.join(f'{b:02x}' for b in chunk)
         hex_part = hex_part.ljust(bytes_per_line * 3 - 1)
-
         ascii_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
-        
         lines.append(f"{i:08x}  {hex_part}  |{ascii_part}|")
-    
     if len(data) > length:
         lines.append(f"... ({len(data) - length} more bytes)")
-        
     return "\n".join(lines)
 
 def on_message(message, data):
-    """
-    Callback function to handle messages and binary data from JavaScript.
-    """
-    global DUMP_COMPLETE
+    """Universal message handler for all analysis scripts."""
+    global TASK_COMPLETE
+    if message['type'] == 'error':
+        print(f"[!] JavaScript Error: {message.get('stack', 'No stack trace')}")
+        TASK_COMPLETE = True  # Stop on error
+        return
 
-    if message['type'] == 'send':
-        payload = message['payload']
-        # In some Frida versions, the payload is nested.
-        if isinstance(payload, dict) and 'payload' in payload and 'type' in payload:
-             payload = payload['payload']
+    if message['type'] != 'send':
+        return
 
-        print(f"[*] Received message: {payload}")
-
-        if isinstance(payload, dict) and payload.get('highlight') and data:
-            print(f"\n[!] Target memory region identified at {payload['address']} (Size: {payload['size']})")
-            print(f"[!] Called from: {payload.get('caller', 'N/A')}")
-            print(f"[+] Dumping {len(data)} bytes to '{OUTPUT_FILE}'...")
-            
-            try:
-                with open(OUTPUT_FILE, "wb") as f:
-                    f.write(data)
-                print(f"[+] Successfully saved unpacked payload to '{OUTPUT_FILE}'!")
-                
-                print("\n--- Payload Preview (first 256 bytes) ---")
-                print(hexdump(data))
-                print("------------------------------------------\n")
-                
-                DUMP_COMPLETE = True
-            except IOError as e:
-                print(f"[!] Error writing to file: {e}")
-
-    elif message['type'] == 'error':
-        print(f"[!] Error: {message['stack']}")
-    else:
-        print(f"[*] Message: {message}")
-
-def main():
-    """
-    Spawns the target process in a suspended state, injects hooks,
-    then resumes execution to catch unpacking from the very beginning.
-    """
-    global DUMP_COMPLETE
-    try:
-        print(f"[*] Spawning '{TARGET_EXE_PATH}' in suspended state...")
-        pid = frida.spawn(TARGET_EXE_PATH)
-        print(f"[*] Spawned process with PID: {pid}")
-        
-        print(f"[*] Attaching to PID {pid}...")
-        session = frida.attach(pid)
-        print(f"[*] Attached successfully!")
-    except FileNotFoundError:
-        print(f"[!] Executable not found: {TARGET_EXE_PATH}")
-        print(f"[!] Please update TARGET_EXE_PATH in the script to the correct path.")
-        sys.exit(1)
-    except frida.NotSupportedError as e:
-        print(f"[!] Frida error: {e}. Is Frida installed on this system?")
-        sys.exit(1)
-    except Exception as e:
-        print(f"[!] An unexpected error occurred: {e}")
-        sys.exit(1)
-
-    # Load ALL JavaScript files from the js/ directory
-    import os
-    import glob
+    payload = message.get('payload', {})
     
-    js_files = glob.glob("js/*.js")
-    if not js_files:
-        print("[!] No JavaScript files found in js/ directory")
-        sys.exit(1)
-    
-    print(f"[*] Found {len(js_files)} JavaScript modules to load")
-    
-    # Combine all JavaScript files into one script
-    combined_js = ""
-    for js_file in sorted(js_files):
-        print(f"    - Loading: {js_file}")
+    # Only print non-status messages
+    if not isinstance(payload, dict) or payload.get('status') != 'info':
+        print(f"[*] JS Message: {payload}")
+
+    # --- Logic for the Unpacker ---
+    if isinstance(payload, dict) and payload.get('type') == 'VirtualProtect' and payload.get('highlight') and data:
+        print(f"\n[!] Unpacker: Target memory region identified at {payload['address']}")
+        print(f"[!] Unpacker: Called from: {payload.get('caller', 'N/A')}")
+        print(f"[+] Unpacker: Dumping {len(data)} bytes to '{UNPACKED_FILE}'...")
         try:
-            with open(js_file, "r", encoding="utf-8") as f:
-                combined_js += f"\n// --- {js_file} ---\n"
-                combined_js += f.read()
-                combined_js += "\n\n"
-        except Exception as e:
-            print(f"[!] Error loading {js_file}: {e}")
-            sys.exit(1)
+            with open(UNPACKED_FILE, "wb") as f:
+                f.write(data)
+            print(f"[+] Unpacker: Successfully saved payload to '{UNPACKED_FILE}'!")
+            print("\n--- Payload Preview ---")
+            print(hexdump(data))
+            print("-----------------------\n")
+            TASK_COMPLETE = True
+        except IOError as e:
+            print(f"[!] Unpacker: Error writing to file: {e}")
 
+    # --- Logic for the OEP Inspector ---
+    elif isinstance(payload, dict) and payload.get('event') == 'api_table':
+        print("\n--- OEP Inspector: Resolved API Table Passed to OEP ---")
+        for api in payload.get('table', []):
+            print(f"  [{api['index']:>2}] {api['address']} -> {api['module']}!{api['name']}")
+        print("------------------------------------------------------\n")
+        TASK_COMPLETE = True
+
+    # --- Logic for the String Decryptor ---
+    elif isinstance(payload, dict) and payload.get('event') == 'decrypted_string':
+        print(f"[DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
+
+    # --- Generic stop condition for scripts that only send one message ---
+    elif isinstance(payload, dict) and payload.get('event') == 'oep_hit':
+        # The 'api_table' message will follow, which sets TASK_COMPLETE
+        pass
+
+def run_analysis(script_path):
+    """Spawns the target, injects a script, and waits for it to complete."""
+    global TASK_COMPLETE
+    TASK_COMPLETE = False
+    
+    print("\n" + "="*80)
+    print(f"[*] EXECUTING ANALYSIS: {os.path.basename(script_path)}")
+    print("="*80)
+
+    session = None
+    pid = None
     try:
-        script = session.create_script(combined_js)
+        pid = frida.spawn(TARGET_EXE_PATH)
+        session = frida.attach(pid)
+        print(f"[*] Spawned & Attached to PID: {pid}")
+
+        with open(script_path, "r", encoding="utf-8") as f:
+            jscode = f.read()
+
+        script = session.create_script(jscode)
         script.on('message', on_message)
         script.load()
-        print(f"[*] All {len(js_files)} JavaScript modules injected successfully!")
+        print(f"[*] Injected '{os.path.basename(script_path)}'. Resuming process...")
         
-        # NOW resume the process - this is when AnyDesk actually starts executing
-        print("[*] Resuming process execution...")
         frida.resume(pid)
-        print("[*] Process resumed! Monitoring for VirtualProtect calls...")
-        print("[*] Waiting for unpack event...")
 
         start_time = time.time()
-        while not DUMP_COMPLETE:
-            if TIMEOUT and (time.time() - start_time) > TIMEOUT:
-                print(f"\n[!] Timed out after {TIMEOUT} seconds waiting for unpack event.")
+        while not TASK_COMPLETE:
+            if time.time() - start_time > TIMEOUT:
+                print(f"\n[!] Timed out after {TIMEOUT} seconds.")
                 break
             time.sleep(0.1)
 
-    except frida.InvalidOperationError as e:
-        print(f"[!] Error loading script: {e}")
-    except KeyboardInterrupt:
-        print("\n[*] Detaching due to user request...")
+    except Exception as e:
+        print(f"[!] An error occurred during '{script_path}' analysis: {e}")
     finally:
-        if 'session' in locals() and not session.is_detached:
-            session.detach()
-        print("[*] Detached successfully.")
+        if session:
+            print("[*] Detaching from process...")
+            try:
+                session.detach()
+            except:
+                pass
+            # On some systems, the process might need to be explicitly killed
+            try:
+                if pid:
+                    frida.kill(pid)
+                    print("[*] Process killed.")
+            except Exception:
+                pass  # Process might have already terminated
+
+def main():
+    """Main function to run all analysis phases sequentially."""
+    if not os.path.exists(TARGET_EXE_PATH):
+        print(f"[!] FATAL: Target executable not found at '{TARGET_EXE_PATH}'")
+        print("[!] Please update the TARGET_EXE_PATH in core.py.")
+        sys.exit(1)
+
+    print("\n" + "="*80)
+    print("[*] AUTOMATED ANYDESK PACKER ANALYSIS TOOL")
+    print("[*] Target: AnyDesk.exe")
+    print("[*] Phases: String Decryption → Payload Unpacking → OEP Inspection")
+    print("="*80)
+
+    # Phase 1: Decrypt all hidden strings from the packer
+    if os.path.exists('js/string_decryptor.js'):
+        run_analysis('js/string_decryptor.js')
+    else:
+        print("[!] Skipping Phase 1: string_decryptor.js not found")
+
+    # Phase 2: Wait for the payload to be unpacked and dump it to a file
+    if os.path.exists('js/virtualprotect_monitor.js'):
+        run_analysis('js/virtualprotect_monitor.js')
+    else:
+        print("[!] ERROR: virtualprotect_monitor.js not found!")
+        sys.exit(1)
+
+    # Phase 3: Inspect the parameters passed from the packer to the payload
+    if os.path.exists('js/oep_context_inspector.js'):
+        run_analysis('js/oep_context_inspector.js')
+    else:
+        print("[!] Skipping Phase 3: oep_context_inspector.js not found")
+    
+    print("\n" + "="*80)
+    print("[*] ALL ANALYSIS PHASES COMPLETE")
+    if os.path.exists(UNPACKED_FILE):
+        print(f"[+] Unpacked payload saved to: {UNPACKED_FILE}")
+        print("[*] Next step: Analyze this file in Ghidra (Base Address: 0x00400000)")
+    else:
+        print("[!] Warning: Unpacked payload file was not created")
+    print("="*80)
 
 
 if __name__ == "__main__":
