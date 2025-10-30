@@ -99,7 +99,12 @@ def on_message(message, data):
 
     # --- Logic for the String Decryptor ---
     elif isinstance(payload, dict) and payload.get('event') == 'decrypted_string':
-        print(f"[DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
+        unique_count = payload.get('uniqueCount', '?')
+        print(f"[{unique_count}] [DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
+    
+    elif isinstance(payload, dict) and payload.get('event') == 'string_capture_complete':
+        print(f"\n[+] String capture complete! Found {payload['total']} unique API names.")
+        TASK_COMPLETE = True
 
     # --- Logic for the Diagnostic Script ---
     elif isinstance(payload, dict) and payload.get('event') == 'diagnostic_complete':

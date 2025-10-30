@@ -1,13 +1,19 @@
 /*
- * Packer String Decryptor (ASLR-Compatible)
+ * Packer String Decryptor (ASLR-Compatible with Deduplication)
  * 
  * Hooks the custom LCG/XOR decryption routine to automatically decrypt
- * every string the packer uses at runtime.
+ * every string the packer uses at runtime. Includes deduplication to
+ * avoid spam from repeated calls to the same string.
  * 
- * Dynamically calculates addresses to handle ASLR (Address Space Layout Randomization)
+ * Dynamically calculates addresses to handle ASLR.
  */
 
 console.log("[+] Packer String Decryptor Loaded. Hooking decryption routine...");
+
+// Track seen strings to avoid spam
+const seenStrings = new Set();
+let uniqueCount = 0;
+const MAX_UNIQUE_STRINGS = 50; // Stop after finding this many unique strings
 
 setImmediate(function() {
     try {
@@ -34,9 +40,6 @@ setImmediate(function() {
                 this.seed = args[0];
                 this.dataPtr = args[1];
                 this.length = args[2].toInt32();
-                
-                // Log the decryption attempt for correlation
-                console.log(`[*] Decrypting from ${this.dataPtr} (seed: 0x${this.seed.toString(16)}, len: ${this.length})`);
             },
             onLeave: function(retval) {
                 // The return value is a pointer to the decrypted string buffer
@@ -44,12 +47,25 @@ setImmediate(function() {
                     try {
                         const decryptedString = retval.readCString(this.length);
                         if (decryptedString && decryptedString.length > 0) {
-                            send({ 
-                                event: 'decrypted_string', 
-                                string: decryptedString, 
-                                seed: '0x' + this.seed.toString(16).padStart(8, '0'),
-                                length: this.length 
-                            });
+                            // Check if we've seen this exact string before (by content, not seed)
+                            if (!seenStrings.has(decryptedString)) {
+                                seenStrings.add(decryptedString);
+                                uniqueCount++;
+                                
+                                send({ 
+                                    event: 'decrypted_string', 
+                                    string: decryptedString, 
+                                    seed: '0x' + this.seed.toString(16).padStart(8, '0'),
+                                    length: this.length,
+                                    uniqueCount: uniqueCount
+                                });
+                                
+                                // Stop after finding enough unique strings
+                                if (uniqueCount >= MAX_UNIQUE_STRINGS) {
+                                    console.log(`\n[+] Found ${uniqueCount} unique strings. Stopping string capture.`);
+                                    send({ event: 'string_capture_complete', total: uniqueCount });
+                                }
+                            }
                         }
                     } catch (e) {
                         // Unable to read string

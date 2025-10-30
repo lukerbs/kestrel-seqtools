@@ -5,28 +5,23 @@
  * to the unpacked code. This reveals the dynamic import table and context
  * structure passed to the application.
  * 
- * Dynamically calculates addresses to handle ASLR
+ * Dynamically calculates addresses to handle ASLR.
  */
 
 console.log("[+] OEP Context Inspector Loaded. Setting up OEP hook...");
 
 setImmediate(function() {
     try {
-        // Get the actual base address of the main executable module
-        const mainModule = Process.enumerateModules()[0];
-        const baseAddress = mainModule.base;
-        const originalBase = ptr("0x00400000");
-        
-        // Calculate actual OEP address
-        // Original OEP from static analysis: 0x00404000
-        const oepOffset = ptr("0x00404000").sub(originalBase);
-        const actualOepAddress = baseAddress.add(oepOffset);
-        
-        console.log(`[*] Main module: ${mainModule.name}`);
-        console.log(`[*] Current base: ${baseAddress}`);
+        // ASLR-AWARE CALCULATION
+        const baseAddr = Process.enumerateModules()[0].base;
+        const oepOffset = 0x4000;
+        const actualOepAddress = baseAddr.add(oepOffset);
+
+        console.log(`[*] Main module: AnyDesk.exe`);
+        console.log(`[*] Current base: ${baseAddr}`);
         console.log(`[*] OEP offset: 0x${oepOffset.toString(16)}`);
         console.log(`[*] Actual OEP address: ${actualOepAddress}`);
-        
+
         Interceptor.attach(actualOepAddress, {
             onEnter: function(args) {
                 console.log(`\n[!] --- OEP at ${actualOepAddress} has been hit! ---`);
@@ -36,7 +31,7 @@ setImmediate(function() {
                 const contextPtr = args[0];
                 console.log(`[+] OEP received context pointer: ${contextPtr}`);
                 
-                // Expected APIs from static analysis (Section 6.3)
+                // Expected APIs from static analysis
                 const expectedApis = [
                     'VirtualAlloc', 'VirtualProtect', 'VirtualFree',
                     'GetProcAddress', 'LoadLibraryA', 'GetModuleHandleA',
@@ -103,7 +98,7 @@ setImmediate(function() {
                 this.detach();
             }
         });
-        console.log("[+] OEP hook installed at ${actualOepAddress}!");
+        console.log(`[+] OEP hook installed at ${actualOepAddress}!`);
         send({ status: 'info', message: 'OEP hook ready' });
     } catch (e) {
         console.log(`[!] Failed to hook OEP: ${e.message}`);

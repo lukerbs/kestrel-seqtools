@@ -9,7 +9,6 @@
  */
 
 // Mapping of Windows memory protection constants to human-readable strings.
-// https://docs.microsoft.com/en-us/windows/win32/memory/memory-protection-constants
 const protFlags = {
     0x01: "PAGE_NOACCESS",
     0x02: "PAGE_READONLY",
@@ -25,7 +24,6 @@ function getProtectionString(prot) {
     if (prot in protFlags) {
         return protFlags[prot];
     }
-    // Handle combinations, e.g., PAGE_GUARD
     let protections = [];
     for (const flag in protFlags) {
         if (prot & flag) {
@@ -41,39 +39,34 @@ send({ status: 'info', message: 'VirtualProtect monitor loading...' });
 // Track regions we've already dumped to avoid duplicates
 const dumpedRegions = new Set();
 
-// Calculate the .itext section range dynamically
-let itextStart = null;
-let itextEnd = null;
-
 setImmediate(function() {
-    // Get the actual base address of the main executable
-    const mainModule = Process.enumerateModules()[0];
-    const baseAddress = mainModule.base;
-    const originalBase = ptr("0x00400000");
-    
-    console.log(`[*] Main module: ${mainModule.name}`);
-    console.log(`[*] Current base: ${baseAddress}`);
-    
-    // Calculate .itext section address range
-    // Original .itext from static analysis: 0x00404000
-    const itextOffset = ptr("0x00404000").sub(originalBase);
-    itextStart = baseAddress.add(itextOffset);
-    itextEnd = baseAddress.add(ptr("0x02000000").sub(originalBase));
-    
+    // ASLR-AWARE CALCULATION
+    const baseAddr = Process.enumerateModules()[0].base;
+    const itextStart = baseAddr.add(0x4000); // Offset of .itext from base
+    const itextEnd = baseAddr.add(0x2000000); // Upper bound for the section
+
+    console.log(`[*] Main module: AnyDesk.exe`);
+    console.log(`[*] Current base: ${baseAddr}`);
     console.log(`[*] .itext section range: ${itextStart} - ${itextEnd}`);
-    
+
     let vpAddress = null;
+    
+    // Try to find VirtualProtect - it may be in KERNEL32 or KERNELBASE
     try {
-        vpAddress = Module.findExportByName('kernel32', 'VirtualProtect');
+        vpAddress = Module.getExportByName('KERNEL32.DLL', 'VirtualProtect');
+        console.log(`[+] Found VirtualProtect in KERNEL32: ${vpAddress}`);
     } catch (e) {
-        // Retry with full module name
+        console.log(`[*] Not in KERNEL32, trying KERNELBASE...`);
         try {
-            vpAddress = Module.findExportByName('kernel32.dll', 'VirtualProtect');
+            vpAddress = Module.getExportByName('KERNELBASE.dll', 'VirtualProtect');
+            console.log(`[+] Found VirtualProtect in KERNELBASE: ${vpAddress}`);
         } catch (e2) {
-            send({ status: 'error', message: `[!] Failed to find VirtualProtect: ${e2.message}` });
+            console.log(`[!] Failed to find VirtualProtect: ${e2.message}`);
+            send({ status: 'error', message: `Could not find VirtualProtect: ${e2.message}` });
+            return;
         }
     }
-    
+
     if (vpAddress) {
         send({ status: 'info', message: `[*] VirtualProtect found at: ${vpAddress}` });
 
@@ -88,15 +81,7 @@ setImmediate(function() {
 
                 // Filter for executable permissions
                 if (protection & 0xf0) {
-                    const message = {
-                        type: 'VirtualProtect',
-                        address: address.toString(),
-                        size: size,
-                        protection: protectionString,
-                        caller: this.returnAddress.toString()
-                    };
-
-                    // Check if this is in the .itext section range
+                    // Check if the address is within our calculated .itext range
                     if (address.compare(itextStart) >= 0 && address.compare(itextEnd) < 0) {
                         // Check if we've already dumped this region
                         const regionKey = `${address}-${size}`;
@@ -106,9 +91,6 @@ setImmediate(function() {
                         }
                         dumpedRegions.add(regionKey);
                         
-                        message.highlight = true;
-                        message.note = "!!! This is likely the unpacked payload region !!!";
-
                         // Read the memory region now that it's being made executable
                         const dump = ptr(address).readByteArray(size);
 
@@ -116,10 +98,18 @@ setImmediate(function() {
                         console.log(`[!] VirtualProtect called from ${this.returnAddress} on address: ${address}`);
                         console.log(`    - Size: ${size} bytes (0x${size.toString(16)})`);
                         console.log(`    - New Protection: ${protectionString}`);
-                        console.log(`    - NOTE: ${message.note}`);
+                        console.log(`    - NOTE: This is likely the unpacked payload region!`);
 
                         // Send the metadata AND the binary dump back to Python
-                        send(message, dump);
+                        send({
+                            type: 'VirtualProtect',
+                            highlight: true,
+                            address: address.toString(),
+                            size: size,
+                            protection: protectionString,
+                            caller: this.returnAddress.toString(),
+                            note: "!!! This is likely the unpacked payload region !!!"
+                        }, dump);
                     } else {
                         // For non-highlighted events, just log (don't send to reduce noise)
                         console.log(`[*] VirtualProtect: ${address} (${size} bytes) -> ${protectionString}`);
@@ -129,7 +119,5 @@ setImmediate(function() {
         });
         console.log("[+] VirtualProtect hook installed successfully!");
         send({ status: 'info', message: 'VirtualProtect hook ready' });
-    } else {
-        send({ status: 'error', message: "[!] Could not find VirtualProtect export in kernel32" });
     }
 });
