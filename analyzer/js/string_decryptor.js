@@ -1,20 +1,34 @@
 /*
- * Packer String Decryptor
+ * Packer String Decryptor (ASLR-Compatible)
  * 
- * Hooks the custom LCG/XOR decryption routine at 0x004036ee to
- * automatically decrypt every string the packer uses at runtime.
+ * Hooks the custom LCG/XOR decryption routine to automatically decrypt
+ * every string the packer uses at runtime.
  * 
- * Based on the reverse-engineered algorithm:
- *   next_state = (current_state × 0x19660d) + 0x3c6ef35f
- *   keystream_byte = (next_state >> 12) & 0xFF
- *   plaintext[i] = encrypted[i] ⊕ keystream_byte
+ * Dynamically calculates addresses to handle ASLR (Address Space Layout Randomization)
  */
 
-console.log("[+] Packer String Decryptor Loaded. Hooking decryption routine at 0x004036ee...");
+console.log("[+] Packer String Decryptor Loaded. Hooking decryption routine...");
 
 setImmediate(function() {
     try {
-        Interceptor.attach(ptr("0x004036ee"), {
+        // Get the actual base address of the main executable module
+        const mainModule = Process.enumerateModules()[0];
+        const baseAddress = mainModule.base;
+        const originalBase = ptr("0x00400000");
+        
+        console.log(`[*] Main module: ${mainModule.name}`);
+        console.log(`[*] Current base address: ${baseAddress}`);
+        console.log(`[*] Original base address: ${originalBase}`);
+        
+        // Calculate the offset and add it to the current base
+        // Original address from static analysis: 0x004036ee
+        const decryptorOffset = ptr("0x004036ee").sub(originalBase);
+        const actualDecryptorAddress = baseAddress.add(decryptorOffset);
+        
+        console.log(`[*] String decryptor offset: 0x${decryptorOffset.toString(16)}`);
+        console.log(`[*] Actual decryptor address: ${actualDecryptorAddress}`);
+        
+        Interceptor.attach(actualDecryptorAddress, {
             onEnter: function(args) {
                 // Save arguments: seed, encrypted_data_ptr, length
                 this.seed = args[0];
@@ -50,4 +64,3 @@ setImmediate(function() {
         send({ status: 'error', message: `Failed to hook: ${e.message}` });
     }
 });
-

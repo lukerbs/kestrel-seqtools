@@ -1,21 +1,35 @@
 /*
- * OEP Context Inspector
+ * OEP Context Inspector (ASLR-Compatible)
  * 
- * Hooks the Original Entry Point (0x00404000) to intercept the handoff
- * from the packer to the unpacked code. This reveals the dynamic import
- * table and any context structure passed to the application.
+ * Hooks the Original Entry Point to intercept the handoff from the packer
+ * to the unpacked code. This reveals the dynamic import table and context
+ * structure passed to the application.
  * 
- * Note: This script should be run AFTER the payload has been unpacked,
- * as the OEP memory region must be executable before we can hook it.
+ * Dynamically calculates addresses to handle ASLR
  */
 
 console.log("[+] OEP Context Inspector Loaded. Setting up OEP hook...");
 
 setImmediate(function() {
     try {
-        Interceptor.attach(ptr("0x00404000"), {
+        // Get the actual base address of the main executable module
+        const mainModule = Process.enumerateModules()[0];
+        const baseAddress = mainModule.base;
+        const originalBase = ptr("0x00400000");
+        
+        // Calculate actual OEP address
+        // Original OEP from static analysis: 0x00404000
+        const oepOffset = ptr("0x00404000").sub(originalBase);
+        const actualOepAddress = baseAddress.add(oepOffset);
+        
+        console.log(`[*] Main module: ${mainModule.name}`);
+        console.log(`[*] Current base: ${baseAddress}`);
+        console.log(`[*] OEP offset: 0x${oepOffset.toString(16)}`);
+        console.log(`[*] Actual OEP address: ${actualOepAddress}`);
+        
+        Interceptor.attach(actualOepAddress, {
             onEnter: function(args) {
-                console.log(`\n[!] --- OEP at 0x00404000 has been hit! ---`);
+                console.log(`\n[!] --- OEP at ${actualOepAddress} has been hit! ---`);
                 send({ event: 'oep_hit' });
 
                 // Assume the first argument is a pointer to the context/API table
@@ -82,7 +96,6 @@ setImmediate(function() {
                     send({ event: 'api_table', table: resolvedApis });
                 } else {
                     console.log("[!] No valid API pointers found in context structure");
-                    // Still signal completion even if no APIs found
                     send({ event: 'api_table', table: [] });
                 }
                 
@@ -90,7 +103,7 @@ setImmediate(function() {
                 this.detach();
             }
         });
-        console.log("[+] OEP hook installed at 0x00404000!");
+        console.log("[+] OEP hook installed at ${actualOepAddress}!");
         send({ status: 'info', message: 'OEP hook ready' });
     } catch (e) {
         console.log(`[!] Failed to hook OEP: ${e.message}`);

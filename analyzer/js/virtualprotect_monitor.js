@@ -1,11 +1,11 @@
 /*
- * VirtualProtect Monitor
+ * VirtualProtect Monitor (ASLR-Compatible)
  * 
  * Monitors VirtualProtect calls to detect when memory regions are made executable.
  * This is crucial for capturing the AnyDesk packer's Stage 2 payload.
  * 
- * When the .itext section at 0x00404000 is made executable, this script
- * automatically dumps it to a file for further analysis.
+ * When the .itext section is made executable, this script automatically dumps it.
+ * Dynamically calculates addresses to handle ASLR.
  */
 
 // Mapping of Windows memory protection constants to human-readable strings.
@@ -41,8 +41,27 @@ send({ status: 'info', message: 'VirtualProtect monitor loading...' });
 // Track regions we've already dumped to avoid duplicates
 const dumpedRegions = new Set();
 
-// ✅ FIX: Wrap the main logic in setImmediate to avoid race conditions on spawn
+// Calculate the .itext section range dynamically
+let itextStart = null;
+let itextEnd = null;
+
 setImmediate(function() {
+    // Get the actual base address of the main executable
+    const mainModule = Process.enumerateModules()[0];
+    const baseAddress = mainModule.base;
+    const originalBase = ptr("0x00400000");
+    
+    console.log(`[*] Main module: ${mainModule.name}`);
+    console.log(`[*] Current base: ${baseAddress}`);
+    
+    // Calculate .itext section address range
+    // Original .itext from static analysis: 0x00404000
+    const itextOffset = ptr("0x00404000").sub(originalBase);
+    itextStart = baseAddress.add(itextOffset);
+    itextEnd = baseAddress.add(ptr("0x02000000").sub(originalBase));
+    
+    console.log(`[*] .itext section range: ${itextStart} - ${itextEnd}`);
+    
     let vpAddress = null;
     try {
         vpAddress = Module.findExportByName('kernel32', 'VirtualProtect');
@@ -77,8 +96,8 @@ setImmediate(function() {
                         caller: this.returnAddress.toString()
                     };
 
-                    // The .itext section starts at 0x00404000. Highlight this region.
-                    if (address.compare(ptr("0x404000")) >= 0 && address.compare(ptr("0x2000000")) < 0) {
+                    // Check if this is in the .itext section range
+                    if (address.compare(itextStart) >= 0 && address.compare(itextEnd) < 0) {
                         // Check if we've already dumped this region
                         const regionKey = `${address}-${size}`;
                         if (dumpedRegions.has(regionKey)) {

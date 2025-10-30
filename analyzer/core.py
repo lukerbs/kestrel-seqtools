@@ -101,6 +101,10 @@ def on_message(message, data):
     elif isinstance(payload, dict) and payload.get('event') == 'decrypted_string':
         print(f"[DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
 
+    # --- Logic for the Diagnostic Script ---
+    elif isinstance(payload, dict) and payload.get('event') == 'diagnostic_complete':
+        TASK_COMPLETE = True
+    
     # --- Generic stop condition for scripts that only send one message ---
     elif isinstance(payload, dict) and payload.get('event') == 'oep_hit':
         # The 'api_table' message will follow, which sets TASK_COMPLETE
@@ -172,6 +176,13 @@ def main():
     print("[*] Target: AnyDesk.exe")
     print("[*] Phases: String Decryption → Payload Unpacking → OEP Inspection")
     print("="*80)
+
+    # Diagnostic: Check for ASLR and verify address calculations
+    if os.path.exists('js/test_module_base.js'):
+        print("\n[*] Running diagnostic to verify ASLR configuration...")
+        run_analysis('js/test_module_base.js')
+        print("\n[*] Diagnostic complete. Proceeding with full analysis...")
+        time.sleep(1)
 
     # Phase 1: Decrypt all hidden strings from the packer
     if os.path.exists('js/string_decryptor.js'):
