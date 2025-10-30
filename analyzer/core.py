@@ -47,6 +47,7 @@ def main():
             self.phase2_injected = False
             self.unique_string_count = 0
             self.phase2_script = None
+            self.unpacked_region_address = None
 
         def on_message(self, message, data):
             """Universal message handler for all analysis scripts."""
@@ -72,8 +73,12 @@ def main():
             # --- Event: Unpacked region address broadcast ---
             if isinstance(payload, dict) and payload.get('type') == 'unpacked_region':
                 unpacked_addr = payload.get('address')
-                print(f"[*] Broadcasting unpacked region address to Phase 2 scripts: {unpacked_addr}")
-                # Forward this message to Phase 2 scripts so handoff_interceptor can receive it
+                print(f"[*] Received unpacked region address: {unpacked_addr}")
+                # Store it for later forwarding (Phase 2 might not be injected yet)
+                if not self.unpacked_region_address:
+                    self.unpacked_region_address = unpacked_addr
+                    print(f"[*] Stored unpacked region address for Phase 2")
+                # If Phase 2 is already injected, forward immediately
                 if self.phase2_script:
                     try:
                         self.phase2_script.post({'type': 'unpacked_region', 'address': unpacked_addr})
@@ -229,6 +234,16 @@ def main():
                     script.load()
                     self.phase2_script = script  # Store reference for message forwarding
                     print("[+] Phase 2 scripts injected successfully!")
+                    
+                    # Forward the stored unpacked region address to Phase 2 scripts
+                    if self.unpacked_region_address:
+                        print(f"[*] Forwarding stored unpacked region address to Phase 2: {self.unpacked_region_address}")
+                        try:
+                            script.post({'type': 'unpacked_region', 'address': self.unpacked_region_address})
+                            print(f"[+] Unpacked region address successfully forwarded")
+                        except Exception as e:
+                            print(f"[!] Failed to forward stored unpacked region address: {e}")
+                    
                     print("[*] Now monitoring OEP and application behavior...")
                 else:
                     print("[!] No Phase 2 scripts to inject")
