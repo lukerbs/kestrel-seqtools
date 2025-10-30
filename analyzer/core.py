@@ -6,11 +6,13 @@ import os
 # --- Configuration ---
 TARGET_EXE_PATH = r"C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
 UNPACKED_FILE = "unpacked_payload.bin"
-TIMEOUT = 60  # Timeout for each analysis step in seconds
-# ---------------------
 
-# Global flag to signal when a one-shot task is complete
-TASK_COMPLETE = False
+# Scripts to inject immediately on spawn (before process runs)
+PHASE_1_SCRIPTS = ['js/string_decryptor.js', 'js/virtualprotect_monitor.js']
+
+# Scripts to inject AFTER the payload is unpacked (OEP is now executable)
+PHASE_2_SCRIPTS = ['js/oep_context_inspector.js']
+# ---------------------
 
 def hexdump(data, length=256):
     """Generates a hexdump of the first `length` bytes of data."""
@@ -29,194 +31,233 @@ def hexdump(data, length=256):
         lines.append(f"... ({len(data) - length} more bytes)")
     return "\n".join(lines)
 
-def on_message(message, data):
-    """Universal message handler for all analysis scripts."""
-    global TASK_COMPLETE
-    if message['type'] == 'error':
-        print(f"[!] JavaScript Error: {message.get('stack', 'No stack trace')}")
-        TASK_COMPLETE = True  # Stop on error
-        return
-
-    if message['type'] != 'send':
-        return
-
-    payload = message.get('payload', {})
+def main():
+    """
+    Main function to run a multi-phase dynamic analysis in a single session.
     
-    # Only print non-status messages
-    if not isinstance(payload, dict) or payload.get('status') != 'info':
-        print(f"[*] JS Message: {payload}")
-
-    # --- Logic for the Unpacker ---
-    if isinstance(payload, dict) and payload.get('type') == 'VirtualProtect' and payload.get('highlight') and data:
-        print(f"\n[!] Unpacker: Target memory region identified at {payload['address']}")
-        print(f"[!] Unpacker: Size: {len(data)} bytes (0x{len(data):x})")
-        print(f"[!] Unpacker: Called from: {payload.get('caller', 'N/A')}")
-        print(f"[+] Unpacker: Dumping to '{UNPACKED_FILE}'...")
-        try:
-            # Save the binary payload
-            with open(UNPACKED_FILE, "wb") as f:
-                f.write(data)
-            print(f"[+] Unpacker: Successfully saved payload to '{UNPACKED_FILE}'!")
-            
-            # Save metadata for Ghidra import
-            metadata_file = UNPACKED_FILE + ".meta.txt"
-            with open(metadata_file, "w") as f:
-                f.write(f"AnyDesk Unpacked Payload Metadata\n")
-                f.write(f"=" * 60 + "\n")
-                f.write(f"Original File: {TARGET_EXE_PATH}\n")
-                f.write(f"Dump Time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"Memory Address: {payload['address']}\n")
-                f.write(f"Size: {len(data)} bytes (0x{len(data):x})\n")
-                f.write(f"Called From: {payload.get('caller', 'N/A')}\n")
-                f.write(f"Protection: {payload.get('protection', 'N/A')}\n")
-                f.write(f"\n")
-                f.write(f"Ghidra Import Instructions:\n")
-                f.write(f"-" * 60 + "\n")
-                f.write(f"1. File → Import File → Select '{UNPACKED_FILE}'\n")
-                f.write(f"2. Format: Raw Binary\n")
-                f.write(f"3. Language: x86:LE:32:default (Windows)\n")
-                f.write(f"4. Click 'Options...' button\n")
-                f.write(f"5. Set Base Address: {payload['address']}\n")
-                f.write(f"6. After import, go to address {payload['address']}\n")
-                f.write(f"7. Press 'D' to disassemble, then 'F' to create function\n")
-                f.write(f"8. This is the Original Entry Point (OEP)\n")
-            print(f"[+] Unpacker: Metadata saved to '{metadata_file}'")
-            
-            print("\n--- Payload Preview (First 256 bytes) ---")
-            print(hexdump(data))
-            print("------------------------------------------\n")
-            TASK_COMPLETE = True
-        except IOError as e:
-            print(f"[!] Unpacker: Error writing to file: {e}")
-
-    # --- Logic for the OEP Inspector ---
-    elif isinstance(payload, dict) and payload.get('event') == 'api_table':
-        print("\n--- OEP Inspector: Resolved API Table Passed to OEP ---")
-        for api in payload.get('table', []):
-            print(f"  [{api['index']:>2}] {api['address']} -> {api['module']}!{api['name']}")
-        print("------------------------------------------------------\n")
-        TASK_COMPLETE = True
-
-    # --- Logic for the String Decryptor ---
-    elif isinstance(payload, dict) and payload.get('event') == 'decrypted_string':
-        unique_count = payload.get('uniqueCount', '?')
-        print(f"[{unique_count}] [DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
-    
-    elif isinstance(payload, dict) and payload.get('event') == 'string_capture_complete':
-        print(f"\n[+] String capture complete! Found {payload['total']} unique API names.")
-        TASK_COMPLETE = True
-
-    # --- Logic for the Diagnostic Script ---
-    elif isinstance(payload, dict) and payload.get('event') == 'diagnostic_complete':
-        TASK_COMPLETE = True
-    
-    # --- Generic stop condition for scripts that only send one message ---
-    elif isinstance(payload, dict) and payload.get('event') == 'oep_hit':
-        # The 'api_table' message will follow, which sets TASK_COMPLETE
-        pass
-
-def run_analysis(script_path):
-    """Spawns the target, injects a script, and waits for it to complete."""
-    global TASK_COMPLETE
-    TASK_COMPLETE = False
-    
-    print("\n" + "="*80)
-    print(f"[*] EXECUTING ANALYSIS: {os.path.basename(script_path)}")
-    print("="*80)
-
+    Architecture:
+    - Phase 1: Inject early-stage monitors (string decryptor, memory protection)
+    - Phase 2: After unpack detected, inject late-stage hooks (OEP inspector)
+    """
     session = None
-    pid = None
+    
+    # Use a class to manage state across asynchronous messages
+    class AnalysisManager:
+        def __init__(self):
+            self.phase2_injected = False
+            self.unique_string_count = 0
+
+        def on_message(self, message, data):
+            """Universal message handler for all analysis scripts."""
+            if message.get('type') == 'error':
+                print(f"[!] JavaScript Error: {message.get('stack', 'No stack trace')}")
+                return
+
+            if message.get('type') != 'send':
+                return
+
+            payload = message.get('payload', {})
+            
+            # Filter out status messages
+            if isinstance(payload, dict) and payload.get('status') == 'info':
+                return
+
+            # --- Event: Packer decrypted a string ---
+            if isinstance(payload, dict) and payload.get('event') == 'decrypted_string':
+                unique_count = payload.get('uniqueCount', '?')
+                print(f"[{unique_count}] [DECRYPTED] \"{payload['string']}\" (Seed: {payload['seed']})")
+                self.unique_string_count = unique_count
+
+            # --- Event: String capture complete ---
+            elif isinstance(payload, dict) and payload.get('event') == 'string_capture_complete':
+                print(f"\n[+] String capture complete! Found {payload['total']} unique API names.")
+
+            # --- Event: Payload has been unpacked ---
+            elif isinstance(payload, dict) and payload.get('type') == 'VirtualProtect' and payload.get('highlight') and data:
+                print(f"\n{'='*80}")
+                print(f"[!] UNPACK EVENT DETECTED!")
+                print(f"{'='*80}")
+                print(f"[!] Memory region identified at {payload['address']}")
+                print(f"[!] Size: {len(data)} bytes (0x{len(data):x})")
+                print(f"[!] Called from: {payload.get('caller', 'N/A')}")
+                print(f"[+] Dumping to '{UNPACKED_FILE}'...")
+                
+                try:
+                    # Save the binary payload
+                    with open(UNPACKED_FILE, "wb") as f:
+                        f.write(data)
+                    print(f"[+] Successfully saved payload to '{UNPACKED_FILE}'!")
+                    
+                    # Save metadata for Ghidra import
+                    metadata_file = UNPACKED_FILE + ".meta.txt"
+                    with open(metadata_file, "w") as f:
+                        f.write(f"AnyDesk Unpacked Payload Metadata\n")
+                        f.write(f"=" * 60 + "\n")
+                        f.write(f"Original File: {TARGET_EXE_PATH}\n")
+                        f.write(f"Dump Time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Memory Address: {payload['address']}\n")
+                        f.write(f"Size: {len(data)} bytes (0x{len(data):x})\n")
+                        f.write(f"Called From: {payload.get('caller', 'N/A')}\n")
+                        f.write(f"Protection: {payload.get('protection', 'N/A')}\n")
+                        f.write(f"\n")
+                        f.write(f"Ghidra Import Instructions:\n")
+                        f.write(f"-" * 60 + "\n")
+                        f.write(f"1. File → Import File → Select '{UNPACKED_FILE}'\n")
+                        f.write(f"2. Format: Raw Binary\n")
+                        f.write(f"3. Language: x86:LE:32:default (Windows)\n")
+                        f.write(f"4. Click 'Options...' button\n")
+                        f.write(f"5. Set Base Address: {payload['address']}\n")
+                        f.write(f"6. After import, go to address {payload['address']}\n")
+                        f.write(f"7. Press 'D' to disassemble, then 'F' to create function\n")
+                        f.write(f"8. This is the Original Entry Point (OEP)\n")
+                    print(f"[+] Metadata saved to '{metadata_file}'")
+                    
+                    print("\n--- Payload Preview (First 256 bytes) ---")
+                    print(hexdump(data))
+                    print("------------------------------------------\n")
+                    
+                    # ⭐ CRITICAL: Trigger Phase 2 Injection
+                    self.inject_phase2_scripts()
+                    
+                except IOError as e:
+                    print(f"[!] Error writing to file: {e}")
+
+            # --- Event: OEP has been hit ---
+            elif isinstance(payload, dict) and payload.get('event') == 'oep_hit':
+                print(f"\n[!] OEP at unpacked address has been hit!")
+
+            # --- Event: OEP context/API table received ---
+            elif isinstance(payload, dict) and payload.get('event') == 'api_table':
+                print("\n" + "="*80)
+                print("--- OEP Inspector: Resolved API Table Passed to OEP ---")
+                print("="*80)
+                apis = payload.get('table', [])
+                if apis:
+                    for api in apis:
+                        marker = " ✓" if api.get('expected') else ""
+                        print(f"  [{api['index']:>2}] {api['address']} -> {api['module']}!{api['name']}{marker}")
+                else:
+                    print("  (No API pointers found or unable to read)")
+                print("="*80 + "\n")
+                
+                print("\n" + "="*80)
+                print("[*] ALL ANALYSIS PHASES COMPLETE!")
+                print(f"[+] Decrypted {self.unique_string_count} unique strings")
+                print(f"[+] Unpacked payload saved to: {UNPACKED_FILE}")
+                print(f"[+] OEP inspection complete")
+                print("[*] Press Ctrl+C to exit...")
+                print("="*80 + "\n")
+
+            # --- Event: A monitored API was called ---
+            elif isinstance(payload, dict) and payload.get('event') == 'api_call':
+                print(f"[API] {payload.get('api', 'Unknown')} -> {payload.get('details', '')}")
+
+        def inject_phase2_scripts(self):
+            """
+            Inject Phase 2 scripts after the unpack event.
+            This ensures the OEP memory is executable before we try to hook it.
+            """
+            if self.phase2_injected or not session:
+                return
+            
+            self.phase2_injected = True
+            print("\n" + "="*80)
+            print("[*] PHASE 2: Injecting late-stage analysis scripts...")
+            print("="*80)
+            
+            # Give the process a moment to finish the memory protection changes
+            time.sleep(0.2)
+            
+            try:
+                combined_js = ""
+                for script_path in PHASE_2_SCRIPTS:
+                    if not os.path.exists(script_path):
+                        print(f"[!] Warning: {script_path} not found, skipping")
+                        continue
+                    
+                    print(f"[*] Loading: {script_path}")
+                    with open(script_path, "r", encoding="utf-8") as f:
+                        combined_js += f"\n// --- {script_path} ---\n"
+                        combined_js += f.read()
+                        combined_js += "\n\n"
+                
+                if combined_js:
+                    script = session.create_script(combined_js)
+                    script.on('message', self.on_message)
+                    script.load()
+                    print("[+] Phase 2 scripts injected successfully!")
+                    print("[*] Now monitoring OEP and application behavior...")
+                else:
+                    print("[!] No Phase 2 scripts to inject")
+                    
+            except Exception as e:
+                print(f"[!] Failed to inject Phase 2 scripts: {e}")
+
+    analysis_manager = AnalysisManager()
+
     try:
+        if not os.path.exists(TARGET_EXE_PATH):
+            print(f"[!] FATAL: Target executable not found at '{TARGET_EXE_PATH}'")
+            print("[!] Please update the TARGET_EXE_PATH in core.py.")
+            sys.exit(1)
+
+        print("\n" + "="*80)
+        print("[*] MULTI-PHASE DYNAMIC ANALYSIS FRAMEWORK")
+        print("[*] Target: AnyDesk.exe")
+        print("[*] Architecture: Single-session, event-driven")
+        print("="*80)
+        
+        print("\n[*] Spawning target in suspended state...")
         pid = frida.spawn(TARGET_EXE_PATH)
         session = frida.attach(pid)
-        print(f"[*] Spawned & Attached to PID: {pid}")
-
-        with open(script_path, "r", encoding="utf-8") as f:
-            jscode = f.read()
-
-        script = session.create_script(jscode)
-        script.on('message', on_message)
+        print(f"[*] Attached to PID: {pid}")
+        
+        print("\n[*] PHASE 1: Injecting early-stage monitors...")
+        print("-" * 80)
+        
+        phase1_js = ""
+        for script_path in PHASE_1_SCRIPTS:
+            if not os.path.exists(script_path):
+                print(f"[!] ERROR: {script_path} not found!")
+                sys.exit(1)
+            
+            print(f"[*] Loading: {script_path}")
+            with open(script_path, "r", encoding="utf-8") as f:
+                phase1_js += f"\n// --- {script_path} ---\n"
+                phase1_js += f.read()
+                phase1_js += "\n\n"
+        
+        script = session.create_script(phase1_js)
+        script.on('message', analysis_manager.on_message)
         script.load()
-        print(f"[*] Injected '{os.path.basename(script_path)}'. Waiting for hooks to initialize...")
+        print("[+] Phase 1 scripts loaded successfully!")
+
+        print("\n[*] Resuming process execution...")
+        print("[*] Monitoring for unpack event (this triggers Phase 2)...")
+        print("-" * 80 + "\n")
         
-        # Give the setImmediate callbacks time to execute and install hooks
-        time.sleep(0.5)
-        
-        print(f"[*] Resuming process...")
         frida.resume(pid)
+        
+        print("[*] Analysis active. Waiting for events...")
+        print("[*] Press Ctrl+C to detach and exit.\n")
+        
+        # Keep the session alive
+        sys.stdin.read()
 
-        start_time = time.time()
-        while not TASK_COMPLETE:
-            if time.time() - start_time > TIMEOUT:
-                print(f"\n[!] Timed out after {TIMEOUT} seconds.")
-                break
-            time.sleep(0.1)
-
+    except KeyboardInterrupt:
+        print("\n[*] User interrupt received.")
     except Exception as e:
-        print(f"[!] An error occurred during '{script_path}' analysis: {e}")
+        print(f"[!] An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        if session:
-            print("[*] Detaching from process...")
+        if session and not session.is_detached:
+            print("\n[*] Detaching from process...")
             try:
                 session.detach()
+                print("[*] Detached successfully.")
             except:
                 pass
-            # On some systems, the process might need to be explicitly killed
-            try:
-                if pid:
-                    frida.kill(pid)
-                    print("[*] Process killed.")
-            except Exception:
-                pass  # Process might have already terminated
-
-def main():
-    """Main function to run all analysis phases sequentially."""
-    if not os.path.exists(TARGET_EXE_PATH):
-        print(f"[!] FATAL: Target executable not found at '{TARGET_EXE_PATH}'")
-        print("[!] Please update the TARGET_EXE_PATH in core.py.")
-        sys.exit(1)
-
-    print("\n" + "="*80)
-    print("[*] AUTOMATED ANYDESK PACKER ANALYSIS TOOL")
-    print("[*] Target: AnyDesk.exe")
-    print("[*] Phases: String Decryption → Payload Unpacking → OEP Inspection")
-    print("="*80)
-
-    # Diagnostic: Check for ASLR and verify address calculations
-    if os.path.exists('js/test_module_base.js'):
-        print("\n[*] Running diagnostic to verify ASLR configuration...")
-        run_analysis('js/test_module_base.js')
-        print("\n[*] Diagnostic complete. Proceeding with full analysis...")
-        time.sleep(1)
-
-    # Phase 1: Decrypt all hidden strings from the packer
-    if os.path.exists('js/string_decryptor.js'):
-        run_analysis('js/string_decryptor.js')
-    else:
-        print("[!] Skipping Phase 1: string_decryptor.js not found")
-
-    # Phase 2: Wait for the payload to be unpacked and dump it to a file
-    if os.path.exists('js/virtualprotect_monitor.js'):
-        run_analysis('js/virtualprotect_monitor.js')
-    else:
-        print("[!] ERROR: virtualprotect_monitor.js not found!")
-        sys.exit(1)
-
-    # Phase 3: Inspect the parameters passed from the packer to the payload
-    if os.path.exists('js/oep_context_inspector.js'):
-        run_analysis('js/oep_context_inspector.js')
-    else:
-        print("[!] Skipping Phase 3: oep_context_inspector.js not found")
-    
-    print("\n" + "="*80)
-    print("[*] ALL ANALYSIS PHASES COMPLETE")
-    if os.path.exists(UNPACKED_FILE):
-        print(f"[+] Unpacked payload saved to: {UNPACKED_FILE}")
-        print("[*] Next step: Analyze this file in Ghidra (Base Address: 0x00400000)")
-    else:
-        print("[!] Warning: Unpacked payload file was not created")
-    print("="*80)
-
 
 if __name__ == "__main__":
     main()
