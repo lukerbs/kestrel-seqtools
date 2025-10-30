@@ -100,7 +100,7 @@ def main():
 
     script_path = "js/virtualprotect_monitor.js"
     try:
-        with open(script_path, "r") as f:
+        with open(script_path, "r", encoding="utf-8") as f:
             jscode = f.read()
     except FileNotFoundError:
         print(f"[!] JavaScript agent file not found: {script_path}")
