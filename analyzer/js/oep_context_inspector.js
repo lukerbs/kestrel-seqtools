@@ -99,9 +99,9 @@ setImmediate(function() {
             }
         });
         console.log(`[+] OEP hook installed at ${actualOepAddress}!`);
-        send({ status: 'info', message: 'OEP hook ready' });
+        send({ type: 'ready', script: 'oep_context_inspector' });  // ← Signal ready
     } catch (e) {
         console.log(`[!] Failed to hook OEP: ${e.message}`);
-        send({ status: 'error', message: `Failed to hook OEP: ${e.message}` });
+        send({ type: 'error', message: `Failed to hook OEP: ${e.message}` });
     }
 });

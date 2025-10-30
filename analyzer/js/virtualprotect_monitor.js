@@ -50,10 +50,26 @@ setImmediate(function() {
     console.log(`[*] Current base: ${baseAddr}`);
     console.log(`[*] .itext section range: ${itextStart} - ${itextEnd}`);
 
-    try {
-        const ntProtectAddr = Module.getExportByName('ntdll.dll', 'NtProtectVirtualMemory');
-        console.log(`[+] NtProtectVirtualMemory found at: ${ntProtectAddr}`);
-        send({ status: 'info', message: `[*] NtProtectVirtualMemory found at: ${ntProtectAddr}` });
+    // ✅ SAFER APPROACH: Use findModuleByName (returns null if not found)
+    const ntdllModule = Process.findModuleByName('ntdll.dll');
+    
+    if (!ntdllModule) {
+        console.log('[!] ntdll.dll module not found - may not be loaded yet');
+        send({ status: 'error', message: 'ntdll.dll module not found' });
+        return;
+    }
+    
+    // ✅ SAFER APPROACH: Use module.findExportByName (returns null if not found)
+    const ntProtectAddr = ntdllModule.findExportByName('NtProtectVirtualMemory');
+    
+    if (!ntProtectAddr) {
+        console.log('[!] NtProtectVirtualMemory export not found in ntdll.dll');
+        send({ status: 'error', message: 'NtProtectVirtualMemory not found' });
+        return;
+    }
+    
+    console.log(`[+] NtProtectVirtualMemory found at: ${ntProtectAddr}`);
+    send({ status: 'info', message: `[*] NtProtectVirtualMemory found at: ${ntProtectAddr}` });
 
         Interceptor.attach(ntProtectAddr, {
             onEnter: function(args) {
@@ -117,9 +133,5 @@ setImmediate(function() {
             }
         });
         console.log("[+] NtProtectVirtualMemory hook installed successfully!");
-        send({ status: 'info', message: 'NtProtectVirtualMemory hook ready' });
-    } catch (e) {
-        console.log(`[!] Failed to hook NtProtectVirtualMemory: ${e.message}`);
-        send({ status: 'error', message: `Could not find NtProtectVirtualMemory: ${e.message}` });
-    }
+        send({ type: 'ready', script: 'virtualprotect_monitor' });  // ← Signal ready like blackhole
 });

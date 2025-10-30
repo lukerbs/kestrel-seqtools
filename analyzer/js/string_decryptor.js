@@ -74,9 +74,9 @@ setImmediate(function() {
             }
         });
         console.log("[+] String decryptor hook installed successfully!");
-        send({ status: 'info', message: 'String decryptor ready' });
+        send({ type: 'ready', script: 'string_decryptor' });  // ← Signal ready
     } catch (e) {
         console.log(`[!] Failed to hook string decryptor: ${e.message}`);
-        send({ status: 'error', message: `Failed to hook: ${e.message}` });
+        send({ type: 'error', message: `Failed to hook: ${e.message}` });
     }
 });

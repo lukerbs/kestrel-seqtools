@@ -58,6 +58,12 @@ def main():
 
             payload = message.get('payload', {})
             
+            # Handle 'ready' signal from scripts (like blackhole pattern)
+            if isinstance(payload, dict) and payload.get('type') == 'ready':
+                script_name = payload.get('script', 'unknown')
+                print(f"[+] {script_name} hook active and ready")
+                return
+            
             # Filter out status messages
             if isinstance(payload, dict) and payload.get('status') == 'info':
                 return
