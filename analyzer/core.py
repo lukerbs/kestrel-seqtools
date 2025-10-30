@@ -11,7 +11,7 @@ UNPACKED_FILE = "unpacked_payload.bin"
 PHASE_1_SCRIPTS = ['js/string_decryptor.js', 'js/virtualprotect_monitor.js']
 
 # Scripts to inject AFTER the payload is unpacked (OEP is now executable)
-PHASE_2_SCRIPTS = ['js/oep_context_inspector.js']
+PHASE_2_SCRIPTS = ['js/handoff_interceptor.js', 'js/oep_context_inspector.js']
 # ---------------------
 
 def hexdump(data, length=256):
@@ -157,6 +157,28 @@ def main():
             # --- Event: A monitored API was called ---
             elif isinstance(payload, dict) and payload.get('event') == 'api_call':
                 print(f"[API] {payload.get('api', 'Unknown')} -> {payload.get('details', '')}")
+
+            # --- Event: Handoff structure string captured ---
+            elif isinstance(payload, dict) and payload.get('event') == 'handoff_string':
+                set_num = payload.get('set', '?')
+                length = payload.get('length', '?')
+                address = payload.get('address', '?')
+                content = payload.get('content', '<empty>')
+                
+                print(f"\n{'='*80}")
+                print(f"[!] HANDOFF STRING SET #{set_num} CAPTURED!")
+                print(f"{'='*80}")
+                print(f"[+] Address: {address}")
+                print(f"[+] Length: {length} characters")
+                print(f"[+] Content:")
+                print(f"{'-'*80}")
+                print(content)
+                print(f"{'='*80}\n")
+
+            # --- Event: Handoff analysis complete ---
+            elif isinstance(payload, dict) and payload.get('event') == 'handoff_complete':
+                print("\n[+] Handoff structure analysis complete!")
+                print("[*] All pre-decrypted strings have been extracted.")
 
         def inject_phase2_scripts(self):
             """
