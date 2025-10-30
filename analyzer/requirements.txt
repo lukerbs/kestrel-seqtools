@@ -1,2 +1,0 @@
-frida
-frida-tools
