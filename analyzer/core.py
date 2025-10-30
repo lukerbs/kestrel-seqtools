@@ -74,10 +74,10 @@ def main():
             if isinstance(payload, dict) and payload.get('type') == 'unpacked_region':
                 unpacked_addr = payload.get('address')
                 print(f"[*] Received unpacked region address: {unpacked_addr}")
-                # Store it for later forwarding (Phase 2 might not be injected yet)
-                if not self.unpacked_region_address:
-                    self.unpacked_region_address = unpacked_addr
-                    print(f"[*] Stored unpacked region address for Phase 2")
+                # Always update to the LATEST region (multiple unpacks may occur)
+                # The last one is usually the code section
+                self.unpacked_region_address = unpacked_addr
+                print(f"[*] Updated unpacked region address for Phase 2")
                 # If Phase 2 is already injected, forward immediately
                 if self.phase2_script:
                     try:

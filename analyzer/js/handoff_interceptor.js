@@ -14,12 +14,17 @@ console.log("[*] Targeting TRUE OEP: FUN_01562950");
 
 // Wait for the unpack event to get the actual unpacked region address
 let unpackedRegionBase = null;
+let hookInstalled = false;
 
 // Subscribe to messages from other scripts
 recv('unpacked_region', function(message) {
     unpackedRegionBase = ptr(message.address);
     console.log(`[*] Received unpacked region base: ${unpackedRegionBase}`);
-    installHook();
+    // Only install once, using the latest address received before installation
+    if (!hookInstalled) {
+        // Give it a moment for any additional regions to be reported
+        setTimeout(installHook, 100);
+    }
 });
 
 function installHook() {
@@ -27,6 +32,13 @@ function installHook() {
         console.log("[!] Cannot install hook: unpacked region base unknown");
         return;
     }
+    
+    if (hookInstalled) {
+        console.log("[*] Hook already installed, ignoring");
+        return;
+    }
+    
+    hookInstalled = true;
 
     try {
         // FUN_01562950 is at offset 0x5CD950 from the start of unpacked payload
