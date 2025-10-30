@@ -1,10 +1,10 @@
 /*
- * VirtualProtect Monitor (ASLR-Compatible)
- * 
- * Monitors VirtualProtect calls to detect when memory regions are made executable.
- * This is crucial for capturing the AnyDesk packer's Stage 2 payload.
- * 
- * When the .itext section is made executable, this script automatically dumps it.
+ * NtProtectVirtualMemory Monitor (ASLR-Compatible, NT API Aware)
+ *
+ * The AnyDesk packer uses the low-level ntdll!NtProtectVirtualMemory directly
+ * instead of kernel32!VirtualProtect to evade common hooks. This monitor
+ * targets the correct NT API to catch the unpacking event.
+ *
  * Dynamically calculates addresses to handle ASLR.
  */
 
@@ -33,8 +33,9 @@ function getProtectionString(prot) {
     return protections.join(' | ') || "UNKNOWN";
 }
 
-console.log("[+] VirtualProtect Monitor Loaded. Setting up hooks...");
-send({ status: 'info', message: 'VirtualProtect monitor loading...' });
+console.log("[+] Memory Protection Monitor Loaded.");
+console.log("[*] Targeting ntdll!NtProtectVirtualMemory (low-level NT API)");
+send({ status: 'info', message: 'Memory protection monitor loading...' });
 
 // Track regions we've already dumped to avoid duplicates
 const dumpedRegions = new Set();
@@ -49,75 +50,76 @@ setImmediate(function() {
     console.log(`[*] Current base: ${baseAddr}`);
     console.log(`[*] .itext section range: ${itextStart} - ${itextEnd}`);
 
-    let vpAddress = null;
-    
-    // Try to find VirtualProtect - it may be in KERNEL32 or KERNELBASE
     try {
-        vpAddress = Module.getExportByName('KERNEL32.DLL', 'VirtualProtect');
-        console.log(`[+] Found VirtualProtect in KERNEL32: ${vpAddress}`);
-    } catch (e) {
-        console.log(`[*] Not in KERNEL32, trying KERNELBASE...`);
-        try {
-            vpAddress = Module.getExportByName('KERNELBASE.dll', 'VirtualProtect');
-            console.log(`[+] Found VirtualProtect in KERNELBASE: ${vpAddress}`);
-        } catch (e2) {
-            console.log(`[!] Failed to find VirtualProtect: ${e2.message}`);
-            send({ status: 'error', message: `Could not find VirtualProtect: ${e2.message}` });
-            return;
-        }
-    }
+        const ntProtectAddr = Module.getExportByName('ntdll.dll', 'NtProtectVirtualMemory');
+        console.log(`[+] NtProtectVirtualMemory found at: ${ntProtectAddr}`);
+        send({ status: 'info', message: `[*] NtProtectVirtualMemory found at: ${ntProtectAddr}` });
 
-    if (vpAddress) {
-        send({ status: 'info', message: `[*] VirtualProtect found at: ${vpAddress}` });
-
-        Interceptor.attach(vpAddress, {
+        Interceptor.attach(ntProtectAddr, {
             onEnter: function(args) {
                 if (this.fridaBypass) return;
 
-                const address = args[0];
-                const size = args[1].toInt32();
-                const protection = args[2].toInt32();
-                const protectionString = getProtectionString(protection);
+                // NtProtectVirtualMemory signature:
+                // NTSTATUS NtProtectVirtualMemory(
+                //   HANDLE ProcessHandle,      // args[0]
+                //   PVOID *BaseAddress,        // args[1] - pointer to address
+                //   PSIZE_T RegionSize,        // args[2] - pointer to size
+                //   ULONG NewProtect,          // args[3] - direct value
+                //   PULONG OldProtect          // args[4] - pointer to old protection
+                // );
 
-                // Filter for executable permissions
-                if (protection & 0xf0) {
-                    // Check if the address is within our calculated .itext range
-                    if (address.compare(itextStart) >= 0 && address.compare(itextEnd) < 0) {
-                        // Check if we've already dumped this region
-                        const regionKey = `${address}-${size}`;
-                        if (dumpedRegions.has(regionKey)) {
-                            console.log(`[*] Region ${address} (${size} bytes) already dumped, skipping`);
-                            return;
+                try {
+                    // Read the actual address and size from the pointers
+                    const address = args[1].readPointer();
+                    const size = args[2].readPointer().toInt32();
+                    const protection = args[3].toInt32();
+                    const protectionString = getProtectionString(protection);
+
+                    // Filter for executable permissions
+                    if (protection & 0xf0) {
+                        // Check if the address is within our calculated .itext range
+                        if (address.compare(itextStart) >= 0 && address.compare(itextEnd) < 0) {
+                            // Check if we've already dumped this region
+                            const regionKey = `${address}-${size}`;
+                            if (dumpedRegions.has(regionKey)) {
+                                console.log(`[*] Region ${address} (${size} bytes) already dumped, skipping`);
+                                return;
+                            }
+                            dumpedRegions.add(regionKey);
+                            
+                            // Read the memory region now that it's being made executable
+                            const dump = ptr(address).readByteArray(size);
+
+                            // Log to console
+                            console.log(`[!] NtProtectVirtualMemory called from ${this.returnAddress} on address: ${address}`);
+                            console.log(`    - Size: ${size} bytes (0x${size.toString(16)})`);
+                            console.log(`    - New Protection: ${protectionString}`);
+                            console.log(`    - NOTE: This is the unpacked payload region!`);
+
+                            // Send the metadata AND the binary dump back to Python
+                            send({
+                                type: 'VirtualProtect',
+                                highlight: true,
+                                address: address.toString(),
+                                size: size,
+                                protection: protectionString,
+                                caller: this.returnAddress.toString(),
+                                note: "!!! This is likely the unpacked payload region !!!"
+                            }, dump);
+                        } else {
+                            // For non-highlighted events, just log (don't send to reduce noise)
+                            console.log(`[*] NtProtectVirtualMemory: ${address} (${size} bytes) -> ${protectionString}`);
                         }
-                        dumpedRegions.add(regionKey);
-                        
-                        // Read the memory region now that it's being made executable
-                        const dump = ptr(address).readByteArray(size);
-
-                        // Log to console
-                        console.log(`[!] VirtualProtect called from ${this.returnAddress} on address: ${address}`);
-                        console.log(`    - Size: ${size} bytes (0x${size.toString(16)})`);
-                        console.log(`    - New Protection: ${protectionString}`);
-                        console.log(`    - NOTE: This is likely the unpacked payload region!`);
-
-                        // Send the metadata AND the binary dump back to Python
-                        send({
-                            type: 'VirtualProtect',
-                            highlight: true,
-                            address: address.toString(),
-                            size: size,
-                            protection: protectionString,
-                            caller: this.returnAddress.toString(),
-                            note: "!!! This is likely the unpacked payload region !!!"
-                        }, dump);
-                    } else {
-                        // For non-highlighted events, just log (don't send to reduce noise)
-                        console.log(`[*] VirtualProtect: ${address} (${size} bytes) -> ${protectionString}`);
                     }
+                } catch (e) {
+                    console.log(`[!] Error reading NtProtectVirtualMemory arguments: ${e.message}`);
                 }
             }
         });
-        console.log("[+] VirtualProtect hook installed successfully!");
-        send({ status: 'info', message: 'VirtualProtect hook ready' });
+        console.log("[+] NtProtectVirtualMemory hook installed successfully!");
+        send({ status: 'info', message: 'NtProtectVirtualMemory hook ready' });
+    } catch (e) {
+        console.log(`[!] Failed to hook NtProtectVirtualMemory: ${e.message}`);
+        send({ status: 'error', message: `Could not find NtProtectVirtualMemory: ${e.message}` });
     }
 });
