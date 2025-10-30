@@ -98,12 +98,13 @@ def main():
         print(f"[!] An unexpected error occurred: {e}")
         sys.exit(1)
 
-    script_path = "analyzer/js/virtualprotect_monitor.js"
+    script_path = "js/virtualprotect_monitor.js"
     try:
         with open(script_path, "r") as f:
             jscode = f.read()
     except FileNotFoundError:
         print(f"[!] JavaScript agent file not found: {script_path}")
+        print(f"[!] Make sure you're running this script from the analyzer/ directory")
         sys.exit(1)
 
     try:
