@@ -3,7 +3,8 @@ import sys
 import time
 
 # --- Configuration ---
-TARGET_PROCESS = "AnyDesk.exe"
+# Full path to AnyDesk.exe on your Windows VM
+TARGET_EXE_PATH = r"C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
 OUTPUT_FILE = "unpacked_payload.bin"
 TIMEOUT = 60  # in seconds, or None to wait forever
 # ---------------------
@@ -74,19 +75,24 @@ def on_message(message, data):
 
 def main():
     """
-    Attaches to the target process, injects a JavaScript payload,
-    and waits for the unpack event or a timeout.
+    Spawns the target process in a suspended state, injects hooks,
+    then resumes execution to catch unpacking from the very beginning.
     """
     global DUMP_COMPLETE
     try:
-        print(f"[*] Attaching to '{TARGET_PROCESS}'...")
-        session = frida.attach(TARGET_PROCESS)
-        print(f"[*] Attached to process with PID: {session.pid}")
-    except frida.ProcessNotFoundError:
-        print(f"[!] Process '{TARGET_PROCESS}' not found. Is it running?")
+        print(f"[*] Spawning '{TARGET_EXE_PATH}' in suspended state...")
+        pid = frida.spawn(TARGET_EXE_PATH)
+        print(f"[*] Spawned process with PID: {pid}")
+        
+        print(f"[*] Attaching to PID {pid}...")
+        session = frida.attach(pid)
+        print(f"[*] Attached successfully!")
+    except FileNotFoundError:
+        print(f"[!] Executable not found: {TARGET_EXE_PATH}")
+        print(f"[!] Please update TARGET_EXE_PATH in the script to the correct path.")
         sys.exit(1)
     except frida.NotSupportedError as e:
-        print(f"[!] Frida error: {e}. Is the Frida server running with correct permissions?")
+        print(f"[!] Frida error: {e}. Is Frida installed on this system?")
         sys.exit(1)
     except Exception as e:
         print(f"[!] An unexpected error occurred: {e}")
@@ -104,7 +110,12 @@ def main():
         script = session.create_script(jscode)
         script.on('message', on_message)
         script.load()
-        print("[*] JavaScript payload injected. Monitoring for events...")
+        print("[*] JavaScript payload injected successfully!")
+        
+        # NOW resume the process - this is when AnyDesk actually starts executing
+        print("[*] Resuming process execution...")
+        frida.resume(pid)
+        print("[*] Process resumed! Monitoring for VirtualProtect calls...")
         print("[*] Waiting for unpack event...")
 
         start_time = time.time()
