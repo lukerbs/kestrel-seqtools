@@ -11,7 +11,7 @@ UNPACKED_FILE = "unpacked_payload.bin"
 PHASE_1_SCRIPTS = ['js/string_decryptor.js', 'js/virtualprotect_monitor.js']
 
 # Scripts to inject AFTER the payload is unpacked (OEP is now executable)
-PHASE_2_SCRIPTS = ['js/handoff_interceptor.js', 'js/oep_context_inspector.js']
+PHASE_2_SCRIPTS = ['js/packer_transition_hook.js']
 # ---------------------
 
 def hexdump(data, length=256):
@@ -198,6 +198,25 @@ def main():
             elif isinstance(payload, dict) and payload.get('event') == 'handoff_complete':
                 print("\n[+] Handoff structure analysis complete!")
                 print("[*] All pre-decrypted strings have been extracted.")
+
+            # --- Event: Transition captured ---
+            elif isinstance(payload, dict) and payload.get('event') == 'transition_captured':
+                print("\n[+] Packer transition captured successfully!")
+                print("[*] Check the output above for register and stack analysis.")
+
+            # --- Event: Potential handoff structure found ---
+            elif isinstance(payload, dict) and payload.get('event') == 'potential_handoff_structure':
+                register = payload.get('register', '?')
+                address = payload.get('address', '?')
+                preview = payload.get('string_preview', '<none>')
+                print(f"\n{'='*80}")
+                print(f"[!] POTENTIAL HANDOFF STRUCTURE FOUND IN {register}!")
+                print(f"{'='*80}")
+                print(f"[+] Address: {address}")
+                print(f"[+] String Preview:")
+                print(f"{'-'*80}")
+                print(preview)
+                print(f"{'='*80}\n")
 
         def inject_phase2_scripts(self):
             """
