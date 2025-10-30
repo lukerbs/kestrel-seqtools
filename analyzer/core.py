@@ -128,8 +128,12 @@ def run_analysis(script_path):
         script = session.create_script(jscode)
         script.on('message', on_message)
         script.load()
-        print(f"[*] Injected '{os.path.basename(script_path)}'. Resuming process...")
+        print(f"[*] Injected '{os.path.basename(script_path)}'. Waiting for hooks to initialize...")
         
+        # Give the setImmediate callbacks time to execute and install hooks
+        time.sleep(0.5)
+        
+        print(f"[*] Resuming process...")
         frida.resume(pid)
 
         start_time = time.time()
