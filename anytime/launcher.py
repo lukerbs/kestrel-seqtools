@@ -401,11 +401,13 @@ def main():
 
             traceback.print_exc()
     finally:
-        # Self-destruct
+        # Self-destruct (only in production mode)
         if not is_dev_mode():
             self_destruct()
         else:
             log("Dev mode: skipping self-destruct")
+            log("")
+            input("Press Enter to exit...")
 
 
 if __name__ == "__main__":
