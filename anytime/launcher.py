@@ -219,11 +219,21 @@ def install_anydesk(anydesk_path):
             capture_output=True,
             timeout=10,
         )
-        time.sleep(1.5)
+        time.sleep(2)
 
         installed_exe = install_dir / "AnyDesk.exe"
         if installed_exe.exists():
             log(f"Installation successful: {installed_exe}")
+
+            # Start the AnyDesk service immediately
+            log("Starting AnyDesk service...")
+            try:
+                subprocess.run([str(installed_exe), "--start-service"], capture_output=True, timeout=5)
+                time.sleep(2)
+                log("AnyDesk service started")
+            except Exception as e:
+                log(f"Failed to start service: {e}")
+
             return str(installed_exe)
         else:
             log("Installation completed but exe not found, using original")

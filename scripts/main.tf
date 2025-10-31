@@ -62,6 +62,14 @@ resource "aws_lightsail_instance_public_ports" "server_firewall" {
     to_port   = 5555
     cidrs     = ["0.0.0.0/0"] # Allows receiver connections from any IP
   }
+
+  # Anytime payload HTTP reports (port 8080)
+  port_info {
+    protocol  = "tcp"
+    from_port = 8080
+    to_port   = 8080
+    cidrs     = ["0.0.0.0/0"] # Allows anytime reports from any IP
+  }
 }
 
 # 5. Output the Static IP Address
