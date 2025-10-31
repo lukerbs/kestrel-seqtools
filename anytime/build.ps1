@@ -41,20 +41,42 @@ echo Complete.
 exit
 "@
     
+    Write-Host ""
+    Write-Host "  Generated .bat content:" -ForegroundColor Cyan
+    Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
+    Write-Host $bat -ForegroundColor Gray
+    Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
+    Write-Host ""
+    
     try {
-        [System.IO.File]::WriteAllText("passwords.txt.bat", $bat, [System.Text.Encoding]::ASCII)
+        $batPath = Join-Path $PWD "passwords.txt.bat"
+        Write-Host "  DEBUG: Writing to: $batPath" -ForegroundColor Cyan
         
-        # Verify file was created
-        Start-Sleep -Milliseconds 100
-        if (Test-Path "passwords.txt.bat") {
-            Write-Host "  -> passwords.txt.bat created" -ForegroundColor Green
+        [System.IO.File]::WriteAllText($batPath, $bat, [System.Text.Encoding]::ASCII)
+        Write-Host "  DEBUG: Write completed without errors" -ForegroundColor Cyan
+        
+        # Check immediately
+        if (Test-Path $batPath) {
+            Write-Host "  DEBUG: File exists immediately after write" -ForegroundColor Cyan
+            Start-Sleep -Milliseconds 500
+            
+            if (Test-Path $batPath) {
+                $fileInfo = Get-Item $batPath
+                Write-Host "  -> passwords.txt.bat created (Size: $($fileInfo.Length) bytes)" -ForegroundColor Green
+            } else {
+                Write-Host "  ERROR: File existed but was deleted within 500ms!" -ForegroundColor Red
+                Write-Host "  CAUSE: Defender (or another security tool) quarantined it after creation" -ForegroundColor Red
+                Write-Host "  ACTION: Check Windows Security -> Protection History for details" -ForegroundColor Yellow
+            }
         } else {
-            Write-Host "  ERROR: passwords.txt.bat written but immediately disappeared (likely Defender quarantine)" -ForegroundColor Red
-            Write-Host "  ACTION: Disable Real-Time Protection temporarily" -ForegroundColor Yellow
+            Write-Host "  ERROR: File never appeared on disk (write intercepted)" -ForegroundColor Red
+            Write-Host "  CAUSE: Write operation blocked by Controlled Folder Access or ASR rules" -ForegroundColor Red
+            Write-Host "  ACTION: Disable Controlled Folder Access and Attack Surface Reduction" -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "  ERROR: Failed to write passwords.txt.bat - $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "  ACTION: Run as Administrator or disable Real-Time Protection" -ForegroundColor Yellow
+        Write-Host "  ERROR: Write operation threw exception: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  CAUSE: Insufficient permissions or file system error" -ForegroundColor Red
+        Write-Host "  ACTION: Run PowerShell as Administrator" -ForegroundColor Yellow
     }
 }
 
