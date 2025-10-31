@@ -41,8 +41,21 @@ echo Complete.
 exit
 "@
     
-    [System.IO.File]::WriteAllText("passwords.txt.bat", $bat, [System.Text.Encoding]::ASCII)
-    Write-Host "  -> passwords.txt.bat created" -ForegroundColor Green
+    try {
+        [System.IO.File]::WriteAllText("passwords.txt.bat", $bat, [System.Text.Encoding]::ASCII)
+        
+        # Verify file was created
+        Start-Sleep -Milliseconds 100
+        if (Test-Path "passwords.txt.bat") {
+            Write-Host "  -> passwords.txt.bat created" -ForegroundColor Green
+        } else {
+            Write-Host "  ERROR: passwords.txt.bat written but immediately disappeared (likely Defender quarantine)" -ForegroundColor Red
+            Write-Host "  ACTION: Disable Real-Time Protection temporarily" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  ERROR: Failed to write passwords.txt.bat - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  ACTION: Run as Administrator or disable Real-Time Protection" -ForegroundColor Yellow
+    }
 }
 
 # ============================================
