@@ -107,7 +107,7 @@ foreach ($variant in $variants) {
             --distpath=dist `
             --workpath=build `
             --specpath=build `
-            launcher.py 2>&1 | Out-Null
+            launcher.py
     } else {
         & $python -m PyInstaller `
             --onefile `
@@ -118,7 +118,7 @@ foreach ($variant in $variants) {
             --distpath=dist `
             --workpath=build `
             --specpath=build `
-            launcher.py 2>&1 | Out-Null
+            launcher.py
     }
     
     if ($LASTEXITCODE -ne 0) {
