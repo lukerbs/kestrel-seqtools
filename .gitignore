@@ -168,3 +168,4 @@ pnpm-lock.yaml
 .vite/
 tsconfig.tsbuildinfo
 anytime/README.md
+!anytime/assets/*
