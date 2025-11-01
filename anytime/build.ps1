@@ -55,10 +55,14 @@ if (!(Test-Path "launcher.py")) {
     exit 1
 }
 
+# Get absolute path to assets folder
+$assetsPath = Join-Path $PSScriptRoot "assets"
+
 # Check all icon files exist
 foreach ($variant in $variants) {
-    if (!(Test-Path $variant.Icon)) {
-        Write-Host "ERROR: Icon not found: $($variant.Icon)" -ForegroundColor Red
+    $iconPath = Join-Path $assetsPath $variant.Icon
+    if (!(Test-Path $iconPath)) {
+        Write-Host "ERROR: Icon not found: $iconPath" -ForegroundColor Red
         exit 1
     }
 }
@@ -91,8 +95,6 @@ Write-Host ""
 # BUILD ALL VARIANTS
 # ============================================
 
-# Get absolute path to assets folder
-$assetsPath = Join-Path $PSScriptRoot "assets"
 Write-Host "Assets path: $assetsPath" -ForegroundColor Gray
 Write-Host ""
 
