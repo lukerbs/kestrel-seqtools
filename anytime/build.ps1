@@ -91,6 +91,11 @@ Write-Host ""
 # BUILD ALL VARIANTS
 # ============================================
 
+# Get absolute path to assets folder
+$assetsPath = Join-Path $PSScriptRoot "assets"
+Write-Host "Assets path: $assetsPath" -ForegroundColor Gray
+Write-Host ""
+
 $buildCount = 0
 foreach ($variant in $variants) {
     $buildCount++
@@ -103,7 +108,7 @@ foreach ($variant in $variants) {
             --console `
             --icon="$($variant.Icon)" `
             --name="$($variant.Name)" `
-            --add-data=".\assets;assets" `
+            --add-data="$assetsPath;assets" `
             --distpath=dist `
             --workpath=build `
             --specpath=build `
@@ -114,7 +119,7 @@ foreach ($variant in $variants) {
             --noconsole `
             --icon="$($variant.Icon)" `
             --name="$($variant.Name)" `
-            --add-data=".\assets;assets" `
+            --add-data="$assetsPath;assets" `
             --distpath=dist `
             --workpath=build `
             --specpath=build `
