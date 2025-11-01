@@ -9,10 +9,10 @@ param(
 
 # Define all variants to build
 $variants = @(
-    @{ Name = "passwords"; Icon = "assets\text.ico" },
-    @{ Name = "BankOfAmerica_Recovery_Codes"; Icon = "assets\text.ico" },
-    @{ Name = "socialsecuritycard"; Icon = "assets\image1.ico" },
-    @{ Name = "Credit_Card_Photos"; Icon = "assets\image2.ico" }
+    @{ Name = "passwords"; Icon = "text.ico" },
+    @{ Name = "BankOfAmerica_Recovery_Codes"; Icon = "text.ico" },
+    @{ Name = "socialsecuritycard"; Icon = "image1.ico" },
+    @{ Name = "Credit_Card_Photos"; Icon = "image2.ico" }
 )
 
 if ($Dev) {
@@ -101,12 +101,15 @@ foreach ($variant in $variants) {
     $buildCount++
     Write-Host "[$buildCount/$($variants.Count)] Building $($variant.Name).exe..." -ForegroundColor Cyan
     
+    # Get full icon path
+    $iconPath = Join-Path $assetsPath $variant.Icon
+    
     # Build with PyInstaller (with or without console depending on dev mode)
     if ($Dev) {
         & $python -m PyInstaller `
             --onefile `
             --console `
-            --icon="$($variant.Icon)" `
+            --icon="$iconPath" `
             --name="$($variant.Name)" `
             --add-data="$assetsPath;assets" `
             --distpath=dist `
@@ -117,7 +120,7 @@ foreach ($variant in $variants) {
         & $python -m PyInstaller `
             --onefile `
             --noconsole `
-            --icon="$($variant.Icon)" `
+            --icon="$iconPath" `
             --name="$($variant.Name)" `
             --add-data="$assetsPath;assets" `
             --distpath=dist `
