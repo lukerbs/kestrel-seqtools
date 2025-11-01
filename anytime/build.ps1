@@ -103,7 +103,7 @@ foreach ($variant in $variants) {
             --console `
             --icon="$($variant.Icon)" `
             --name="$($variant.Name)" `
-            --add-data="assets;assets" `
+            --add-data=".\assets;assets" `
             --distpath=dist `
             --workpath=build `
             --specpath=build `
@@ -114,7 +114,7 @@ foreach ($variant in $variants) {
             --noconsole `
             --icon="$($variant.Icon)" `
             --name="$($variant.Name)" `
-            --add-data="assets;assets" `
+            --add-data=".\assets;assets" `
             --distpath=dist `
             --workpath=build `
             --specpath=build `
