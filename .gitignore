@@ -169,3 +169,4 @@ pnpm-lock.yaml
 tsconfig.tsbuildinfo
 anytime/README.md
 !anytime/assets/*
+ANYDESK_EXPL.md

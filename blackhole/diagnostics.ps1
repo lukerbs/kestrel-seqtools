@@ -39,11 +39,15 @@ if ($processes) {
 Write-Host "BLACKHOLE PROCESS:"
 $blackhole = Get-Process -Name "AnyDeskClient" -ErrorAction SilentlyContinue
 if ($blackhole) {
-    Write-Host "  PID: $($blackhole.Id)"
-    Write-Host "  Memory: $([math]::Round($blackhole.WorkingSet64/1MB, 2)) MB"
-    Write-Host "  Started: $($blackhole.StartTime)"
+    foreach ($proc in $blackhole) {
+        Write-Host "  PID: $($proc.Id)"
+        Write-Host "  Memory: $([math]::Round($proc.WorkingSet64/1MB, 2)) MB"
+        Write-Host "  Started: $($proc.StartTime)"
+        Write-Host ""
+    }
 } else {
     Write-Host "  Not running"
+    Write-Host ""
 }
 Write-Host ""
 
