@@ -57,9 +57,13 @@ class ConnectionCorrelator:
             self._handle_outgoing_accepted(data)
 
     def _handle_incoming_id(self, data):
-        """Handle incoming connection ID event"""
+        """
+        Handle incoming connection ID event.
+        This is the PRIMARY trigger. It will fire an event immediately,
+        bundling an IP if one is found in the waiting room.
+        """
         anydesk_id = data["anydesk_id"]
-        timestamp = data["timestamp"]  # Now a datetime object
+        timestamp = data["timestamp"]  # This is now a datetime object
 
         if not isinstance(timestamp, datetime):
             self._log(f"[CORRELATOR] Invalid timestamp type: {type(timestamp)}")
@@ -67,33 +71,33 @@ class ConnectionCorrelator:
 
         self._log(f"[CORRELATOR] New incoming ID: {anydesk_id} at {timestamp}")
 
+        ip_address = None  # Default to None (for portable mode)
+
         with self._lock:
-            # Check if we have a matching IP in waiting room
-            match_found = False
-            for i, (ip_address, ip_timestamp, ip_data) in enumerate(self._waiting_ips):
+            # Check if a matching IP *already* arrived (e.g., service mode)
+            for i, (ip, ip_timestamp, ip_data) in enumerate(self._waiting_ips):
                 time_diff = abs((timestamp - ip_timestamp).total_seconds())
 
                 if time_diff <= self._time_window:
-                    # Match found!
-                    self._log(f"[CORRELATOR] Match found: {anydesk_id} <-> {ip_address} (Δ{time_diff:.1f}s)")
-
-                    # Remove from waiting room
+                    # Match found! Use this IP and remove it.
+                    self._log(f"[CORRELATOR] Match found: {anydesk_id} <-> {ip} (Δ{time_diff:.1f}s)")
+                    ip_address = ip
                     del self._waiting_ips[i]
+                    break  # Stop searching
 
-                    # Emit complete event
-                    self._emit_incoming_request(anydesk_id, ip_address, timestamp)
-                    match_found = True
-                    break
-
-            if not match_found:
-                # No match yet, add to waiting room
-                self._waiting_ids.append((anydesk_id, timestamp, data))
-                self._log(f"[CORRELATOR] ID added to waiting room (total: {len(self._waiting_ids)})")
+        # --- THIS IS THE KEY CHANGE ---
+        # Fire the event IMMEDIATELY, with or without an IP.
+        # The IP will be None if no match was found (i.e., portable mode or IP log not yet processed)
+        self._emit_incoming_request(anydesk_id, ip_address, timestamp)
 
     def _handle_incoming_ip(self, data):
-        """Handle incoming connection IP event"""
+        """
+        Handle incoming connection IP event.
+        This is a SECONDARY event. It will try to match an existing ID
+        or wait for one to arrive.
+        """
         ip_address = data["ip_address"]
-        timestamp = data["timestamp"]  # Now a datetime object
+        timestamp = data["timestamp"]  # This is now a datetime object
 
         if not isinstance(timestamp, datetime):
             self._log(f"[CORRELATOR] Invalid timestamp type: {type(timestamp)}")
@@ -101,28 +105,27 @@ class ConnectionCorrelator:
 
         self._log(f"[CORRELATOR] New incoming IP: {ip_address} at {timestamp}")
 
+        # Note: We DO NOT fire an event here. We wait for the ID,
+        # which is the primary, guaranteed trigger.
+
         with self._lock:
-            # Check if we have a matching ID in waiting room
-            match_found = False
-            for i, (anydesk_id, id_timestamp, id_data) in enumerate(self._waiting_ids):
+            # We add the IP to the waiting room for the _handle_incoming_id
+            # function to find when it runs.
+            self._waiting_ips.append((ip_address, timestamp, data))
+            self._log(f"[CORRELATOR] IP added to waiting room (total: {len(self._waiting_ips)})")
+
+            # --- CLEANUP LOGIC (Optional but good) ---
+            # Check if an ID *already* fired and is waiting. This is a rare
+            # race condition, but this code handles it.
+            for i, (aid, id_timestamp, id_data) in enumerate(self._waiting_ids):
                 time_diff = abs((timestamp - id_timestamp).total_seconds())
-
                 if time_diff <= self._time_window:
-                    # Match found!
-                    self._log(f"[CORRELATOR] Match found: {anydesk_id} <-> {ip_address} (Δ{time_diff:.1f}s)")
-
-                    # Remove from waiting room
+                    self._log(f"[CORRELATOR] IP event (late) matched to waiting ID {aid}.")
+                    # We can't fire a *new* event (it already fired from _handle_incoming_id)
+                    # But we can log it or send an "update" event to C2 if needed.
+                    # For now, we just remove the old ID to prevent cleanup.
                     del self._waiting_ids[i]
-
-                    # Emit complete event
-                    self._emit_incoming_request(anydesk_id, ip_address, id_timestamp)
-                    match_found = True
                     break
-
-            if not match_found:
-                # No match yet, add to waiting room
-                self._waiting_ips.append((ip_address, timestamp, data))
-                self._log(f"[CORRELATOR] IP added to waiting room (total: {len(self._waiting_ips)})")
 
     def _handle_outgoing_rejected(self, data):
         """Handle outgoing connection rejection event"""
@@ -203,13 +206,19 @@ class ConnectionCorrelator:
         Remove events older than 30 seconds.
         """
         while not self._stop_event.is_set():
-            time.sleep(10)  # Check every 10 seconds
+            # Check every 10 seconds
+            if self._stop_event.wait(10):
+                break
 
             with self._lock:
                 now = datetime.now()
+                # We use a longer age for IPs, as they might wait for a
+                # race condition with an ID. 30s is fine.
                 max_age = 30  # seconds
 
                 # Clean up old IDs
+                # Note: With the new logic, IDs should no longer wait,
+                # but this is good to keep.
                 self._waiting_ids = [
                     (aid, ts, data) for aid, ts, data in self._waiting_ids if (now - ts).total_seconds() < max_age
                 ]
