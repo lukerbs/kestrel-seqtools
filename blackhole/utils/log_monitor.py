@@ -282,8 +282,16 @@ class LogMonitor:
             connection_trace = os.path.join(log_dir, "connection_trace.txt")
             if os.path.exists(connection_trace):
                 self._log(f"[LOG_MONITOR] Found connection_trace.txt in {log_dir}")
-                # Force process the entire file once on startup
-                self._handler._process_connection_trace(connection_trace)
+                # Set position to end of file (only watch for NEW connections after startup)
+                try:
+                    with open(connection_trace, "rb") as f:
+                        f.seek(0, os.SEEK_END)
+                        self._handler._file_positions[connection_trace] = f.tell()
+                        self._log(f"[LOG_MONITOR] Set connection_trace.txt position to end ({f.tell()} bytes)")
+                    # Clear remainder for this file
+                    self._handler._file_remainders.pop(connection_trace, None)
+                except Exception as e:
+                    self._log(f"[LOG_MONITOR] Error initializing connection_trace.txt: {e}")
 
             # Check for ad_svc.trace
             ad_svc_trace = os.path.join(log_dir, "ad_svc.trace")
