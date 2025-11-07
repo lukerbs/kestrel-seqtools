@@ -203,6 +203,9 @@ class BlackholeService:
         self.active_popups = []
         self.outgoing_attempts = {}  # {anydesk_id: {'count': N, 'last_attempt': timestamp}}
 
+        # Track PIDs of connection windows we spawn (to prevent restart loops)
+        self.our_connection_pids = set()
+
         self.log("\n" + "=" * 60)
         self.log("  AnyDesk Client Service")
         self.log("=" * 60)
@@ -234,12 +237,10 @@ class BlackholeService:
         if event_type == "found":
             self.log(f"[SERVICE] AnyDesk process FOUND (PID: {pid}) at {exe_path}")
 
-            # Filter out connection windows (spawned with target AnyDesk ID as argument)
-            if cmdline and len(cmdline) > 1:
-                arg = str(cmdline[1])
-                if arg.isdigit() and len(arg) >= 9:  # AnyDesk IDs are 9-10 digits
-                    self.log(f"[SERVICE] Ignoring AnyDesk connection window (target: {arg})")
-                    return  # Don't initialize monitors for connection windows
+            # Filter out connection windows we spawned (tracked by PID)
+            if pid in self.our_connection_pids:
+                self.log(f"[SERVICE] Ignoring our connection window (PID: {pid})")
+                return  # Don't initialize monitors for connection windows
 
             # 1. Determine and set mode
             if not exe_path:
@@ -282,6 +283,13 @@ class BlackholeService:
         elif event_type == "lost":
             self.log(f"[SERVICE] AnyDesk process LOST (PID: {pid})")
 
+            # Clean up PID tracking (if it was a connection window we spawned)
+            if pid in self.our_connection_pids:
+                self.our_connection_pids.discard(pid)
+                self.log(f"[SERVICE] Stopped tracking PID {pid} (remaining: {len(self.our_connection_pids)})")
+                return  # Don't stop monitors for connection windows - they should keep running!
+
+            # If we get here, it's a MAIN AnyDesk process that exited
             # 1. Unhook
             self.api_hooker.unhook_process(pid)
 
@@ -372,10 +380,25 @@ class BlackholeService:
 
         # Initiate reverse connection if enabled
         if REVERSE_CONNECTION_ENABLED and self.anydesk_path:
-            self.log(f"[SERVICE] Initiating reverse connection to {anydesk_id}...")
-            success = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+            # Failsafe: Block if we already have an active connection window
+            if len(self.our_connection_pids) > 0:
+                self.log(
+                    f"[SERVICE] WARNING: Connection already active (PIDs: {self.our_connection_pids}) - blocking spawn"
+                )
+                event["metadata"]["reverse_connection_initiated"] = False
+                event["metadata"]["blocked_reason"] = "connection_already_active"
+                return
 
-            if success:
+            self.log(f"[SERVICE] Initiating reverse connection to {anydesk_id}...")
+            pid = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+            if pid:
+                # Track the PID to prevent restart loops
+                self.our_connection_pids.add(pid)
+                self.log(
+                    f"[SERVICE] Tracking connection window PID {pid} (total tracked: {len(self.our_connection_pids)})"
+                )
+
                 # Track attempt
                 self.outgoing_attempts[anydesk_id] = {"count": 1, "last_attempt": time.time()}
                 event["metadata"]["reverse_connection_initiated"] = True
@@ -480,10 +503,21 @@ class BlackholeService:
             f"[SERVICE] Retrying reverse connection to {anydesk_id} (attempt {attempt_number}/{REVERSE_CONNECTION_RETRY_LIMIT})..."
         )
 
-        if self.anydesk_path:
-            success = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+        # Failsafe: Block if we already have an active connection window
+        if len(self.our_connection_pids) > 0:
+            self.log(
+                f"[SERVICE] WARNING: Connection already active (PIDs: {self.our_connection_pids}) - blocking retry"
+            )
+            return
 
-            if success:
+        if self.anydesk_path:
+            pid = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+            if pid:
+                # Track the PID to prevent restart loops
+                self.our_connection_pids.add(pid)
+                self.log(f"[SERVICE] Tracking retry PID {pid} (total tracked: {len(self.our_connection_pids)})")
+
                 # Update attempt tracking
                 self.outgoing_attempts[anydesk_id] = {"count": attempt_number, "last_attempt": time.time()}
                 self.log(f"[SERVICE] Retry launched successfully")

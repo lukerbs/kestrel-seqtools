@@ -32,11 +32,11 @@ class AnyDeskController:
             target_id: Target AnyDesk ID (9-10 digit number)
 
         Returns:
-            bool: True if launch successful, False otherwise
+            int or None: PID of spawned process if successful, None otherwise
         """
         if not anydesk_exe_path:
             self._log("[ANYDESK_CONTROLLER] Error: AnyDesk path not provided")
-            return False
+            return None
 
         try:
             self._log(f"[ANYDESK_CONTROLLER] Launching connection to {target_id}...")
@@ -45,22 +45,22 @@ class AnyDeskController:
             # This opens the AnyDesk connection window
             creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 [anydesk_exe_path, target_id],
                 creationflags=creationflags,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
 
-            self._log(f"[ANYDESK_CONTROLLER] Connection window launched for {target_id}")
-            return True
+            self._log(f"[ANYDESK_CONTROLLER] Connection window launched for {target_id} (PID: {proc.pid})")
+            return proc.pid
 
         except FileNotFoundError:
             self._log(f"[ANYDESK_CONTROLLER] Error: AnyDesk.exe not found at {anydesk_exe_path}")
-            return False
+            return None
         except Exception as e:
             self._log(f"[ANYDESK_CONTROLLER] Error launching connection: {e}")
-            return False
+            return None
 
     def set_unattended_password(self, anydesk_exe_path, password):
         """
