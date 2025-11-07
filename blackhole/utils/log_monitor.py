@@ -29,20 +29,22 @@ class LogFileHandler(FileSystemEventHandler):
         super().__init__()
         self._callback = callback
         self._log = log_func if log_func else lambda msg: None
-        self._file_positions = {}  # Track last read position for each file
+        self._file_positions = {}  # bytes offset per file
+        self._file_remainders = {}  # str tail per file (for partial lines)
+        self._file_stats = {}  # (size, mtime) for debounce
         self._lock = threading.Lock()
 
-        # Regex patterns for parsing (using \s+ to handle tabs/spaces)
-        # Note: connection_trace.txt uses tabs/wide spacing for column alignment
-        self._incoming_pattern = re.compile(
-            r"Incoming\s+(\d{4}-\d{2}-\d{2}),\s+(\d{2}:\d{2})\s+(?:User|REJECTED)\s+(\d{9,10})\s+\d{9,10}"
+        # Regex patterns for parsing
+        # Single unified pattern for connection_trace.txt (handles Incoming/Outgoing + User/REJECTED)
+        self._connection_pattern = re.compile(
+            r"^(?P<direction>\w+)\s+(?P<date>\d{4}-\d{2}-\d{2}),\s*(?P<time>\d{2}:\d{2})\s+"
+            r"(?P<status>\w+)\s+(?P<id1>\d+)\s+(?P<id2>\d+)$"
         )
-        self._ip_pattern = re.compile(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+).*Logged in from\s+([\d.]+):\d+")
-        self._outgoing_rejected_pattern = re.compile(
-            r"Outgoing\s+(\d{4}-\d{2}-\d{2}),\s+(\d{2}:\d{2})\s+REJECTED\s+(\d{9,10})\s+\d{9,10}"
-        )
-        self._outgoing_accepted_pattern = re.compile(
-            r"Outgoing\s+(\d{4}-\d{2}-\d{2}),\s+(\d{2}:\d{2})\s+User\s+(\d{9,10})\s+\d{9,10}"
+        # Pattern for IP addresses in ad_svc.trace / ad.trace (IPv4/IPv6, case-insensitive)
+        self._ip_pattern = re.compile(
+            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"
+            r".*?\blogged in from\b\s+([0-9a-fA-F:.\[\]]+)(?::\d+)?",
+            re.I,
         )
 
     def on_modified(self, event):
@@ -63,90 +65,125 @@ class LogFileHandler(FileSystemEventHandler):
             self._log(f"[LOG_MONITOR] Processing {filename} modification...")
             self._process_ad_trace(event.src_path)
 
+    def _decode(self, b: bytes) -> str:
+        """
+        Decode bytes with automatic encoding detection.
+        Handles UTF-16 LE/BE, UTF-8 with BOM, and heuristic fallback.
+        """
+        if b.startswith(b"\xff\xfe") or b.startswith(b"\xfe\xff"):
+            return b.decode("utf-16", errors="replace")
+        if b.startswith(b"\xef\xbb\xbf"):
+            return b.decode("utf-8-sig", errors="replace")
+        # Heuristic: lots of NULs -> UTF-16LE
+        if b[:200].count(b"\x00") > 10:
+            return b.decode("utf-16-le", errors="replace")
+        return b.decode("utf-8", errors="replace")
+
+    def _read_new_bytes(self, filepath):
+        """
+        Read new bytes from file with debouncing and rotation detection.
+        Returns empty bytes if no changes detected (debounce).
+        """
+        # Debounce duplicate on_modified events
+        try:
+            st = os.stat(filepath)
+        except FileNotFoundError:
+            return b""
+
+        sig = (st.st_size, int(st.st_mtime))
+        if self._file_stats.get(filepath) == sig:
+            return b""  # No actual changes
+        self._file_stats[filepath] = sig
+
+        last_pos = self._file_positions.get(filepath, 0)
+        with open(filepath, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            if size < last_pos:
+                # Rotation/truncate detected
+                self._log(f"[LOG_MONITOR] Rotation/truncate detected: {filepath}")
+                last_pos = 0
+                # Clear remainder for this file
+                self._file_remainders.pop(filepath, None)
+            f.seek(last_pos)
+            new = f.read()
+            self._file_positions[filepath] = f.tell()
+        return new
+
+    def _iter_new_lines(self, filepath, is_connection: bool):
+        """
+        Iterate new lines from file with remainder handling for partial lines.
+
+        Args:
+            filepath: Path to file
+            is_connection: If True, normalize whitespace (for connection_trace.txt)
+
+        Returns:
+            List of complete lines
+        """
+        new_bytes = self._read_new_bytes(filepath)
+        if not new_bytes:
+            return []
+
+        text = self._decode(new_bytes)
+
+        # Remainder handling for partial lines
+        buf = self._file_remainders.get(filepath, "")
+        buf += text
+        lines = buf.splitlines(keepends=False)
+
+        # If file does not end with newline, last item may be partial
+        if buf and not buf.endswith(("\n", "\r")):
+            self._file_remainders[filepath] = lines.pop() if lines else buf
+        else:
+            self._file_remainders[filepath] = ""
+
+        # Normalize whitespace for connection_trace only
+        if is_connection:
+            lines = [" ".join(l.strip().split()) for l in lines if l.strip()]
+        else:
+            lines = [l.strip() for l in lines if l.strip()]
+        return lines
+
     def _process_connection_trace(self, filepath):
         """
         Process connection_trace.txt for incoming/outgoing connection events.
-        Note: File is UTF-16 LE encoded, so we read as binary and decode manually.
+        Uses robust remainder handling and encoding detection.
         """
         try:
             with self._lock:
-                # Get last read position (in bytes)
-                last_pos = self._file_positions.get(filepath, 0)
+                lines = self._iter_new_lines(filepath, is_connection=True)
 
-                # Read new content as binary (UTF-16 LE)
-                with open(filepath, "rb") as f:
-                    # Check if file was rotated (size decreased)
-                    f.seek(0, os.SEEK_END)
-                    file_size = f.tell()
+            self._log(f"[LOG_MONITOR] Read {len(lines)} new lines from connection_trace.txt")
+            for line in lines:
+                self._log(f"[LOG_MONITOR] Parsing line: {line}")
 
-                    if file_size < last_pos:
-                        # File was rotated, start from beginning
-                        self._log(f"[LOG_MONITOR] Detected log rotation: {filepath}")
-                        last_pos = 0
+                m = self._connection_pattern.match(line)
+                if not m:
+                    self._log(f"[LOG_MONITOR] No pattern matched for line: {line}")
+                    continue
 
-                    # Seek to last position and read new content
-                    f.seek(last_pos)
-                    new_bytes = f.read()
+                g = m.groupdict()
+                direction, status = g["direction"], g["status"]
+                anydesk_id = g["id1"]
+                timestamp = f"{g['date']} {g['time']}:00"  # Synthesized seconds (documented)
 
-                    # Update position
-                    self._file_positions[filepath] = f.tell()
+                self._log(f"[LOG_MONITOR] MATCHED: {direction} {status} ID={anydesk_id} at {timestamp}")
 
-                # Decode UTF-16 LE
-                new_content = new_bytes.decode("utf-16-le", errors="ignore")
-                new_lines = new_content.splitlines()
+                payload = {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
 
-                # Parse new lines
-                self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from connection_trace.txt")
-                for line in new_lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    self._log(f"[LOG_MONITOR] Parsing line: {line}")
-                    self._log(f"[LOG_MONITOR] Line repr: {repr(line)}")
-
-                    # Test all patterns and show results
-                    self._log(f"[LOG_MONITOR] Testing incoming pattern...")
-                    match = self._incoming_pattern.search(line)
-                    self._log(f"[LOG_MONITOR] Incoming pattern result: {match}")
-
-                    # Check for incoming connection
-                    if match:
-                        date_str, time_str, anydesk_id = match.groups()
-                        timestamp = f"{date_str} {time_str}:00"  # Add seconds
-                        self._log(f"[LOG_MONITOR] MATCHED incoming_id: {anydesk_id} at {timestamp}")
-                        self._callback(
-                            "incoming_id", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
-                        )
-                        continue
-
-                    # Check for outgoing rejection
-                    self._log(f"[LOG_MONITOR] Testing outgoing rejected pattern...")
-                    match = self._outgoing_rejected_pattern.search(line)
-                    self._log(f"[LOG_MONITOR] Outgoing rejected pattern result: {match}")
-                    if match:
-                        date_str, time_str, anydesk_id = match.groups()
-                        timestamp = f"{date_str} {time_str}:00"
-                        self._log(f"[LOG_MONITOR] MATCHED outgoing_rejected: {anydesk_id} at {timestamp}")
-                        self._callback(
-                            "outgoing_rejected", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
-                        )
-                        continue
-
-                    # Check for outgoing accepted (successful connection)
-                    self._log(f"[LOG_MONITOR] Testing outgoing accepted pattern...")
-                    match = self._outgoing_accepted_pattern.search(line)
-                    self._log(f"[LOG_MONITOR] Outgoing accepted pattern result: {match}")
-                    if match:
-                        date_str, time_str, anydesk_id = match.groups()
-                        timestamp = f"{date_str} {time_str}:00"
-                        self._log(f"[LOG_MONITOR] MATCHED outgoing_accepted: {anydesk_id} at {timestamp}")
-                        self._callback(
-                            "outgoing_accepted", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
-                        )
-                        continue
-
-                    self._log(f"[LOG_MONITOR] No pattern matched for line")
+                # Wrap callback to prevent one failure from aborting batch
+                try:
+                    if direction == "Incoming" and status == "User":
+                        self._callback("incoming_id", payload)
+                    elif direction == "Incoming" and status == "REJECTED":
+                        self._log(f"[LOG_MONITOR] Incoming connection rejected from {anydesk_id}")
+                    elif direction == "Outgoing" and status == "REJECTED":
+                        self._callback("outgoing_rejected", payload)
+                    elif direction == "Outgoing" and status == "User":
+                        self._callback("outgoing_accepted", payload)
+                except Exception as cb_err:
+                    self._log(f"[LOG_MONITOR] Callback error: {cb_err}")
 
         except Exception as e:
             self._log(f"[LOG_MONITOR] Error processing connection_trace.txt: {e}")
@@ -154,54 +191,34 @@ class LogFileHandler(FileSystemEventHandler):
     def _process_ad_trace(self, filepath):
         """
         Process ad_svc.trace (or ad.trace) for IP addresses.
-        Note: File is UTF-16 LE encoded, so we read as binary and decode manually.
+        Uses robust remainder handling and encoding detection.
         """
         try:
             with self._lock:
-                # Get last read position (in bytes)
-                last_pos = self._file_positions.get(filepath, 0)
+                lines = self._iter_new_lines(filepath, is_connection=False)
 
-                # Read new content as binary (UTF-16 LE)
-                with open(filepath, "rb") as f:
-                    # Check if file was rotated
-                    f.seek(0, os.SEEK_END)
-                    file_size = f.tell()
+            self._log(f"[LOG_MONITOR] Read {len(lines)} new lines from {os.path.basename(filepath)}")
+            for line in lines:
+                m = self._ip_pattern.search(line)
+                if not m:
+                    continue
 
-                    if file_size < last_pos:
-                        self._log(f"[LOG_MONITOR] Detected log rotation: {filepath}")
-                        last_pos = 0
+                ts_raw, ip = m.groups()
+                # Normalize time to minute precision
+                try:
+                    ts = ts_raw.split(".")[0]  # Remove milliseconds
+                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                    timestamp = dt.strftime("%Y-%m-%d %H:%M:00")
+                except ValueError:
+                    timestamp = ts_raw  # Fallback: keep raw timestamp
 
-                    # Seek to last position and read new content
-                    f.seek(last_pos)
-                    new_bytes = f.read()
+                self._log(f"[LOG_MONITOR] MATCHED incoming_ip: {ip} at {timestamp}")
 
-                    # Update position
-                    self._file_positions[filepath] = f.tell()
-
-                # Decode UTF-16 LE
-                new_content = new_bytes.decode("utf-16-le", errors="ignore")
-                new_lines = new_content.splitlines()
-
-                # Parse new lines
-                self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from {os.path.basename(filepath)}")
-                for line in new_lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    # Check for "Logged in from" (incoming connection IP)
-                    match = self._ip_pattern.search(line)
-                    if match:
-                        timestamp_str, ip_address = match.groups()
-                        # Convert timestamp to match connection_trace format (minute precision)
-                        # "2025-11-06 13:36:43.933" -> "2025-11-06 13:36:00"
-                        dt = datetime.strptime(timestamp_str.split(".")[0], "%Y-%m-%d %H:%M:%S")
-                        timestamp = dt.strftime("%Y-%m-%d %H:%M:00")
-
-                        self._log(f"[LOG_MONITOR] MATCHED incoming_ip: {ip_address} at {timestamp}")
-                        self._callback(
-                            "incoming_ip", {"ip_address": ip_address, "timestamp": timestamp, "raw_line": line}
-                        )
+                # Wrap callback to prevent one failure from aborting batch
+                try:
+                    self._callback("incoming_ip", {"ip_address": ip, "timestamp": timestamp, "raw_line": line})
+                except Exception as cb_err:
+                    self._log(f"[LOG_MONITOR] Callback error: {cb_err}")
 
         except Exception as e:
             self._log(f"[LOG_MONITOR] Error processing ad_svc.trace: {e}")
@@ -257,6 +274,9 @@ class LogMonitor:
         """
         self._log("[LOG_MONITOR] Initializing file positions...")
 
+        # Clear remainder state on initialization
+        self._handler._file_remainders.clear()
+
         for log_dir in self._log_dirs:
             # Check for connection_trace.txt
             connection_trace = os.path.join(log_dir, "connection_trace.txt")
@@ -275,6 +295,8 @@ class LogMonitor:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_svc_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad_svc.trace position to end ({f.tell()} bytes)")
+                    # Clear remainder for this file
+                    self._handler._file_remainders.pop(ad_svc_trace, None)
                 except Exception as e:
                     self._log(f"[LOG_MONITOR] Error initializing ad_svc.trace: {e}")
 
@@ -287,6 +309,8 @@ class LogMonitor:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad.trace position to end ({f.tell()} bytes)")
+                    # Clear remainder for this file
+                    self._handler._file_remainders.pop(ad_trace, None)
                 except Exception as e:
                     self._log(f"[LOG_MONITOR] Error initializing ad.trace: {e}")
 
