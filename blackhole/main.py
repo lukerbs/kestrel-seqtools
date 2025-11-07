@@ -242,6 +242,11 @@ class BlackholeService:
                 self.log(f"[SERVICE] Ignoring our connection window (PID: {pid})")
                 return  # Don't initialize monitors for connection windows
 
+            # Filter out additional main processes if monitors are already running
+            if self.log_monitor and self.log_monitor.is_running():
+                self.log(f"[SERVICE] Monitors already active - ignoring additional AnyDesk process (PID: {pid})")
+                return  # Don't reinitialize if already running
+
             # 1. Determine and set mode
             if not exe_path:
                 self.log("[SERVICE] WARNING: Could not get AnyDesk .exe path. Defaulting to PORTABLE mode.")
