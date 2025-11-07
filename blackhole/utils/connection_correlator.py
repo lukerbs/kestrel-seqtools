@@ -59,15 +59,13 @@ class ConnectionCorrelator:
     def _handle_incoming_id(self, data):
         """Handle incoming connection ID event"""
         anydesk_id = data["anydesk_id"]
-        timestamp_str = data["timestamp"]
+        timestamp = data["timestamp"]  # Now a datetime object
 
-        try:
-            timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            self._log(f"[CORRELATOR] Invalid timestamp format: {timestamp_str}")
+        if not isinstance(timestamp, datetime):
+            self._log(f"[CORRELATOR] Invalid timestamp type: {type(timestamp)}")
             return
 
-        self._log(f"[CORRELATOR] New incoming ID: {anydesk_id} at {timestamp_str}")
+        self._log(f"[CORRELATOR] New incoming ID: {anydesk_id} at {timestamp}")
 
         with self._lock:
             # Check if we have a matching IP in waiting room
@@ -95,15 +93,13 @@ class ConnectionCorrelator:
     def _handle_incoming_ip(self, data):
         """Handle incoming connection IP event"""
         ip_address = data["ip_address"]
-        timestamp_str = data["timestamp"]
+        timestamp = data["timestamp"]  # Now a datetime object
 
-        try:
-            timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            self._log(f"[CORRELATOR] Invalid timestamp format: {timestamp_str}")
+        if not isinstance(timestamp, datetime):
+            self._log(f"[CORRELATOR] Invalid timestamp type: {type(timestamp)}")
             return
 
-        self._log(f"[CORRELATOR] New incoming IP: {ip_address} at {timestamp_str}")
+        self._log(f"[CORRELATOR] New incoming IP: {ip_address} at {timestamp}")
 
         with self._lock:
             # Check if we have a matching ID in waiting room
@@ -131,12 +127,7 @@ class ConnectionCorrelator:
     def _handle_outgoing_rejected(self, data):
         """Handle outgoing connection rejection event"""
         anydesk_id = data["anydesk_id"]
-        timestamp_str = data["timestamp"]
-
-        try:
-            timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            timestamp = datetime.now()
+        timestamp = data["timestamp"]  # Now a datetime object
 
         self._log(f"[CORRELATOR] Outgoing rejection: {anydesk_id}")
 
@@ -153,12 +144,7 @@ class ConnectionCorrelator:
     def _handle_outgoing_accepted(self, data):
         """Handle outgoing connection acceptance event"""
         anydesk_id = data["anydesk_id"]
-        timestamp_str = data["timestamp"]
-
-        try:
-            timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            timestamp = datetime.now()
+        timestamp = data["timestamp"]  # Now a datetime object
 
         self._log(f"[CORRELATOR] Outgoing accepted: {anydesk_id}")
 

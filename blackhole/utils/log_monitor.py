@@ -35,7 +35,7 @@ class LogFileHandler(FileSystemEventHandler):
         self._lock = threading.Lock()
 
         # Regex patterns for parsing
-        # Single unified pattern for connection_trace.txt (handles Incoming/Outgoing + User/REJECTED)
+        # Pattern for connection_trace.txt - now ONLY for outgoing events
         self._connection_pattern = re.compile(
             r"^(?P<direction>\w+)\s+(?P<date>\d{4}-\d{2}-\d{2}),\s+(?P<time>\d{2}:\d{2})\s+"
             r"(?P<status>\w+)\s+(?P<id1>\d+)\s+(?P<id2>\d+)$"
@@ -44,6 +44,13 @@ class LogFileHandler(FileSystemEventHandler):
         self._ip_pattern = re.compile(
             r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"
             r".*?\blogged in from\b\s+([0-9a-fA-F:.\[\]]+)(?::\d+)?",
+            re.I,
+        )
+        # Pattern for AnyDesk ID in ad_svc.trace / ad.trace
+        self._trace_id_pattern = re.compile(
+            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"
+            r".*?(?:\bClient-ID:\b\s+|Incoming session request:.*\()"
+            r"(\d{9,10})",
             re.I,
         )
 
@@ -147,7 +154,8 @@ class LogFileHandler(FileSystemEventHandler):
 
     def _process_connection_trace(self, filepath):
         """
-        Process connection_trace.txt for incoming/outgoing connection events.
+        Process connection_trace.txt for OUTGOING connection events only.
+        Incoming events are now handled by _process_ad_trace.
         Uses robust remainder handling and encoding detection.
         """
         try:
@@ -166,18 +174,26 @@ class LogFileHandler(FileSystemEventHandler):
                 g = m.groupdict()
                 direction, status = g["direction"], g["status"]
                 anydesk_id = g["id1"]
-                timestamp = f"{g['date']} {g['time']}:00"  # Synthesized seconds (documented)
 
-                self._log(f"[LOG_MONITOR] MATCHED: {direction} {status} ID={anydesk_id} at {timestamp}")
+                # Parse timestamp to datetime object
+                try:
+                    timestamp_str = f"{g['date']} {g['time']}:00"
+                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    timestamp = datetime.now()  # Fallback
+
+                self._log(f"[LOG_MONITOR] MATCHED (trace): {direction} {status} ID={anydesk_id} at {timestamp}")
 
                 payload = {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
 
                 # Wrap callback to prevent one failure from aborting batch
                 try:
-                    if direction == "Incoming" and status == "User":
-                        self._callback("incoming_id", payload)
-                    elif direction == "Incoming" and status == "REJECTED":
-                        self._log(f"[LOG_MONITOR] Incoming connection rejected from {anydesk_id}")
+                    if direction == "Incoming":
+                        # We no longer process incoming events from this file
+                        if status == "User":
+                            self._log(f"[LOG_MONITOR] Incoming connection ACCEPTED from {anydesk_id}")
+                        elif status == "REJECTED":
+                            self._log(f"[LOG_MONITOR] Incoming connection REJECTED from {anydesk_id}")
                     elif direction == "Outgoing" and status == "REJECTED":
                         self._callback("outgoing_rejected", payload)
                     elif direction == "Outgoing" and status == "User":
@@ -190,35 +206,54 @@ class LogFileHandler(FileSystemEventHandler):
 
     def _process_ad_trace(self, filepath):
         """
-        Process ad_svc.trace (or ad.trace) for IP addresses.
+        Process ad_svc.trace (or ad.trace) for BOTH IP addresses and AnyDesk IDs.
         Uses robust remainder handling and encoding detection.
         """
+
+        def get_precise_timestamp(ts_raw_str: str) -> datetime:
+            """Helper to parse raw timestamp into datetime object with full precision."""
+            try:
+                # Remove milliseconds/microseconds if they exist
+                ts_clean = ts_raw_str.split(".")[0]
+                return datetime.strptime(ts_clean, "%Y-%m-%d %H:%M:%S")
+            except (ValueError, IndexError):
+                self._log(f"[LOG_MONITOR] Warning: Could not parse timestamp '{ts_raw_str}'")
+                return datetime.now()  # Fallback
+
         try:
             with self._lock:
                 lines = self._iter_new_lines(filepath, is_connection=False)
 
-            self._log(f"[LOG_MONITOR] Read {len(lines)} new lines from {os.path.basename(filepath)}")
+            if len(lines) > 0:
+                self._log(f"[LOG_MONITOR] Read {len(lines)} new lines from {os.path.basename(filepath)}")
+
             for line in lines:
-                m = self._ip_pattern.search(line)
-                if not m:
-                    continue
+                # Check for IP Address
+                m_ip = self._ip_pattern.search(line)
+                if m_ip:
+                    ts_raw, ip = m_ip.groups()
+                    timestamp_obj = get_precise_timestamp(ts_raw)
 
-                ts_raw, ip = m.groups()
-                # Normalize time to minute precision
-                try:
-                    ts = ts_raw.split(".")[0]  # Remove milliseconds
-                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                    timestamp = dt.strftime("%Y-%m-%d %H:%M:00")
-                except ValueError:
-                    timestamp = ts_raw  # Fallback: keep raw timestamp
+                    self._log(f"[LOG_MONITOR] MATCHED incoming_ip: {ip} at {timestamp_obj}")
+                    try:
+                        self._callback("incoming_ip", {"ip_address": ip, "timestamp": timestamp_obj, "raw_line": line})
+                    except Exception as cb_err:
+                        self._log(f"[LOG_MONITOR] Callback error: {cb_err}")
+                    continue  # A line won't be both
 
-                self._log(f"[LOG_MONITOR] MATCHED incoming_ip: {ip} at {timestamp}")
+                # Check for AnyDesk ID
+                m_id = self._trace_id_pattern.search(line)
+                if m_id:
+                    ts_raw, anydesk_id = m_id.groups()
+                    timestamp_obj = get_precise_timestamp(ts_raw)
 
-                # Wrap callback to prevent one failure from aborting batch
-                try:
-                    self._callback("incoming_ip", {"ip_address": ip, "timestamp": timestamp, "raw_line": line})
-                except Exception as cb_err:
-                    self._log(f"[LOG_MONITOR] Callback error: {cb_err}")
+                    self._log(f"[LOG_MONITOR] MATCHED incoming_id: {anydesk_id} at {timestamp_obj}")
+                    try:
+                        self._callback(
+                            "incoming_id", {"anydesk_id": anydesk_id, "timestamp": timestamp_obj, "raw_line": line}
+                        )
+                    except Exception as cb_err:
+                        self._log(f"[LOG_MONITOR] Callback error: {cb_err}")
 
         except Exception as e:
             self._log(f"[LOG_MONITOR] Error processing ad_svc.trace: {e}")
