@@ -356,6 +356,9 @@ class LogMonitor:
                         self._log(f"[LOG_MONITOR] Set ad_svc.trace position to end ({f.tell()} bytes)")
                     # Clear remainder for this file
                     self._handler._file_remainders.pop(ad_svc_trace, None)
+                    # Initialize poll state to avoid false change on first poll
+                    stat = os.stat(ad_svc_trace)
+                    self._poll_files_state[ad_svc_trace] = (stat.st_size, stat.st_mtime)
                 except Exception as e:
                     self._log(f"[LOG_MONITOR] Error initializing ad_svc.trace: {e}")
 
@@ -370,6 +373,9 @@ class LogMonitor:
                         self._log(f"[LOG_MONITOR] Set ad.trace position to end ({f.tell()} bytes)")
                     # Clear remainder for this file
                     self._handler._file_remainders.pop(ad_trace, None)
+                    # Initialize poll state to avoid false change on first poll
+                    stat = os.stat(ad_trace)
+                    self._poll_files_state[ad_trace] = (stat.st_size, stat.st_mtime)
                 except Exception as e:
                     self._log(f"[LOG_MONITOR] Error initializing ad.trace: {e}")
 
