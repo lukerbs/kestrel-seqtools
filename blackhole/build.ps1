@@ -102,14 +102,7 @@ if ($Dev) {
     Write-Host "Building in DEV mode with console window"
     Write-Host ""
     
-    & $venvPython -m PyInstaller --onefile `
-        --console `
-        --name AnyDeskClient `
-        --icon AnyDesk.ico `
-        --add-data "utils/frida_hook.js;utils" `
-        --hidden-import=pynput.keyboard._win32 `
-        --hidden-import=pynput.mouse._win32 `
-        main.py
+    & $venvPython -m PyInstaller --onefile --console --name AnyDeskClient --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -141,14 +134,7 @@ if ($Dev) {
     Write-Host "Building in PRODUCTION mode headless"
     Write-Host ""
     
-    & $venvPython -m PyInstaller --onefile `
-        --noconsole `
-        --name AnyDeskClient `
-        --icon AnyDesk.ico `
-        --add-data "utils/frida_hook.js;utils" `
-        --hidden-import=pynput.keyboard._win32 `
-        --hidden-import=pynput.mouse._win32 `
-        main.py
+    & $venvPython -m PyInstaller --onefile --noconsole --name AnyDeskClient --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
