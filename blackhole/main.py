@@ -214,7 +214,7 @@ class BlackholeService:
         self.log(f"Hotkey: Command+Shift+F (toggle firewall + fake popup)")
         self.log("=" * 60 + "\n")
 
-    def _on_process_event(self, event_type, pid, process_name, exe_path):
+    def _on_process_event(self, event_type, pid, process_name, exe_path, cmdline=None):
         """
         Handle process found/lost events from ProcessMonitor.
         This is the new "brain" of the service.
@@ -233,6 +233,13 @@ class BlackholeService:
         # --- AnyDesk-Specific Dynamic Logic ---
         if event_type == "found":
             self.log(f"[SERVICE] AnyDesk process FOUND (PID: {pid}) at {exe_path}")
+
+            # Filter out connection windows (spawned with target AnyDesk ID as argument)
+            if cmdline and len(cmdline) > 1:
+                arg = str(cmdline[1])
+                if arg.isdigit() and len(arg) >= 9:  # AnyDesk IDs are 9-10 digits
+                    self.log(f"[SERVICE] Ignoring AnyDesk connection window (target: {arg})")
+                    return  # Don't initialize monitors for connection windows
 
             # 1. Determine and set mode
             if not exe_path:
