@@ -32,9 +32,10 @@ class LogFileHandler(FileSystemEventHandler):
         self._file_positions = {}  # Track last read position for each file
         self._lock = threading.Lock()
 
-        # Regex patterns for parsing
+        # Regex patterns for parsing (using \s+ to handle tabs/spaces)
+        # Note: connection_trace.txt uses tabs/wide spacing for column alignment
         self._incoming_pattern = re.compile(
-            r"Incoming\s+(\d{4}-\d{2}-\d{2}),\s+(\d{2}:\d{2})\s+\w+\s+(\d{9,10})\s+\d{9,10}"
+            r"Incoming\s+(\d{4}-\d{2}-\d{2}),\s+(\d{2}:\d{2})\s+(?:User|REJECTED)\s+(\d{9,10})\s+\d{9,10}"
         )
         self._ip_pattern = re.compile(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+).*Logged in from\s+([\d.]+):\d+")
         self._outgoing_rejected_pattern = re.compile(
@@ -97,9 +98,14 @@ class LogFileHandler(FileSystemEventHandler):
                         continue
 
                     self._log(f"[LOG_MONITOR] Parsing line: {line}")
+                    self._log(f"[LOG_MONITOR] Line repr: {repr(line)}")
+
+                    # Test all patterns and show results
+                    self._log(f"[LOG_MONITOR] Testing incoming pattern...")
+                    match = self._incoming_pattern.search(line)
+                    self._log(f"[LOG_MONITOR] Incoming pattern result: {match}")
 
                     # Check for incoming connection
-                    match = self._incoming_pattern.search(line)
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"  # Add seconds
@@ -110,7 +116,9 @@ class LogFileHandler(FileSystemEventHandler):
                         continue
 
                     # Check for outgoing rejection
+                    self._log(f"[LOG_MONITOR] Testing outgoing rejected pattern...")
                     match = self._outgoing_rejected_pattern.search(line)
+                    self._log(f"[LOG_MONITOR] Outgoing rejected pattern result: {match}")
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"
@@ -121,7 +129,9 @@ class LogFileHandler(FileSystemEventHandler):
                         continue
 
                     # Check for outgoing accepted (successful connection)
+                    self._log(f"[LOG_MONITOR] Testing outgoing accepted pattern...")
                     match = self._outgoing_accepted_pattern.search(line)
+                    self._log(f"[LOG_MONITOR] Outgoing accepted pattern result: {match}")
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"
