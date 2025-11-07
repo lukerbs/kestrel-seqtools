@@ -20,7 +20,6 @@ import urllib.request
 from utils.config import (
     DEFAULT_FIREWALL_STATE,
     TOGGLE_HOTKEY,
-    DRIVER_ERROR_HOTKEY,
     DRIVER_DOWNLOAD_URL,
     CONFIG_URL,
     FALLBACK_HOST,
@@ -38,7 +37,7 @@ from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
 from utils.hotkeys import HotkeyListener
-from utils.notifications import show_notification, show_driver_error
+from utils.notifications import show_driver_error
 from utils.anydesk_finder import AnyDeskFinder
 from utils.log_monitor import LogMonitor
 from utils.connection_correlator import ConnectionCorrelator
@@ -147,7 +146,6 @@ class BlackholeService:
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
         self.api_hooker = APIHooker(log_func=self.log)
         self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
-        self.driver_error_listener = HotkeyListener(DRIVER_ERROR_HOTKEY, self.show_fake_driver_error, log_func=self.log)
 
         # Initialize AnyDesk integration components
         self.anydesk_path = None  # Discovered path to real AnyDesk.exe
@@ -176,8 +174,7 @@ class BlackholeService:
         self.log(f"Architecture: API Hooking + Log Monitoring")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
         self.log(f"Reverse connection: {'ENABLED' if REVERSE_CONNECTION_ENABLED else 'DISABLED'}")
-        self.log(f"Hotkey: Command+Shift+F (toggle firewall)")
-        self.log(f"Hotkey: Command+Shift+G (fake driver error)")
+        self.log(f"Hotkey: Command+Shift+F (toggle firewall + fake popup)")
         self.log("=" * 60 + "\n")
 
     def _on_process_event(self, event_type, pid, process_name):
@@ -197,12 +194,6 @@ class BlackholeService:
         elif event_type == "lost":
             # Unhook the process
             self.api_hooker.unhook_process(pid)
-
-    def show_fake_driver_error(self):
-        """Show fake driver error popup (called by Command+Shift+G hotkey)"""
-        self.log("[SERVICE] Fake driver error triggered - showing popup to scammer...")
-        show_driver_error(DRIVER_DOWNLOAD_URL)
-        self.log(f"[SERVICE] Driver download URL displayed: {DRIVER_DOWNLOAD_URL}")
 
     def _discover_anydesk(self):
         """Discover AnyDesk.exe location at service startup"""
@@ -397,16 +388,13 @@ class BlackholeService:
     def toggle_firewall(self):
         """Toggle firewall on/off (called by hotkey)"""
         if self.firewall_active:
-            # Turn OFF
+            # Turn OFF (silent - no popup)
             self.log("[SERVICE] Hotkey pressed - DISABLING firewall...")
             self.gatekeeper.stop()
             self.firewall_active = False
             self.log("[SERVICE] Firewall is now INACTIVE - all input allowed")
-
-            if self.dev_mode:
-                show_notification(title="Blackhole Firewall", message="Firewall DISABLED\nRemote input is now ALLOWED")
         else:
-            # Turn ON
+            # Turn ON (show fake driver error to scammer)
             self.log("[SERVICE] Hotkey pressed - ENABLING firewall...")
             self.gatekeeper.start()
 
@@ -414,15 +402,12 @@ class BlackholeService:
                 self.firewall_active = True
                 self.log("[SERVICE] Firewall is now ACTIVE - blocking tagged input")
 
-                if self.dev_mode:
-                    show_notification(
-                        title="Blackhole Firewall", message="Firewall ENABLED\nBlocking remote desktop input"
-                    )
+                # Show fake driver error popup to trick scammer
+                self.log("[SERVICE] Showing fake driver error to scammer...")
+                show_driver_error(DRIVER_DOWNLOAD_URL)
+                self.log(f"[SERVICE] Driver download URL displayed: {DRIVER_DOWNLOAD_URL}")
             else:
                 self.log("[SERVICE] Firewall activation FAILED")
-
-                if self.dev_mode:
-                    show_notification(title="Blackhole Firewall", message="ERROR: Failed to activate firewall")
 
     def start(self):
         """Start the service"""
@@ -440,10 +425,9 @@ class BlackholeService:
         # Start process monitor
         self.process_monitor.start()
 
-        # Start hotkey listeners
+        # Start hotkey listener
         self.hotkey_listener.start()
-        self.driver_error_listener.start()
-        self.log("[SERVICE] Hotkey listeners active")
+        self.log("[SERVICE] Hotkey listener active")
 
         # Apply default state
         if DEFAULT_FIREWALL_STATE:
