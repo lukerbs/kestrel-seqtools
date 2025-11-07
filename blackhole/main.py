@@ -589,9 +589,8 @@ class BlackholeService:
                 if thread.is_alive():
                     thread.join(timeout=6)
 
-        # Stop hotkey listeners
+        # Stop hotkey listener
         self.hotkey_listener.stop()
-        self.driver_error_listener.stop()
 
         # Stop process monitor
         self.process_monitor.stop()
