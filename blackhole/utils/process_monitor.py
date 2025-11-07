@@ -22,12 +22,12 @@ class ProcessMonitor:
         Args:
             log_func: Optional logging function
             callback: Function called when process found/lost.
-                     Signature: callback(event_type, pid, process_name)
+                     Signature: callback(event_type, pid, process_name, exe_path)
                      event_type is 'found' or 'lost'
         """
         self._log = log_func if log_func else lambda msg: None
         self._callback = callback
-        self._tracked_pids = {}  # {pid: process_name}
+        self._tracked_pids = {}  # {pid: (process_name, exe_path)}
         self._running = False
         self._thread = None
 
@@ -62,20 +62,23 @@ class ProcessMonitor:
             try:
                 current_pids = {}
 
-                # Scan for target processes
-                for proc in psutil.process_iter(["pid", "name"]):
+                # Scan for target processes (request 'exe' attribute)
+                for proc in psutil.process_iter(["pid", "name", "exe"]):
                     try:
                         name = proc.info["name"]
                         if name in TARGET_PROCESSES:
                             pid = proc.info["pid"]
-                            current_pids[pid] = name
+                            exe_path = proc.info.get("exe")  # Get exe path
+
+                            current_pids[pid] = (name, exe_path)  # Store both
 
                             # New process found
                             if pid not in self._tracked_pids:
-                                self._log(f"[MONITOR] Detected: {name} (PID: {pid})")
+                                self._log(f"[MONITOR] Detected: {name} (PID: {pid}) at {exe_path}")
                                 if self._callback:
                                     try:
-                                        self._callback("found", pid, name)
+                                        # Pass new exe_path argument
+                                        self._callback("found", pid, name, exe_path)
                                     except Exception as e:
                                         self._log(f"[MONITOR] Callback error: {e}")
 
@@ -84,12 +87,13 @@ class ProcessMonitor:
                         pass
 
                 # Check for processes that disappeared
-                for pid, name in list(self._tracked_pids.items()):
+                for pid, (name, exe_path) in list(self._tracked_pids.items()):
                     if pid not in current_pids:
                         self._log(f"[MONITOR] Lost: {name} (PID: {pid})")
                         if self._callback:
                             try:
-                                self._callback("lost", pid, name)
+                                # Pass None for exe_path on 'lost'
+                                self._callback("lost", pid, name, None)
                             except Exception as e:
                                 self._log(f"[MONITOR] Callback error: {e}")
 

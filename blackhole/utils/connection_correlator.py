@@ -14,16 +14,18 @@ class ConnectionCorrelator:
     Handles the "split metadata" problem where ID and IP are in different files.
     """
 
-    def __init__(self, callback, time_window=10, log_func=None):
+    def __init__(self, callback, mode="portable", time_window=10, log_func=None):
         """
         Initialize the correlator.
 
         Args:
             callback: Function to call with complete connection events
+            mode: "service" or "portable"
             time_window: Seconds to wait for matching events (default: 10)
             log_func: Optional logging function
         """
         self._callback = callback
+        self._mode = mode  # Store the mode
         self._time_window = time_window
         self._log = log_func if log_func else lambda msg: None
 
@@ -57,11 +59,7 @@ class ConnectionCorrelator:
             self._handle_outgoing_accepted(data)
 
     def _handle_incoming_id(self, data):
-        """
-        Handle incoming connection ID event.
-        This is the PRIMARY trigger. It will fire an event immediately,
-        bundling an IP if one is found in the waiting room.
-        """
+        """Handle incoming connection ID event"""
         anydesk_id = data["anydesk_id"]
         timestamp = data["timestamp"]  # This is now a datetime object
 
@@ -71,30 +69,38 @@ class ConnectionCorrelator:
 
         self._log(f"[CORRELATOR] New incoming ID: {anydesk_id} at {timestamp}")
 
-        ip_address = None  # Default to None (for portable mode)
+        # --- NEW LOGIC BASED ON MODE ---
+        if self._mode == "portable":
+            # PORTABLE MODE: Fire immediately, IP is not available.
+            self._log("[CORRELATOR] Portable mode: Firing event with ID only.")
+            self._emit_incoming_request(anydesk_id, None, timestamp)
+            return  # We are done.
+        # --- END NEW LOGIC ---
 
+        # SERVICE MODE LOGIC (the original logic is now the 'else' block)
         with self._lock:
-            # Check if a matching IP *already* arrived (e.g., service mode)
-            for i, (ip, ip_timestamp, ip_data) in enumerate(self._waiting_ips):
+            # Check if we have a matching IP in waiting room
+            match_found = False
+            for i, (ip_address, ip_timestamp, ip_data) in enumerate(self._waiting_ips):
                 time_diff = abs((timestamp - ip_timestamp).total_seconds())
 
                 if time_diff <= self._time_window:
-                    # Match found! Use this IP and remove it.
-                    self._log(f"[CORRELATOR] Match found: {anydesk_id} <-> {ip} (Δ{time_diff:.1f}s)")
-                    ip_address = ip
+                    # Match found!
+                    self._log(f"[CORRELATOR] Match found: {anydesk_id} <-> {ip_address} (Δ{time_diff:.1f}s)")
                     del self._waiting_ips[i]
-                    break  # Stop searching
+                    self._emit_incoming_request(anydesk_id, ip_address, timestamp)
+                    match_found = True
+                    break
 
-        # --- THIS IS THE KEY CHANGE ---
-        # Fire the event IMMEDIATELY, with or without an IP.
-        # The IP will be None if no match was found (i.e., portable mode or IP log not yet processed)
-        self._emit_incoming_request(anydesk_id, ip_address, timestamp)
+            if not match_found:
+                # No match yet, add to waiting room
+                self._log("[CORRELATOR] Service mode: ID waiting for IP.")
+                self._waiting_ids.append((anydesk_id, timestamp, data))
 
     def _handle_incoming_ip(self, data):
         """
         Handle incoming connection IP event.
-        This is a SECONDARY event. It will try to match an existing ID
-        or wait for one to arrive.
+        This function will now ONLY be called in "service" mode.
         """
         ip_address = data["ip_address"]
         timestamp = data["timestamp"]  # This is now a datetime object
@@ -111,8 +117,8 @@ class ConnectionCorrelator:
         with self._lock:
             # We add the IP to the waiting room for the _handle_incoming_id
             # function to find when it runs.
+            self._log("[CORRELATOR] Service mode: IP waiting for ID.")
             self._waiting_ips.append((ip_address, timestamp, data))
-            self._log(f"[CORRELATOR] IP added to waiting room (total: {len(self._waiting_ips)})")
 
             # --- CLEANUP LOGIC (Optional but good) ---
             # Check if an ID *already* fired and is waiting. This is a rare
