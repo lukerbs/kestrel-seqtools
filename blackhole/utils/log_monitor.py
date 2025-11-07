@@ -66,14 +66,15 @@ class LogFileHandler(FileSystemEventHandler):
     def _process_connection_trace(self, filepath):
         """
         Process connection_trace.txt for incoming/outgoing connection events.
+        Note: File is UTF-16 LE encoded, so we read as binary and decode manually.
         """
         try:
             with self._lock:
-                # Get last read position
+                # Get last read position (in bytes)
                 last_pos = self._file_positions.get(filepath, 0)
 
-                # Read new content
-                with open(filepath, "r", encoding="utf-16-le", errors="ignore") as f:
+                # Read new content as binary (UTF-16 LE)
+                with open(filepath, "rb") as f:
                     # Check if file was rotated (size decreased)
                     f.seek(0, os.SEEK_END)
                     file_size = f.tell()
@@ -83,12 +84,16 @@ class LogFileHandler(FileSystemEventHandler):
                         self._log(f"[LOG_MONITOR] Detected log rotation: {filepath}")
                         last_pos = 0
 
-                    # Seek to last position and read new lines
+                    # Seek to last position and read new content
                     f.seek(last_pos)
-                    new_lines = f.readlines()
+                    new_bytes = f.read()
 
                     # Update position
                     self._file_positions[filepath] = f.tell()
+
+                # Decode UTF-16 LE
+                new_content = new_bytes.decode("utf-16-le", errors="ignore")
+                new_lines = new_content.splitlines()
 
                 # Parse new lines
                 self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from connection_trace.txt")
@@ -149,14 +154,15 @@ class LogFileHandler(FileSystemEventHandler):
     def _process_ad_trace(self, filepath):
         """
         Process ad_svc.trace (or ad.trace) for IP addresses.
+        Note: File is UTF-16 LE encoded, so we read as binary and decode manually.
         """
         try:
             with self._lock:
-                # Get last read position
+                # Get last read position (in bytes)
                 last_pos = self._file_positions.get(filepath, 0)
 
-                # Read new content
-                with open(filepath, "r", encoding="utf-16-le", errors="ignore") as f:
+                # Read new content as binary (UTF-16 LE)
+                with open(filepath, "rb") as f:
                     # Check if file was rotated
                     f.seek(0, os.SEEK_END)
                     file_size = f.tell()
@@ -165,12 +171,16 @@ class LogFileHandler(FileSystemEventHandler):
                         self._log(f"[LOG_MONITOR] Detected log rotation: {filepath}")
                         last_pos = 0
 
-                    # Seek to last position and read new lines
+                    # Seek to last position and read new content
                     f.seek(last_pos)
-                    new_lines = f.readlines()
+                    new_bytes = f.read()
 
                     # Update position
                     self._file_positions[filepath] = f.tell()
+
+                # Decode UTF-16 LE
+                new_content = new_bytes.decode("utf-16-le", errors="ignore")
+                new_lines = new_content.splitlines()
 
                 # Parse new lines
                 self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from {os.path.basename(filepath)}")
@@ -261,7 +271,7 @@ class LogMonitor:
                 self._log(f"[LOG_MONITOR] Found ad_svc.trace in {log_dir}")
                 # Set position to end of file (we don't want to process all historical IPs)
                 try:
-                    with open(ad_svc_trace, "r", encoding="utf-16-le", errors="ignore") as f:
+                    with open(ad_svc_trace, "rb") as f:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_svc_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad_svc.trace position to end ({f.tell()} bytes)")
@@ -273,7 +283,7 @@ class LogMonitor:
             if os.path.exists(ad_trace):
                 self._log(f"[LOG_MONITOR] Found ad.trace in {log_dir}")
                 try:
-                    with open(ad_trace, "r", encoding="utf-16-le", errors="ignore") as f:
+                    with open(ad_trace, "rb") as f:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad.trace position to end ({f.tell()} bytes)")
