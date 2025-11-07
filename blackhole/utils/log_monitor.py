@@ -37,7 +37,7 @@ class LogFileHandler(FileSystemEventHandler):
         # Regex patterns for parsing
         # Single unified pattern for connection_trace.txt (handles Incoming/Outgoing + User/REJECTED)
         self._connection_pattern = re.compile(
-            r"^(?P<direction>\w+)\s+(?P<date>\d{4}-\d{2}-\d{2}),\s*(?P<time>\d{2}:\d{2})\s+"
+            r"^(?P<direction>\w+)\s+(?P<date>\d{4}-\d{2}-\d{2}),\s+(?P<time>\d{2}:\d{2})\s+"
             r"(?P<status>\w+)\s+(?P<id1>\d+)\s+(?P<id2>\d+)$"
         )
         # Pattern for IP addresses in ad_svc.trace / ad.trace (IPv4/IPv6, case-insensitive)
