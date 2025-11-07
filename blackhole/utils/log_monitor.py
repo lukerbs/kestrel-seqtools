@@ -73,7 +73,7 @@ class LogFileHandler(FileSystemEventHandler):
                 last_pos = self._file_positions.get(filepath, 0)
 
                 # Read new content
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(filepath, "r", encoding="utf-16-le", errors="ignore") as f:
                     # Check if file was rotated (size decreased)
                     f.seek(0, os.SEEK_END)
                     file_size = f.tell()
@@ -156,7 +156,7 @@ class LogFileHandler(FileSystemEventHandler):
                 last_pos = self._file_positions.get(filepath, 0)
 
                 # Read new content
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(filepath, "r", encoding="utf-16-le", errors="ignore") as f:
                     # Check if file was rotated
                     f.seek(0, os.SEEK_END)
                     file_size = f.tell()
@@ -261,7 +261,7 @@ class LogMonitor:
                 self._log(f"[LOG_MONITOR] Found ad_svc.trace in {log_dir}")
                 # Set position to end of file (we don't want to process all historical IPs)
                 try:
-                    with open(ad_svc_trace, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(ad_svc_trace, "r", encoding="utf-16-le", errors="ignore") as f:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_svc_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad_svc.trace position to end ({f.tell()} bytes)")
@@ -273,7 +273,7 @@ class LogMonitor:
             if os.path.exists(ad_trace):
                 self._log(f"[LOG_MONITOR] Found ad.trace in {log_dir}")
                 try:
-                    with open(ad_trace, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(ad_trace, "r", encoding="utf-16-le", errors="ignore") as f:
                         f.seek(0, os.SEEK_END)
                         self._handler._file_positions[ad_trace] = f.tell()
                         self._log(f"[LOG_MONITOR] Set ad.trace position to end ({f.tell()} bytes)")
