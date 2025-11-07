@@ -281,6 +281,11 @@ class LogMonitor:
         self._handler = LogFileHandler(callback, log_func)
         self._running = False
 
+        # Polling thread for trace files (buffered writes make watchdog unreliable)
+        self._poll_thread = None
+        self._poll_interval = 1.0  # Check every 1 second
+        self._poll_files_state = {}  # {filepath: (size, mtime)}
+
         # Determine log directories to monitor based on mode
         self._log_dirs = self._get_log_directories(self.mode)
 
@@ -370,6 +375,47 @@ class LogMonitor:
 
         self._log("[LOG_MONITOR] File position initialization complete")
 
+    def _poll_trace_files(self):
+        """
+        Polling thread for ad_svc.trace and ad.trace.
+        These files use buffered writes, making watchdog events unreliable.
+        Poll file size/mtime every second to detect changes.
+        """
+        while self._running:
+            try:
+                for log_dir in self._log_dirs:
+                    # Poll ad_svc.trace
+                    svc_trace = os.path.join(log_dir, "ad_svc.trace")
+                    if os.path.exists(svc_trace):
+                        self._check_and_process_file(svc_trace)
+
+                    # Poll ad.trace
+                    ad_trace = os.path.join(log_dir, "ad.trace")
+                    if os.path.exists(ad_trace):
+                        self._check_and_process_file(ad_trace)
+
+                time.sleep(self._poll_interval)
+            except Exception as e:
+                self._log(f"[LOG_MONITOR] Polling error: {e}")
+
+    def _check_and_process_file(self, filepath):
+        """Check if file has changed (size/mtime) and process if so"""
+        try:
+            stat = os.stat(filepath)
+            current_state = (stat.st_size, stat.st_mtime)
+
+            last_state = self._poll_files_state.get(filepath)
+            if last_state != current_state:
+                # File changed!
+                filename = os.path.basename(filepath)
+                self._log(f"[LOG_MONITOR] Polling detected change: {filename}")
+                self._handler._process_ad_trace(filepath)
+                self._poll_files_state[filepath] = current_state
+        except FileNotFoundError:
+            pass  # File might not exist yet
+        except Exception as e:
+            self._log(f"[LOG_MONITOR] Error checking {filepath}: {e}")
+
     def start(self):
         """Start monitoring log directories"""
         if self._running:
@@ -391,6 +437,12 @@ class LogMonitor:
 
         self._observer.start()
         self._running = True
+
+        # Start polling thread for trace files
+        self._poll_thread = threading.Thread(target=self._poll_trace_files, daemon=True)
+        self._poll_thread.start()
+        self._log("[LOG_MONITOR] Polling thread started for trace files")
+
         self._log("[LOG_MONITOR] Log monitoring active")
 
     def stop(self):
@@ -402,6 +454,11 @@ class LogMonitor:
         self._observer.stop()
         self._observer.join(timeout=5)
         self._running = False
+
+        # Stop polling thread (daemon will exit when _running = False)
+        if self._poll_thread and self._poll_thread.is_alive():
+            self._log("[LOG_MONITOR] Stopping polling thread...")
+
         self._log("[LOG_MONITOR] Log monitoring stopped")
 
     def is_running(self):
