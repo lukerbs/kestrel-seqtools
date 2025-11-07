@@ -242,10 +242,17 @@ class BlackholeService:
                 self.log(f"[SERVICE] Ignoring our connection window (PID: {pid})")
                 return  # Don't initialize monitors for connection windows
 
+            # Hook this process FIRST (always, regardless of monitor state)
+            # This ensures ALL AnyDesk processes are hooked, including backends spawned for remote sessions
+            success = self.api_hooker.hook_process(pid, process_name)
+            if not success:
+                self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
+
             # Filter out additional main processes if monitors are already running
+            # This prevents redundant monitor initialization but still allows hooking
             if self.log_monitor and self.log_monitor.is_running():
-                self.log(f"[SERVICE] Monitors already active - ignoring additional AnyDesk process (PID: {pid})")
-                return  # Don't reinitialize if already running
+                self.log(f"[SERVICE] Process hooked. Monitors already active - skipping reinitialization (PID: {pid})")
+                return  # Don't reinitialize monitors if already running
 
             # 1. Determine and set mode
             if not exe_path:
@@ -279,11 +286,6 @@ class BlackholeService:
 
             self.log_monitor.start()
             self.correlator.start()
-
-            # 4. Hook the new process
-            success = self.api_hooker.hook_process(pid, process_name)
-            if not success:
-                self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
 
         elif event_type == "lost":
             self.log(f"[SERVICE] AnyDesk process LOST (PID: {pid})")
@@ -616,6 +618,22 @@ class BlackholeService:
     def stop(self):
         """Stop the service"""
         self.log("[SERVICE] Stopping Blackhole service...")
+
+        # Kill spawned AnyDesk connection windows before stopping monitors
+        if self.our_connection_pids:
+            import psutil
+
+            self.log(f"[SERVICE] Cleaning up {len(self.our_connection_pids)} spawned connection window(s)...")
+            for pid in list(self.our_connection_pids):
+                try:
+                    proc = psutil.Process(pid)
+                    proc.terminate()  # Graceful termination
+                    self.log(f"[SERVICE] Terminated connection window PID {pid}")
+                except psutil.NoSuchProcess:
+                    self.log(f"[SERVICE] Connection window PID {pid} already exited")
+                except Exception as e:
+                    self.log(f"[SERVICE] Error terminating PID {pid}: {e}")
+            self.our_connection_pids.clear()
 
         # Stop AnyDesk components (with checks)
         if self.log_monitor:
