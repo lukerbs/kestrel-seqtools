@@ -121,17 +121,18 @@ def create_log_func(dev_mode):
             "C2": "bright_blue",
             "C2_CLIENT": "bright_cyan",
             "ANYDESK": "bright_yellow",
+            "ANYDESK LOG": "bright_black",  # Gray for verbose trace logs
             "CONTROLLER": "bright_green",
             "POPUP": "bright_red",
         }
 
         def log(msg):
-            # Try to extract log category from message
-            match = re.match(r"\[([A-Z_0-9|]+)\]", msg)
+            # Try to extract log category from message (allow spaces in category names)
+            match = re.match(r"\[([A-Z_0-9| ]+)\]", msg)
             if match:
                 category = match.group(1)
                 # Handle composite categories like "LOG_MONITOR | ANYDESK LOG TRACE"
-                primary_category = category.split("|")[0].strip().replace(" ", "_")
+                primary_category = category.split("|")[0].strip()
                 color = COLOR_MAP.get(primary_category, "white")
                 # Split into category and message
                 parts = msg.split("] ", 1)

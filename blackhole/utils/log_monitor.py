@@ -228,7 +228,7 @@ class LogFileHandler(FileSystemEventHandler):
                 self._log(f"[LOG_MONITOR] Read {len(lines)} new lines from {os.path.basename(filepath)}")
                 # Log all new lines for visibility
                 for idx, line in enumerate(lines, 1):
-                    self._log(f"[LOG_MONITOR | ANYDESK LOG TRACE]   Line {idx}: {line}")
+                    self._log(f"[ANYDESK LOG]   Line {idx}: {line}")
 
             for line in lines:
                 # Check for IP Address
