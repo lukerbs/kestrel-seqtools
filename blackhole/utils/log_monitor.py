@@ -51,10 +51,15 @@ class LogFileHandler(FileSystemEventHandler):
 
         filename = os.path.basename(event.src_path)
 
+        # Debug logging
+        self._log(f"[LOG_MONITOR] File modified: {filename}")
+
         # Only process AnyDesk log files
         if filename == "connection_trace.txt":
+            self._log(f"[LOG_MONITOR] Processing connection_trace.txt modification...")
             self._process_connection_trace(event.src_path)
         elif filename == "ad_svc.trace" or filename == "ad.trace":
+            self._log(f"[LOG_MONITOR] Processing {filename} modification...")
             self._process_ad_trace(event.src_path)
 
     def _process_connection_trace(self, filepath):
@@ -85,16 +90,20 @@ class LogFileHandler(FileSystemEventHandler):
                     self._file_positions[filepath] = f.tell()
 
                 # Parse new lines
+                self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from connection_trace.txt")
                 for line in new_lines:
                     line = line.strip()
                     if not line:
                         continue
+
+                    self._log(f"[LOG_MONITOR] Parsing line: {line}")
 
                     # Check for incoming connection
                     match = self._incoming_pattern.search(line)
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"  # Add seconds
+                        self._log(f"[LOG_MONITOR] MATCHED incoming_id: {anydesk_id} at {timestamp}")
                         self._callback(
                             "incoming_id", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
                         )
@@ -105,6 +114,7 @@ class LogFileHandler(FileSystemEventHandler):
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"
+                        self._log(f"[LOG_MONITOR] MATCHED outgoing_rejected: {anydesk_id} at {timestamp}")
                         self._callback(
                             "outgoing_rejected", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
                         )
@@ -115,10 +125,13 @@ class LogFileHandler(FileSystemEventHandler):
                     if match:
                         date_str, time_str, anydesk_id = match.groups()
                         timestamp = f"{date_str} {time_str}:00"
+                        self._log(f"[LOG_MONITOR] MATCHED outgoing_accepted: {anydesk_id} at {timestamp}")
                         self._callback(
                             "outgoing_accepted", {"anydesk_id": anydesk_id, "timestamp": timestamp, "raw_line": line}
                         )
                         continue
+
+                    self._log(f"[LOG_MONITOR] No pattern matched for line")
 
         except Exception as e:
             self._log(f"[LOG_MONITOR] Error processing connection_trace.txt: {e}")
@@ -150,6 +163,7 @@ class LogFileHandler(FileSystemEventHandler):
                     self._file_positions[filepath] = f.tell()
 
                 # Parse new lines
+                self._log(f"[LOG_MONITOR] Read {len(new_lines)} new lines from {os.path.basename(filepath)}")
                 for line in new_lines:
                     line = line.strip()
                     if not line:
@@ -164,6 +178,7 @@ class LogFileHandler(FileSystemEventHandler):
                         dt = datetime.strptime(timestamp_str.split(".")[0], "%Y-%m-%d %H:%M:%S")
                         timestamp = dt.strftime("%Y-%m-%d %H:%M:00")
 
+                        self._log(f"[LOG_MONITOR] MATCHED incoming_ip: {ip_address} at {timestamp}")
                         self._callback(
                             "incoming_ip", {"ip_address": ip_address, "timestamp": timestamp, "raw_line": line}
                         )
@@ -215,6 +230,48 @@ class LogMonitor:
 
         return dirs
 
+    def _initialize_file_positions(self):
+        """
+        Initialize file positions and process existing log content on startup.
+        This helps catch connections that happened just before startup.
+        """
+        self._log("[LOG_MONITOR] Initializing file positions...")
+
+        for log_dir in self._log_dirs:
+            # Check for connection_trace.txt
+            connection_trace = os.path.join(log_dir, "connection_trace.txt")
+            if os.path.exists(connection_trace):
+                self._log(f"[LOG_MONITOR] Found connection_trace.txt in {log_dir}")
+                # Force process the entire file once on startup
+                self._handler._process_connection_trace(connection_trace)
+
+            # Check for ad_svc.trace
+            ad_svc_trace = os.path.join(log_dir, "ad_svc.trace")
+            if os.path.exists(ad_svc_trace):
+                self._log(f"[LOG_MONITOR] Found ad_svc.trace in {log_dir}")
+                # Set position to end of file (we don't want to process all historical IPs)
+                try:
+                    with open(ad_svc_trace, "r", encoding="utf-8", errors="ignore") as f:
+                        f.seek(0, os.SEEK_END)
+                        self._handler._file_positions[ad_svc_trace] = f.tell()
+                        self._log(f"[LOG_MONITOR] Set ad_svc.trace position to end ({f.tell()} bytes)")
+                except Exception as e:
+                    self._log(f"[LOG_MONITOR] Error initializing ad_svc.trace: {e}")
+
+            # Check for ad.trace (portable version)
+            ad_trace = os.path.join(log_dir, "ad.trace")
+            if os.path.exists(ad_trace):
+                self._log(f"[LOG_MONITOR] Found ad.trace in {log_dir}")
+                try:
+                    with open(ad_trace, "r", encoding="utf-8", errors="ignore") as f:
+                        f.seek(0, os.SEEK_END)
+                        self._handler._file_positions[ad_trace] = f.tell()
+                        self._log(f"[LOG_MONITOR] Set ad.trace position to end ({f.tell()} bytes)")
+                except Exception as e:
+                    self._log(f"[LOG_MONITOR] Error initializing ad.trace: {e}")
+
+        self._log("[LOG_MONITOR] File position initialization complete")
+
     def start(self):
         """Start monitoring log directories"""
         if self._running:
@@ -226,6 +283,10 @@ class LogMonitor:
             return
 
         self._log("[LOG_MONITOR] Starting log monitoring...")
+
+        # Initialize file positions by reading existing content
+        self._initialize_file_positions()
+
         for log_dir in self._log_dirs:
             self._log(f"[LOG_MONITOR] Watching: {log_dir}")
             self._observer.schedule(self._handler, log_dir, recursive=False)
