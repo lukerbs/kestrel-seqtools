@@ -99,7 +99,7 @@ Write-Host ""
 
 # Build based on mode
 if ($Dev) {
-    Write-Host "Building in DEV mode (with console window)"
+    Write-Host "Building in DEV mode with console window"
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
@@ -126,19 +126,19 @@ if ($Dev) {
     
     Write-Host ""
     Write-Host "========================================"
-    Write-Host "  ✓ Build Complete (DEV MODE)"
+    Write-Host "  Build Complete - DEV MODE"
     Write-Host "========================================"
     Write-Host ""
     Write-Host "Output:      dist\AnyDeskClient.exe"
     Write-Host "Dev Marker:  dist\.dev_mode"
-    Write-Host "Console:     VISIBLE (for debugging)"
+    Write-Host "Console:     VISIBLE for debugging"
     Write-Host "Venv:        Using venv\Scripts\python.exe"
     Write-Host ""
     Write-Host "To install: .\install.ps1 -Dev"
     Write-Host ""
     
 } else {
-    Write-Host "Building in PRODUCTION mode (headless, no console)"
+    Write-Host "Building in PRODUCTION mode headless"
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
@@ -166,11 +166,11 @@ if ($Dev) {
     
     Write-Host ""
     Write-Host "========================================"
-    Write-Host "  ✓ Build Complete (PRODUCTION MODE)"
+    Write-Host "  Build Complete - PRODUCTION MODE"
     Write-Host "========================================"
     Write-Host ""
     Write-Host "Output:  dist\AnyDeskClient.exe"
-    Write-Host "Console: HIDDEN (silent background service)"
+    Write-Host "Console: HIDDEN silent background service"
     Write-Host "Venv:    Using venv\Scripts\python.exe"
     Write-Host ""
     Write-Host "To install: .\install.ps1"
