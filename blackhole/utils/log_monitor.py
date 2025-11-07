@@ -460,13 +460,17 @@ class LogMonitor:
             return
 
         self._log("[LOG_MONITOR] Stopping log monitoring...")
-        self._observer.stop()
-        self._observer.join(timeout=5)
+        # Signal all threads to stop FIRST
         self._running = False
 
-        # Stop polling thread (daemon will exit when _running = False)
+        # Stop watchdog observer
+        self._observer.stop()
+        self._observer.join(timeout=5)
+
+        # Wait for polling thread to exit (it checks _running in its loop)
         if self._poll_thread and self._poll_thread.is_alive():
             self._log("[LOG_MONITOR] Stopping polling thread...")
+            self._poll_thread.join(timeout=2)  # Give it 2 seconds max (poll interval is 1s)
 
         self._log("[LOG_MONITOR] Log monitoring stopped")
 

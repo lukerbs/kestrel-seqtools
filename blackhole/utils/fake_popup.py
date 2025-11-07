@@ -168,4 +168,4 @@ def create_fake_anydesk_popup(log_func=None):
         "Please wait..."
     )
 
-    return FakePopup(message, timeout=30, log_func=log_func)
+    return FakePopup(message, timeout=0, log_func=log_func)  # timeout=0 means no auto-dismiss

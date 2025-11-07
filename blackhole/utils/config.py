@@ -108,7 +108,7 @@ REVERSE_CONNECTION_RETRY_DELAY = 15  # Base delay in seconds between retries (ex
 
 # Fake popup settings
 FAKE_POPUP_ENABLED = True  # Enable fake AnyDesk popup to trick scammer
-FAKE_POPUP_TIMEOUT = 30  # Auto-dismiss timeout in seconds
+# Popup stays open until scammer closes it (no auto-dismiss)
 
 # Firewall automation
 AUTO_ENABLE_FIREWALL_ON_CONNECTION = True  # Automatically enable input blocking when scammer connects

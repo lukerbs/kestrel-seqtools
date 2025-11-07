@@ -152,3 +152,10 @@ class ConnectionCorrelator:
     def stop(self):
         """Stop the correlator (no-op for compatibility)"""
         self._log("[CORRELATOR] Correlator stopped")
+
+    def get_stats(self):
+        """Get statistics (simplified for sequential mode)"""
+        return {
+            "waiting_ids": 1 if self._pending_id else 0,
+            "waiting_ips": 0,  # No longer used in sequential mode
+        }

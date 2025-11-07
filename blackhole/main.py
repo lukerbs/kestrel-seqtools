@@ -32,7 +32,6 @@ from utils.config import (
     REVERSE_CONNECTION_RETRY_LIMIT,
     REVERSE_CONNECTION_RETRY_DELAY,
     FAKE_POPUP_ENABLED,
-    FAKE_POPUP_TIMEOUT,
     AUTO_ENABLE_FIREWALL_ON_CONNECTION,
 )
 from utils.gatekeeper import InputGatekeeper
@@ -188,6 +187,9 @@ class BlackholeService:
         self.log_monitor = None
         self.correlator = None
         self.anydesk_controller = AnyDeskController(log_func=self.log)  # This one can stay
+
+        # Track delayed popup threads for cleanup
+        self._popup_threads = []
 
         # Fetch C2 server IP dynamically from pastebin
         c2_host = self._get_c2_ip()
@@ -440,7 +442,8 @@ class BlackholeService:
                     self.log("[SERVICE] Showing fake popup to trick scammer...")
                     self._show_fake_popup()
 
-            popup_thread = threading.Thread(target=delayed_popup, daemon=True)
+            popup_thread = threading.Thread(target=delayed_popup, daemon=True, name="DelayedPopup")
+            self._popup_threads.append(popup_thread)
             popup_thread.start()
 
     def _handle_outgoing_accepted(self, event):
@@ -578,6 +581,13 @@ class BlackholeService:
 
         # Close all fake popups
         self._close_all_popups()
+
+        # Wait for delayed popup threads to complete (max 6 seconds - 5s delay + 1s buffer)
+        if self._popup_threads:
+            self.log("[SERVICE] Waiting for popup threads to complete...")
+            for thread in self._popup_threads:
+                if thread.is_alive():
+                    thread.join(timeout=6)
 
         # Stop hotkey listeners
         self.hotkey_listener.stop()
