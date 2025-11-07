@@ -12,10 +12,13 @@ This allows Mac keyboard/trackpad (QEMU VirtIO) to work while blocking remote de
 """
 
 import os
+import re
 import sys
 import threading
 import time
 import urllib.request
+
+from rich.console import Console
 
 from utils.config import (
     DEFAULT_FIREWALL_STATE,
@@ -95,18 +98,50 @@ def detect_dev_mode():
 
 def create_log_func(dev_mode):
     """
-    Create a logging function based on dev mode.
+    Create a logging function based on dev mode with rich color-coding.
 
     Args:
-        dev_mode: If True, log to console; if False, silent
+        dev_mode: If True, log to console with colors; if False, silent
 
     Returns:
         Logging function
     """
     if dev_mode:
+        console = Console()
+
+        # Color mapping for different log categories
+        COLOR_MAP = {
+            "LOG_MONITOR": "cyan",
+            "CORRELATOR": "magenta",
+            "GATEKEEPER": "red",
+            "SERVICE": "green",
+            "HOOKER": "yellow",
+            "MONITOR": "blue",
+            "HOTKEY": "bright_magenta",
+            "C2": "bright_blue",
+            "C2_CLIENT": "bright_cyan",
+            "ANYDESK": "bright_yellow",
+            "CONTROLLER": "bright_green",
+            "POPUP": "bright_red",
+        }
 
         def log(msg):
-            print(msg)
+            # Try to extract log category from message
+            match = re.match(r"\[([A-Z_0-9|]+)\]", msg)
+            if match:
+                category = match.group(1)
+                # Handle composite categories like "LOG_MONITOR | ANYDESK LOG TRACE"
+                primary_category = category.split("|")[0].strip().replace(" ", "_")
+                color = COLOR_MAP.get(primary_category, "white")
+                # Split into category and message
+                parts = msg.split("] ", 1)
+                if len(parts) == 2:
+                    console.print(f"[{color}][{category}][/{color}] {parts[1]}")
+                else:
+                    console.print(msg)
+            else:
+                # No category found, print as-is
+                console.print(msg)
 
         return log
     else:
