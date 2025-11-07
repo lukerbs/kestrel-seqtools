@@ -23,18 +23,18 @@ $venvPip = "$venvPath\Scripts\pip.exe"
 
 # Create virtual environment if it doesn't exist
 if (-not (Test-Path $venvPath)) {
-    Write-Host "Creating virtual environment..." -ForegroundColor Cyan
+    Write-Host "Creating virtual environment..."
     python -m venv $venvPath
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to create virtual environment" -ForegroundColor Red
+        Write-Host "ERROR: Failed to create virtual environment"
         Write-Host "Make sure Python is installed and accessible"
         Write-Host ""
         Read-Host "Press Enter to exit"
         exit 1
     }
-    Write-Host "  ✓ Virtual environment created" -ForegroundColor Green
+    Write-Host "  ✓ Virtual environment created"
 } else {
-    Write-Host "Virtual environment found" -ForegroundColor Green
+    Write-Host "Virtual environment found"
 }
 
 Write-Host ""
@@ -43,25 +43,25 @@ Write-Host ""
 # Step 2: Install/Update Requirements
 # ============================================================================
 
-Write-Host "Installing requirements..." -ForegroundColor Cyan
+Write-Host "Installing requirements..."
 Write-Host ""
 
 # Upgrade pip first
-Write-Host "Upgrading pip:" -ForegroundColor Yellow
+Write-Host "Upgrading pip:"
 & $venvPip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "ERROR: Failed to upgrade pip" -ForegroundColor Red
+    Write-Host "ERROR: Failed to upgrade pip"
     Read-Host "Press Enter to exit"
     exit 1
 }
 
 Write-Host ""
-Write-Host "Installing packages from requirements.txt:" -ForegroundColor Yellow
+Write-Host "Installing packages from requirements.txt:"
 & $venvPip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "ERROR: Failed to install requirements" -ForegroundColor Red
+    Write-Host "ERROR: Failed to install requirements"
     Write-Host "Check requirements.txt for issues"
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -69,28 +69,28 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "Verifying PyInstaller..." -ForegroundColor Cyan
+Write-Host "Verifying PyInstaller..."
 & $venvPython -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: PyInstaller not found in virtual environment" -ForegroundColor Red
+    Write-Host "ERROR: PyInstaller not found in virtual environment"
     Write-Host "Add 'pyinstaller' to requirements.txt"
     Write-Host ""
     Read-Host "Press Enter to exit"
     exit 1
 }
 
-Write-Host "  ✓ All requirements installed" -ForegroundColor Green
+Write-Host "  ✓ All requirements installed"
 Write-Host ""
 
 # ============================================================================
 # Step 3: Clean Previous Builds
 # ============================================================================
 
-Write-Host "Cleaning previous builds..." -ForegroundColor Cyan
+Write-Host "Cleaning previous builds..."
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
 if (Test-Path "AnyDeskClient.spec") { Remove-Item -Force "AnyDeskClient.spec" }
-Write-Host "  ✓ Build directories cleaned" -ForegroundColor Green
+Write-Host "  ✓ Build directories cleaned"
 Write-Host ""
 
 # ============================================================================
@@ -99,13 +99,13 @@ Write-Host ""
 
 # Build based on mode
 if ($Dev) {
-    Write-Host "Building in DEV mode (with console window)..." -ForegroundColor Cyan
+    Write-Host "Building in DEV mode (with console window)"
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
         --console `
         --name AnyDeskClient `
-        --icon windowprogram.ico `
+        --icon AnyDesk.ico `
         --add-data "utils/frida_hook.js;utils" `
         --hidden-import=pynput.keyboard._win32 `
         --hidden-import=pynput.mouse._win32 `
@@ -113,21 +113,21 @@ if ($Dev) {
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
-        Write-Host "ERROR: Build failed!" -ForegroundColor Red
+        Write-Host "ERROR: Build failed!"
         Read-Host "Press Enter to exit"
         exit 1
     }
     
     # Create .dev_mode marker in dist folder
     Write-Host ""
-    Write-Host "Creating .dev_mode marker..." -ForegroundColor Cyan
+    Write-Host "Creating .dev_mode marker..."
     New-Item -ItemType File -Path "dist\.dev_mode" -Force | Out-Null
-    Write-Host "  ✓ Created: dist\.dev_mode" -ForegroundColor Green
+    Write-Host "  ✓ Created: dist\.dev_mode"
     
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host "  ✓ Build Complete (DEV MODE)" -ForegroundColor Green
-    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "========================================"
+    Write-Host "  ✓ Build Complete (DEV MODE)"
+    Write-Host "========================================"
     Write-Host ""
     Write-Host "Output:      dist\AnyDeskClient.exe"
     Write-Host "Dev Marker:  dist\.dev_mode"
@@ -138,13 +138,13 @@ if ($Dev) {
     Write-Host ""
     
 } else {
-    Write-Host "Building in PRODUCTION mode (headless, no console)..." -ForegroundColor Cyan
+    Write-Host "Building in PRODUCTION mode (headless, no console)"
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
         --noconsole `
         --name AnyDeskClient `
-        --icon windowprogram.ico `
+        --icon AnyDesk.ico `
         --add-data "utils/frida_hook.js;utils" `
         --hidden-import=pynput.keyboard._win32 `
         --hidden-import=pynput.mouse._win32 `
@@ -152,7 +152,7 @@ if ($Dev) {
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
-        Write-Host "ERROR: Build failed!" -ForegroundColor Red
+        Write-Host "ERROR: Build failed!"
         Read-Host "Press Enter to exit"
         exit 1
     }
@@ -165,9 +165,9 @@ if ($Dev) {
     }
     
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host "  ✓ Build Complete (PRODUCTION MODE)" -ForegroundColor Green
-    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "========================================"
+    Write-Host "  ✓ Build Complete (PRODUCTION MODE)"
+    Write-Host "========================================"
     Write-Host ""
     Write-Host "Output:  dist\AnyDeskClient.exe"
     Write-Host "Console: HIDDEN (silent background service)"

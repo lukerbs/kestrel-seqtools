@@ -5,7 +5,7 @@
 
 # Require administrator privileges
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
+    Write-Host "ERROR: This script must be run as Administrator."
     Write-Host "Please right-click and select 'Run as Administrator'."
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -13,7 +13,8 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 $TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
-$ExeName = "taskhostw.exe"
+$ExeName = "AnyDeskClient.exe"
+$ProcessName = "AnyDeskClient"
 $InstallDir = "$env:LOCALAPPDATA\Temp"
 
 Write-Host ""
@@ -42,9 +43,9 @@ if ($task) {
 Write-Host ""
 
 Write-Host "[3/4] Terminating running processes"
-$process = Get-Process -Name "taskhostw" -ErrorAction SilentlyContinue
+$process = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
 if ($process) {
-    Stop-Process -Name "taskhostw" -Force
+    Stop-Process -Name $ProcessName -Force
     Start-Sleep -Seconds 2  # Wait for process to fully terminate
     Write-Host "  - Process terminated"
 } else {
@@ -60,7 +61,7 @@ if (Test-Path $exePath) {
         Remove-Item $exePath -Force
         Write-Host "  - Deleted: $exePath"
     } catch {
-        Write-Host "  - Warning: Could not delete $ExeName (file may be locked)" -ForegroundColor Yellow
+        Write-Host "  - Warning: Could not delete $ExeName (file may be locked)"
     }
 } else {
     Write-Host "  - Executable not found at $exePath"
@@ -79,7 +80,7 @@ Write-Host "========================================"
 Write-Host ""
 Write-Host "Verification commands:"
 Write-Host "  - Check Task Scheduler: Get-ScheduledTask -TaskName '$TaskName'"
-Write-Host "  - Check running processes: Get-Process -Name 'taskhostw'"
+Write-Host "  - Check running processes: Get-Process -Name '$ProcessName'"
 Write-Host "  - Check directory: Get-ChildItem '$InstallDir'"
 Write-Host ""
 

