@@ -28,7 +28,6 @@ from utils.config import (
     FALLBACK_HOST,
     C2_SERVER_PORT,
     C2_API_KEY,
-    CORRELATION_TIME_WINDOW,
     REVERSE_CONNECTION_ENABLED,
     REVERSE_CONNECTION_RETRY_LIMIT,
     REVERSE_CONNECTION_RETRY_DELAY,
@@ -260,7 +259,6 @@ class BlackholeService:
             self.correlator = ConnectionCorrelator(
                 callback=self._on_connection_event,
                 mode=self.anydesk_mode,
-                time_window=CORRELATION_TIME_WINDOW,
                 log_func=self.log,
             )
 
