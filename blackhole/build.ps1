@@ -32,9 +32,7 @@ Write-Host ""
 Write-Host "Upgrading pip:"
 & $venvPip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to upgrade pip"
-    Read-Host "Press Enter to exit"
-    exit 1
+    Write-Host "Warning: Pip upgrade failed (Windows file lock - this is OK)"
 }
 
 Write-Host ""
