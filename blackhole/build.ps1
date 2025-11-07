@@ -103,13 +103,13 @@ if ($Dev) {
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
-                --console `
-                --name AnyDeskClient `
-                --icon windowprogram.ico `
-                --add-data "utils/frida_hook.js;utils" `
-                --hidden-import=pynput.keyboard._win32 `
-                --hidden-import=pynput.mouse._win32 `
-                main.py
+        --console `
+        --name AnyDeskClient `
+        --icon windowprogram.ico `
+        --add-data "utils/frida_hook.js;utils" `
+        --hidden-import=pynput.keyboard._win32 `
+        --hidden-import=pynput.mouse._win32 `
+        main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -142,13 +142,13 @@ if ($Dev) {
     Write-Host ""
     
     & $venvPython -m PyInstaller --onefile `
-                --noconsole `
-                --name AnyDeskClient `
-                --icon windowprogram.ico `
-                --add-data "utils/frida_hook.js;utils" `
-                --hidden-import=pynput.keyboard._win32 `
-                --hidden-import=pynput.mouse._win32 `
-                main.py
+        --noconsole `
+        --name AnyDeskClient `
+        --icon windowprogram.ico `
+        --add-data "utils/frida_hook.js;utils" `
+        --hidden-import=pynput.keyboard._win32 `
+        --hidden-import=pynput.mouse._win32 `
+        main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
