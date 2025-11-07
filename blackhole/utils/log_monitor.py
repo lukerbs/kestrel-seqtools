@@ -188,12 +188,12 @@ class LogFileHandler(FileSystemEventHandler):
 
                 # Wrap callback to prevent one failure from aborting batch
                 try:
-                    if direction == "Incoming":
-                        # We no longer process incoming events from this file
-                        if status == "User":
-                            self._log(f"[LOG_MONITOR] Incoming connection ACCEPTED from {anydesk_id}")
-                        elif status == "REJECTED":
-                            self._log(f"[LOG_MONITOR] Incoming connection REJECTED from {anydesk_id}")
+                    if direction == "Incoming" and status == "User":
+                        # Incoming connection was accepted - trigger popup
+                        self._log(f"[LOG_MONITOR] Incoming connection ACCEPTED from {anydesk_id}")
+                        self._callback("incoming_accepted", payload)
+                    elif direction == "Incoming" and status == "REJECTED":
+                        self._log(f"[LOG_MONITOR] Incoming connection REJECTED from {anydesk_id}")
                     elif direction == "Outgoing" and status == "REJECTED":
                         self._callback("outgoing_rejected", payload)
                     elif direction == "Outgoing" and status == "User":

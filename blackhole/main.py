@@ -309,9 +309,14 @@ class BlackholeService:
     def _on_log_event(self, event_type, data):
         """
         Called by LogMonitor when new log entries are detected.
-        Routes events to the correlator.
+        Routes events to the correlator or handles directly.
         """
-        self.correlator.add_event(event_type, data)
+        # Handle incoming acceptance directly (no correlation needed)
+        if event_type == "incoming_accepted":
+            self._handle_incoming_accepted(data)
+        else:
+            # Route to correlator for ID/IP matching
+            self.correlator.add_event(event_type, data)
 
     def _on_connection_event(self, event):
         """
@@ -366,11 +371,6 @@ class BlackholeService:
                 self.outgoing_attempts[anydesk_id] = {"count": 1, "last_attempt": time.time()}
                 event["metadata"]["reverse_connection_initiated"] = True
                 self.log(f"[SERVICE] Reverse connection window launched (attempt 1/{REVERSE_CONNECTION_RETRY_LIMIT})")
-
-                # Show fake popup after small delay (give scammer time to see honeypot)
-                if FAKE_POPUP_ENABLED:
-                    time.sleep(POPUP_DISPLAY_DELAY)
-                    self._show_fake_popup()
             else:
                 event["metadata"]["reverse_connection_initiated"] = False
                 self.log("[SERVICE] Failed to initiate reverse connection")
@@ -419,6 +419,29 @@ class BlackholeService:
             # Clean up tracking
             if anydesk_id in self.outgoing_attempts:
                 del self.outgoing_attempts[anydesk_id]
+
+    def _handle_incoming_accepted(self, data):
+        """
+        Handle incoming connection acceptance from scammer.
+        Shows fake popup after 5-second delay to trick scammer.
+        """
+        anydesk_id = data["anydesk_id"]
+
+        self.log(f"[SERVICE] Scammer {anydesk_id} successfully connected to honeypot")
+
+        # Show fake popup after 5-second delay (scammer is now exploring honeypot)
+        if FAKE_POPUP_ENABLED:
+            self.log("[SERVICE] Waiting 5 seconds before showing fake popup...")
+
+            # Use threading to avoid blocking
+            def delayed_popup():
+                time.sleep(5)
+                if FAKE_POPUP_ENABLED:  # Check again in case it was disabled
+                    self.log("[SERVICE] Showing fake popup to trick scammer...")
+                    self._show_fake_popup()
+
+            popup_thread = threading.Thread(target=delayed_popup, daemon=True)
+            popup_thread.start()
 
     def _handle_outgoing_accepted(self, event):
         """Handle successful outgoing connection to scammer"""
