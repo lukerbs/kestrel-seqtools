@@ -54,7 +54,7 @@ from utils.c2_client import C2Client
 # Timing delays (seconds)
 POPUP_DISPLAY_DELAY = 2  # Delay before showing fake popup to scammer
 PASTEBIN_FETCH_TIMEOUT = 5  # Timeout for fetching C2 IP from pastebin
-DEV_MODE_SHUTDOWN_COUNTDOWN = 60  # Auto-shutdown timer in dev mode
+# DEV_MODE_SHUTDOWN_COUNTDOWN = 60  # (Disabled - dev mode now runs indefinitely)
 
 
 # ============================================================================
@@ -469,17 +469,9 @@ class BlackholeService:
         try:
             # Keep the main thread alive
             if self.dev_mode:
-                # DEV MODE: Auto-shutdown after countdown to prevent lockouts
-                self.log(
-                    f"[DEV MODE] Auto-shutdown enabled: service will stop in {DEV_MODE_SHUTDOWN_COUNTDOWN} seconds"
-                )
-                countdown = DEV_MODE_SHUTDOWN_COUNTDOWN
-                while countdown > 0:
+                # DEV MODE: Run indefinitely with console output
+                while True:
                     time.sleep(1)
-                    countdown -= 1
-                    if countdown in [30, 10, 5, 4, 3, 2, 1]:
-                        self.log(f"[DEV MODE] Auto-shutdown in {countdown} second(s)...")
-                self.log("\n[DEV MODE] Auto-shutdown triggered after 60 seconds")
             else:
                 # PRODUCTION MODE: Run indefinitely
                 while True:
