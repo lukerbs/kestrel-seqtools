@@ -12,6 +12,12 @@ WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
 HC_ACTION = 0
 
+# Define LRESULT if not available (pointer-sized signed integer)
+if hasattr(wintypes, "LRESULT"):
+    LRESULT = wintypes.LRESULT
+else:
+    LRESULT = ctypes.c_ssize_t  # Pointer-sized signed int
+
 # Define CallNextHookEx with proper types to handle large pointer values
 user32.CallNextHookEx.argtypes = [
     wintypes.HHOOK,  # hhk
@@ -19,7 +25,7 @@ user32.CallNextHookEx.argtypes = [
     wintypes.WPARAM,  # wParam
     wintypes.LPARAM,  # lParam
 ]
-user32.CallNextHookEx.restype = wintypes.LRESULT
+user32.CallNextHookEx.restype = LRESULT
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -28,7 +34,7 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
         ("scanCode", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ctypes.c_size_t),  # Pointer-sized integer, not a pointer
     ]
 
 
@@ -38,12 +44,12 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
         ("mouseData", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ctypes.c_size_t),  # Pointer-sized integer, not a pointer
     ]
 
 
 HOOKPROC = ctypes.WINFUNCTYPE(
-    wintypes.LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM  # Return type  # nCode  # wParam  # lParam
+    LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM  # Return type  # nCode  # wParam  # lParam
 )
 
 # Global hook handles for emergency cleanup
@@ -104,8 +110,16 @@ def mouse_callback(nCode, wParam, lParam):
 kbd_ref = HOOKPROC(keyboard_callback)
 mouse_ref = HOOKPROC(mouse_callback)
 
-# For low-level hooks (LL), hInstance must be NULL
-g_kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, None, 0)
+# Get the module handle for the current process
+hInstance = kernel32.GetModuleHandleW(None)
+if not hInstance:
+    print("=" * 60)
+    print("ERROR: Failed to get module handle!")
+    print("=" * 60)
+    exit(1)
+
+# Install hooks with the module handle
+g_kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
 if not g_kbd_hook:
     error_code = kernel32.GetLastError()
     print("=" * 60)
@@ -120,7 +134,7 @@ if not g_kbd_hook:
     print("=" * 60)
     exit(1)
 
-g_mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, None, 0)
+g_mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
 if not g_mouse_hook:
     error_code = kernel32.GetLastError()
     print("=" * 60)
