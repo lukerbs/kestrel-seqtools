@@ -80,7 +80,7 @@ def is_signed_by_microsoft(exe_path):
         return False
 
     try:
-        # Use PowerShell to check the digital signature
+        # Use PowerShell to check the digital signature (with short timeout)
         cmd = [
             "powershell.exe",
             "-NoProfile",
@@ -90,7 +90,11 @@ def is_signed_by_microsoft(exe_path):
         ]
 
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=2, creationflags=subprocess.CREATE_NO_WINDOW
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=0.5,  # Shorter timeout (500ms) to avoid hangs
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
 
         if result.returncode == 0:
@@ -99,9 +103,12 @@ def is_signed_by_microsoft(exe_path):
             if "Microsoft Corporation" in subject or "Microsoft Windows" in subject:
                 return True
 
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, Exception):
-        # If signature check fails, fall back to other checks
-        pass
+    except subprocess.TimeoutExpired:
+        # Signature check timed out - not critical, fall back to other checks
+        return False
+    except (subprocess.SubprocessError, Exception):
+        # Other errors - fall back to other checks
+        return False
 
     return False
 
@@ -154,14 +161,18 @@ def is_whitelisted_process(proc_info):
     return False
 
 
-def get_non_whitelisted_processes():
+def get_non_whitelisted_processes(verbose=False):
     """
     Get all processes that are NOT whitelisted (should be hooked).
+
+    Args:
+        verbose: If True, print progress as processes are checked
 
     Returns:
         list: List of dicts with process info (pid, name, exe, reason)
     """
     non_whitelisted = []
+    checked_count = 0
 
     for proc in psutil.process_iter(["pid", "name", "exe"]):
         try:
@@ -170,6 +181,10 @@ def get_non_whitelisted_processes():
             # Skip if no exe path (kernel processes, etc.)
             if not info["exe"]:
                 continue
+
+            checked_count += 1
+            if verbose and checked_count % 5 == 0:
+                print(f"Checked {checked_count} processes...", end="\r")
 
             # Skip whitelisted processes
             if is_whitelisted_process(info):
@@ -182,6 +197,9 @@ def get_non_whitelisted_processes():
             # Process terminated or we don't have permission
             continue
 
+    if verbose:
+        print(f"Checked {checked_count} processes... Done!  ")
+
     return non_whitelisted
 
 
@@ -193,7 +211,7 @@ def main():
     print("Whitelisted: Microsoft (signed), Virtualization tools, Honeypot tools")
     print("NOT Whitelisted: Everything else (will be hooked)\n")
 
-    non_whitelisted = get_non_whitelisted_processes()
+    non_whitelisted = get_non_whitelisted_processes(verbose=True)
 
     if not non_whitelisted:
         print("✅ All processes are whitelisted! No processes would be hooked.")
