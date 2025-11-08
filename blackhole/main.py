@@ -131,9 +131,10 @@ def create_log_func(dev_mode):
             "ANYDESK LOG": "bright_black",  # Gray for verbose trace logs
             "CONTROLLER": "bright_green",
             "POPUP": "bright_red",
+            "WHITELIST": "bright_white",
         }
 
-        def log(msg):
+        def log(msg, end="\n"):
             # Try to extract log category from message (allow spaces in category names)
             match = re.match(r"\[([A-Z_0-9| ]+)\]", msg)
             if match:
@@ -144,17 +145,17 @@ def create_log_func(dev_mode):
                 # Split into category and message
                 parts = msg.split("] ", 1)
                 if len(parts) == 2:
-                    console.print(f"[{color}][{category}][/{color}] {parts[1]}")
+                    console.print(f"[{color}][{category}][/{color}] {parts[1]}", end=end)
                 else:
-                    console.print(msg)
+                    console.print(msg, end=end)
             else:
                 # No category found, print as-is
-                console.print(msg)
+                console.print(msg, end=end)
 
         return log
     else:
         # Silent in production
-        def log(msg):
+        def log(msg, end="\n"):
             pass
 
         return log
@@ -413,8 +414,8 @@ class BlackholeService:
             if decision == "whitelist":
                 self.log(f"[SERVICE] User whitelisted {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-                # Unhook the process
-                self.api_hooker.unhook_process(pid)
+            # Unhook the process
+            self.api_hooker.unhook_process(pid)
                 self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
             else:  # "blacklist"
                 self.log(f"[SERVICE] User blacklisted {process_name}")
