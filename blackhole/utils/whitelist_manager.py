@@ -160,7 +160,8 @@ class WhitelistManager:
                 name = proc.info["name"]
                 exe_path = proc.info.get("exe")
 
-                if not exe_path:
+                # Skip kernel/system processes without valid executable paths
+                if not exe_path or not os.path.isfile(exe_path):
                     continue
 
                 # Check if this process should be blacklisted

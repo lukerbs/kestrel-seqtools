@@ -324,6 +324,11 @@ class BlackholeService:
         """
         Handle whitelist/blacklist logic for general processes (non-AnyDesk).
         """
+        # Filter out kernel processes without valid executable paths
+        if not exe_path or not os.path.isfile(exe_path):
+            # Kernel/system process - skip silently
+            return
+        
         # Check whitelist/blacklist status
         if self.whitelist_manager.is_whitelisted(process_name):
             # Verify hash
@@ -414,8 +419,8 @@ class BlackholeService:
             if decision == "whitelist":
                 self.log(f"[SERVICE] User whitelisted {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-                # Unhook the process
-                self.api_hooker.unhook_process(pid)
+            # Unhook the process
+            self.api_hooker.unhook_process(pid)
                 self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
             else:  # "blacklist"
                 self.log(f"[SERVICE] User blacklisted {process_name}")
