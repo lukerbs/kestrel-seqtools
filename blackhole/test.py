@@ -113,9 +113,9 @@ def mouse_callback(nCode, wParam, lParam):
 kbd_ref = HOOKPROC(keyboard_callback)
 mouse_ref = HOOKPROC(mouse_callback)
 
-# Get the module handle for the current process
-hInstance = kernel32.GetModuleHandleW(None)
-print(f"DEBUG: hInstance = {hInstance}")
+# Get the module handle for user32.dll, which is more reliable for hooks from Python
+hInstance = kernel32.GetModuleHandleW("user32.dll")
+print(f"DEBUG: hInstance (user32.dll) = {hInstance}")
 
 # Install hooks with the module handle
 print(f"DEBUG: Installing keyboard hook...")
