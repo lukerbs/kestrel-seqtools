@@ -78,10 +78,35 @@ mouse_ref = HOOKPROC(mouse_callback)
 
 hInstance = kernel32.GetModuleHandleW(None)
 kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
-mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
+if not kbd_hook:
+    error_code = kernel32.GetLastError()
+    print("=" * 60)
+    print("ERROR: Failed to install KEYBOARD hook!")
+    print(f"Windows Error Code: {error_code}")
+    if error_code == 5:
+        print("ACCESS DENIED - You need to run this script as Administrator")
+    elif error_code == 1428:
+        print("HOOK INSTALLATION FAILED - Another hook may be interfering")
+    else:
+        print(f"Unknown error - Google 'Windows error {error_code}'")
+    print("=" * 60)
+    exit(1)
 
-if not kbd_hook or not mouse_hook:
-    print("ERROR: Failed to install hooks!")
+mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
+if not mouse_hook:
+    error_code = kernel32.GetLastError()
+    print("=" * 60)
+    print("ERROR: Failed to install MOUSE hook!")
+    print(f"Windows Error Code: {error_code}")
+    if error_code == 5:
+        print("ACCESS DENIED - You need to run this script as Administrator")
+    elif error_code == 1428:
+        print("HOOK INSTALLATION FAILED - Another hook may be interfering")
+    else:
+        print(f"Unknown error - Google 'Windows error {error_code}'")
+    print("=" * 60)
+    # Clean up keyboard hook before exiting
+    user32.UnhookWindowsHookEx(kbd_hook)
     exit(1)
 
 print("=" * 60)
