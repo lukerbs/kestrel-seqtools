@@ -165,22 +165,18 @@ class WhitelistManager:
         Create initial whitelist from ALL installed executables via filesystem scan.
         Called on first run when whitelist.json doesn't exist.
 
-        Scans system directories for .exe files, calculates hashes, and checks signatures.
-        This is a comprehensive scan that may take 5-10 minutes but ensures all
-        installed applications are whitelisted, minimizing post-initialization popups.
+        Two-phase approach:
+        1. Discover all .exe files (fast enumeration)
+        2. Process them with progress bar (hash calculation + signature check)
 
         Args:
             blacklist_seed: List of process names to seed the blacklist (e.g., ["AnyDesk.exe"])
         """
         from utils.config import BASELINE_SCAN_DIRECTORIES, BASELINE_SKIP_DIRS
+        from tqdm import tqdm
 
         self._log("[WHITELIST] Creating first-run baseline...")
-        self._log("[WHITELIST] Scanning system for ALL installed applications...")
-        self._log("[WHITELIST] This may take 5-10 minutes...")
-
-        whitelisted_count = 0
-        blacklisted_count = 0
-        seen_paths = set()  # Track normalized paths to avoid duplicates
+        self._log("[WHITELIST] Phase 1: Discovering all executables...")
 
         # Build complete list of directories to scan
         scan_dirs = list(BASELINE_SCAN_DIRECTORIES)
@@ -192,13 +188,16 @@ class WhitelistManager:
         except Exception:
             pass  # Skip if env vars not available
 
-        # Scan each directory
+        # PHASE 1: Enumerate all .exe files
+        exe_files_to_process = []  # List of (filename, full_path) tuples
+        seen_paths = set()  # Track normalized paths to avoid duplicates
+
         for directory in scan_dirs:
             if not os.path.exists(directory):
                 self._log(f"[WHITELIST] Skipping non-existent: {directory}")
                 continue
 
-            self._log(f"[WHITELIST] Scanning: {directory}")
+            self._log(f"[WHITELIST] Enumerating: {directory}")
 
             try:
                 for root, dirs, files in os.walk(directory):
@@ -213,46 +212,67 @@ class WhitelistManager:
                         exe_path = os.path.join(root, file)
                         normalized_path = self._normalize_path(exe_path)
 
-                        # Skip if already processed (avoid duplicates)
+                        # Skip if already seen (avoid duplicates)
                         if normalized_path in seen_paths:
                             continue
-                        seen_paths.add(normalized_path)
 
-                        try:
-                            # Verify file is accessible and readable
-                            if not os.path.isfile(exe_path):
-                                continue
-
-                            # Check if this executable should be blacklisted
-                            if file in blacklist_seed:
-                                self._add_to_blacklist_internal(file, exe_path, "Remote access tool (pre-seeded)")
-                                blacklisted_count += 1
-                                self._log(f"[WHITELIST] Blacklisted: {file}")
-                            else:
-                                # Whitelist everything else
-                                self._add_to_whitelist_internal(file, exe_path)
-                                whitelisted_count += 1
-
-                                # Progress indicator every 50 executables
-                                if whitelisted_count % 50 == 0:
-                                    self._log(f"[WHITELIST] Processed {whitelisted_count} executables...")
-
-                        except (PermissionError, OSError) as e:
-                            # Skip files we can't access
+                        # Verify file is accessible
+                        if not os.path.isfile(exe_path):
                             continue
 
+                        seen_paths.add(normalized_path)
+                        exe_files_to_process.append((file, exe_path))
+
             except (PermissionError, OSError) as e:
-                self._log(f"[WHITELIST] Error scanning {directory}: {e}")
+                self._log(f"[WHITELIST] Error enumerating {directory}: {e}")
                 continue
 
+        total_files = len(exe_files_to_process)
+        self._log(f"[WHITELIST] Found {total_files} unique executables")
+        self._log(f"[WHITELIST] Phase 2: Processing executables (calculating hashes & signatures)...")
+        self._log(f"[WHITELIST] This may take 5-10 minutes...")
+
+        # PHASE 2: Process all discovered executables with progress bar
+        whitelisted_count = 0
+        blacklisted_count = 0
+
+        with tqdm(
+            total=total_files,
+            desc="Processing",
+            unit="exe",
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        ) as pbar:
+
+            for file, exe_path in exe_files_to_process:
+                try:
+                    # Check if this executable should be blacklisted
+                    if file in blacklist_seed:
+                        self._add_to_blacklist_internal(file, exe_path, "Remote access tool (pre-seeded)")
+                        blacklisted_count += 1
+                        pbar.set_postfix_str(f"Blacklisted: {file}")
+                    else:
+                        # Whitelist everything else
+                        self._add_to_whitelist_internal(file, exe_path)
+                        whitelisted_count += 1
+                        if whitelisted_count % 10 == 0:
+                            pbar.set_postfix_str(f"Processing: {file[:40]}")
+
+                    pbar.update(1)
+
+                except (PermissionError, OSError) as e:
+                    # Skip files we can't access
+                    pbar.update(1)
+                    continue
+
         # Save to disk
+        self._log("\n[WHITELIST] Saving to disk...")
         self._save_whitelist()
         self._save_blacklist()
 
         self._log(f"[WHITELIST] Baseline complete!")
         self._log(f"[WHITELIST] Whitelisted: {whitelisted_count} executables")
         self._log(f"[WHITELIST] Blacklisted: {blacklisted_count} executables")
-        self._log(f"[WHITELIST] Total unique executables processed: {len(seen_paths)}")
+        self._log(f"[WHITELIST] Total unique executables processed: {total_files}")
 
     def _add_to_whitelist_internal(self, process_name, exe_path):
         """Internal method to add to whitelist without saving (used during baseline)"""
