@@ -1,22 +1,20 @@
 """
-Third-Party Process Enumerator
-Identifies all non-Microsoft/non-Windows processes currently running.
-This helps identify which processes would be hooked by Blackhole's universal blocking.
+Blackhole Universal Blocking - Whitelist Test
+Tests the whitelist logic to identify which processes would be hooked.
+
+Uses digital signature verification to automatically whitelist ALL Microsoft processes,
+plus explicit whitelisting for virtualization tools and honeypot-specific applications.
+
+Any process NOT on the whitelist will be hooked and have its input blocked.
 """
 
 import psutil
 import sys
-from pathlib import Path
+import subprocess
 
-
-# Windows system directories (Microsoft processes typically live here)
-SYSTEM_PATHS = [
-    "c:\\windows\\",
-    "c:\\program files\\windows",
-    "c:\\program files (x86)\\windows",
-]
 
 # Known Microsoft process names (case-insensitive)
+# Used as fallback if digital signature check fails
 MICROSOFT_PROCESS_NAMES = {
     "system",
     "registry",
@@ -47,44 +45,123 @@ MICROSOFT_PROCESS_NAMES = {
     "msedge.exe",
     "microsoftedgeupdate.exe",
     "onedrive.exe",
+    "memcompression",
+}
+
+# Virtualization tools (QEMU/UTM/SPICE) - explicitly trusted
+VIRTUALIZATION_PROCESS_NAMES = {
+    "qemu-ga.exe",
+    "vdagent.exe",
+    "vdservice.exe",
+    "blnsvr.exe",
+}
+
+# Honeypot-specific trusted tools
+HONEYPOT_PROCESS_NAMES = {
+    "mullvad vpn.exe",
+    "mullvad-daemon.exe",
+    "netservice.exe",  # Fake bank site
+    "python.exe",  # Your scripts
 }
 
 
-def is_microsoft_process(proc_info):
+def is_signed_by_microsoft(exe_path):
     """
-    Determine if a process is a Microsoft/Windows system process.
+    Check if an executable is digitally signed by Microsoft Corporation.
+    Uses PowerShell's Get-AuthenticodeSignature to verify the code signing certificate.
+
+    Args:
+        exe_path: Full path to the executable
+
+    Returns:
+        bool: True if signed by Microsoft, False otherwise
+    """
+    if not exe_path:
+        return False
+
+    try:
+        # Use PowerShell to check the digital signature
+        cmd = [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            f"(Get-AuthenticodeSignature '{exe_path}').SignerCertificate.Subject",
+        ]
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=2, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+
+        if result.returncode == 0:
+            subject = result.stdout.strip()
+            # Check if certificate subject contains "Microsoft Corporation"
+            if "Microsoft Corporation" in subject or "Microsoft Windows" in subject:
+                return True
+
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, Exception):
+        # If signature check fails, fall back to other checks
+        pass
+
+    return False
+
+
+def is_whitelisted_process(proc_info):
+    """
+    Determine if a process should be whitelisted (trusted).
+    Uses digital signature verification for Microsoft processes,
+    and explicit name matching for virtualization/honeypot tools.
 
     Args:
         proc_info: dict with 'name' and 'exe' keys
 
     Returns:
-        bool: True if Microsoft process, False if third-party
+        bool: True if whitelisted (trusted), False if should be hooked
     """
     name = proc_info.get("name", "").lower()
     exe_path = proc_info.get("exe", "")
 
-    # Check if it's a known Microsoft process name
+    # 1. Check if it's a virtualization tool (QEMU/UTM/SPICE)
+    if name in VIRTUALIZATION_PROCESS_NAMES:
+        return True
+
+    # 2. Check if it's a honeypot-specific tool
+    if name in HONEYPOT_PROCESS_NAMES:
+        return True
+
+    # 3. Check digital signature for Microsoft processes (most reliable)
+    if exe_path and is_signed_by_microsoft(exe_path):
+        return True
+
+    # 4. Fallback: Check if it's a known Microsoft process name
     if name in MICROSOFT_PROCESS_NAMES:
         return True
 
-    # Check if it's in a Windows system directory
+    # 5. Fallback: Check if it's in protected Windows system directories
+    #    (Only trust truly protected paths - not Program Files)
     if exe_path:
         exe_lower = exe_path.lower()
-        for sys_path in SYSTEM_PATHS:
+        protected_paths = [
+            "c:\\windows\\system32\\",
+            "c:\\windows\\syswow64\\",
+            "c:\\windows\\system\\",
+        ]
+        for sys_path in protected_paths:
             if sys_path in exe_lower:
                 return True
 
+    # NOT whitelisted - should be hooked
     return False
 
 
-def get_third_party_processes():
+def get_non_whitelisted_processes():
     """
-    Get all third-party (non-Microsoft) processes.
+    Get all processes that are NOT whitelisted (should be hooked).
 
     Returns:
-        list: List of dicts with process info (pid, name, exe)
+        list: List of dicts with process info (pid, name, exe, reason)
     """
-    third_party = []
+    non_whitelisted = []
 
     for proc in psutil.process_iter(["pid", "name", "exe"]):
         try:
@@ -94,42 +171,49 @@ def get_third_party_processes():
             if not info["exe"]:
                 continue
 
-            # Skip Microsoft processes
-            if is_microsoft_process(info):
+            # Skip whitelisted processes
+            if is_whitelisted_process(info):
                 continue
 
-            third_party.append({"pid": info["pid"], "name": info["name"], "exe": info["exe"]})
+            # This process should be hooked!
+            non_whitelisted.append({"pid": info["pid"], "name": info["name"], "exe": info["exe"]})
 
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             # Process terminated or we don't have permission
             continue
 
-    return third_party
+    return non_whitelisted
 
 
 def main():
     print("=" * 80)
-    print("THIRD-PARTY PROCESS ENUMERATION")
+    print("BLACKHOLE UNIVERSAL BLOCKING - PROCESS WHITELIST TEST")
     print("=" * 80)
-    print("\nScanning for non-Microsoft processes...\n")
+    print("\nScanning all processes...")
+    print("Whitelisted: Microsoft (signed), Virtualization tools, Honeypot tools")
+    print("NOT Whitelisted: Everything else (will be hooked)\n")
 
-    third_party = get_third_party_processes()
+    non_whitelisted = get_non_whitelisted_processes()
 
-    if not third_party:
-        print("No third-party processes found.")
+    if not non_whitelisted:
+        print("✅ All processes are whitelisted! No processes would be hooked.")
         return
 
-    print(f"Found {len(third_party)} third-party process(es):\n")
+    print(f"⚠️  Found {len(non_whitelisted)} process(es) that WOULD BE HOOKED:\n")
     print(f"{'PID':<8} {'NAME':<30} {'PATH'}")
     print("-" * 80)
 
-    for proc in sorted(third_party, key=lambda p: p["name"].lower()):
+    for proc in sorted(non_whitelisted, key=lambda p: p["name"].lower()):
         print(f"{proc['pid']:<8} {proc['name']:<30} {proc['exe']}")
 
     print("\n" + "=" * 80)
-    print(f"Total: {len(third_party)} third-party processes")
+    print(f"Total: {len(non_whitelisted)} process(es) would be hooked")
     print("=" * 80)
-    print("\nThese are the processes that Blackhole would hook with universal blocking.")
+    print("\n✅ Whitelist Logic:")
+    print("   - Microsoft-signed executables (verified by certificate)")
+    print("   - QEMU/UTM/SPICE virtualization tools")
+    print("   - Honeypot-specific tools (Mullvad, netservice.exe, python.exe)")
+    print("\n❌ These processes would have ALL input tagged and blocked by Blackhole.")
 
 
 if __name__ == "__main__":
