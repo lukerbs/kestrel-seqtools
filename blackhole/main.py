@@ -190,6 +190,10 @@ class BlackholeService:
         # Flag to suppress popups during first-run baseline
         self.creating_baseline = False
 
+        # Track pending decisions to avoid duplicate popups for same executable
+        # Set of normalized paths that have a popup waiting for user response
+        self.pending_decisions = set()
+
         # Check for first run and create baseline
         if not os.path.exists(WHITELIST_JSON_PATH):
             self.log("[SERVICE] First run detected - creating baseline...")
@@ -379,8 +383,13 @@ class BlackholeService:
             if not success:
                 self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
 
-            # Show decision popup (non-blocking)
-            self._show_decision_popup(pid, process_name, exe_path)
+            # Show decision popup (non-blocking) - but only if not already pending
+            normalized_path = self.whitelist_manager._normalize_path(exe_path)
+            if normalized_path not in self.pending_decisions:
+                self.pending_decisions.add(normalized_path)
+                self._show_decision_popup(pid, process_name, exe_path, normalized_path)
+            else:
+                self.log(f"[SERVICE] Popup already pending for {process_name} at {exe_path}")
 
     def _handle_hash_mismatch(self, pid, process_name, exe_path):
         """
@@ -433,25 +442,62 @@ class BlackholeService:
                 process_name, exe_path, is_signed=False, callback=on_hash_decision, log_func=self.log
             )
 
-    def _show_decision_popup(self, pid, process_name, exe_path):
+    def _show_decision_popup(self, pid, process_name, exe_path, normalized_path):
         """
         Show popup asking user to whitelist or blacklist an unknown process.
         Callback will update JSON and unhook if whitelisted.
+
+        Args:
+            pid: Process ID
+            process_name: Process name
+            exe_path: Full path to executable
+            normalized_path: Normalized path (for tracking pending decisions)
         """
 
         def on_decision(decision):
+            # Remove from pending decisions
+            self.pending_decisions.discard(normalized_path)
+
             if decision == "whitelist":
-                self.log(f"[SERVICE] User whitelisted {process_name}")
+                self.log(f"[SERVICE] User whitelisted {process_name} at {exe_path}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-                # Unhook the process
-                self.api_hooker.unhook_process(pid)
-                self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
+                # Unhook ALL processes with this path
+                self._unhook_all_instances(process_name, exe_path)
             else:  # "blacklist"
-                self.log(f"[SERVICE] User blacklisted {process_name}")
+                self.log(f"[SERVICE] User blacklisted {process_name} at {exe_path}")
                 self.whitelist_manager.add_to_blacklist(process_name, exe_path, "User denied")
-                # Keep hooked (already hooked)
+                # Keep all instances hooked (already hooked)
 
         show_process_decision_popup(process_name, exe_path, callback=on_decision, log_func=self.log)
+
+    def _unhook_all_instances(self, process_name, exe_path):
+        """
+        Unhook all running instances of a process from a specific path.
+        Called when user whitelists a process.
+        """
+        normalized_path = self.whitelist_manager._normalize_path(exe_path)
+        unhooked_count = 0
+
+        # Iterate through all tracked processes and unhook matching ones
+        try:
+            import psutil
+
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
+                try:
+                    if proc.info["name"] == process_name and proc.info.get("exe"):
+                        proc_normalized = self.whitelist_manager._normalize_path(proc.info["exe"])
+                        if proc_normalized == normalized_path:
+                            pid = proc.info["pid"]
+                            self.api_hooker.unhook_process(pid)
+                            unhooked_count += 1
+                            self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception as e:
+            self.log(f"[SERVICE] Error unhooking instances: {e}")
+
+        if unhooked_count > 0:
+            self.log(f"[SERVICE] Unhooked {unhooked_count} instance(s) of {process_name}")
 
     def _get_c2_ip(self):
         """Fetch C2 server IP from pastebin with fallback"""
