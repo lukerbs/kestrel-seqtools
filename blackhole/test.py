@@ -76,8 +76,8 @@ def mouse_callback(nCode, wParam, lParam):
 kbd_ref = HOOKPROC(keyboard_callback)
 mouse_ref = HOOKPROC(mouse_callback)
 
-hInstance = kernel32.GetModuleHandleW(None)
-kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
+# For low-level hooks (LL), hInstance must be NULL
+kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, None, 0)
 if not kbd_hook:
     error_code = kernel32.GetLastError()
     print("=" * 60)
@@ -92,7 +92,7 @@ if not kbd_hook:
     print("=" * 60)
     exit(1)
 
-mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
+mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, None, 0)
 if not mouse_hook:
     error_code = kernel32.GetLastError()
     print("=" * 60)
