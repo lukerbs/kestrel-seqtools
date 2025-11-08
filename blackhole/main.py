@@ -381,7 +381,7 @@ class BlackholeService:
             self.log(f"[SERVICE] Hash mismatch for unsigned process: {process_name}")
             # Hook immediately (block input until user decides)
             self.api_hooker.hook_process(pid, process_name)
-            
+
             # Callback for user decision
             def on_hash_decision(decision):
                 if decision == "whitelist":
@@ -397,27 +397,30 @@ class BlackholeService:
                     self.whitelist_manager.remove_from_whitelist(process_name)
                     self.whitelist_manager.add_to_blacklist(process_name, exe_path, "Hash mismatch - user denied")
                     # Keep hooked
-            
+
             # Show hash mismatch popup
-            show_hash_mismatch_popup(process_name, exe_path, is_signed=False, callback=on_hash_decision, log_func=self.log)
+            show_hash_mismatch_popup(
+                process_name, exe_path, is_signed=False, callback=on_hash_decision, log_func=self.log
+            )
 
     def _show_decision_popup(self, pid, process_name, exe_path):
         """
         Show popup asking user to whitelist or blacklist an unknown process.
         Callback will update JSON and unhook if whitelisted.
         """
+
         def on_decision(decision):
             if decision == "whitelist":
                 self.log(f"[SERVICE] User whitelisted {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-            # Unhook the process
-            self.api_hooker.unhook_process(pid)
+                # Unhook the process
+                self.api_hooker.unhook_process(pid)
                 self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
             else:  # "blacklist"
                 self.log(f"[SERVICE] User blacklisted {process_name}")
                 self.whitelist_manager.add_to_blacklist(process_name, exe_path, "User denied")
                 # Keep hooked (already hooked)
-        
+
         show_process_decision_popup(process_name, exe_path, callback=on_decision, log_func=self.log)
 
     def _get_c2_ip(self):
