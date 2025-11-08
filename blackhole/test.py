@@ -11,6 +11,15 @@ WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
 HC_ACTION = 0
 
+# Define CallNextHookEx with proper types to handle large pointer values
+user32.CallNextHookEx.argtypes = [
+    wintypes.HHOOK,  # hhk
+    ctypes.c_int,  # nCode
+    wintypes.WPARAM,  # wParam
+    wintypes.LPARAM,  # lParam
+]
+user32.CallNextHookEx.restype = wintypes.LRESULT
+
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
     _fields_ = [
@@ -32,7 +41,9 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
-HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+HOOKPROC = ctypes.WINFUNCTYPE(
+    wintypes.LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM  # Return type  # nCode  # wParam  # lParam
+)
 
 
 def emergency_exit():
