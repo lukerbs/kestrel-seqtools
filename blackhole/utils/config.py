@@ -119,9 +119,11 @@ BASELINE_SKIP_DIRS = {
     "installer",
     "servicing",
     "softwaredistribution",
+    "systemtemp",  # Windows Update/Defender temporary files (locked/restricted)
     "$recycle.bin",
     "system volume information",
     "windows.old",
+    "windowsapps",  # UWP app execution aliases (reparse points, not real .exe files)
     # Package managers
     "packages",
     ".npm",
