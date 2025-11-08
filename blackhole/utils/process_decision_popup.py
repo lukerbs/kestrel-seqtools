@@ -279,40 +279,149 @@ def show_process_decision_popup(process_name, exe_path, callback, log_func=None)
 
 
 def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback, log_func):
-    """Show the hash mismatch dialog (called from popup worker thread)."""
+    """
+    Show the hash mismatch dialog (called from popup worker thread).
+
+    COVERT SECURITY: Hash mismatch detected on unsigned process
+    Could be legitimate update OR malware impersonating whitelisted app
+
+    INVERSE BUTTON MAPPING (scammer sees opposite of reality):
+    - "Continue" → KILLS process + DELETES exe + removes from whitelist
+    - "Not now" → KEEPS app + updates hash (legitimate update)
+
+    Scammer clicks "Continue" thinking malware will run → gets nuked
+    You click "Not now" knowing it's legitimate → gets whitelisted
+    """
     log = log_func if log_func else lambda msg, **kwargs: None
 
-    if is_signed:
-        # Microsoft-signed process - this should have been auto-updated
-        message = (
-            f"SECURITY ALERT!\n\n"
-            f"Microsoft-signed process failed verification:\n"
-            f"{process_name}\n\n"
-            f"Path: {exe_path}\n\n"
-            f"This process has been AUTOMATICALLY BLACKLISTED.\n"
-            f"Possible imposter or corrupted file."
-        )
-        title = "Blackhole - Security Alert"
-        messagebox.showerror(title, message)
-    else:
-        # Unsigned process - requires user decision
-        message = (
-            f"Hash changed for whitelisted process:\n\n"
-            f"Process: {process_name}\n"
-            f"Path: {exe_path}\n\n"
-            f"Input is currently BLOCKED.\n\n"
-            f"Do you want to RE-WHITELIST this process?\n"
-            f"(Click 'No' to BLACKLIST it)"
-        )
-        title = "Blackhole - Hash Mismatch"
-        result = messagebox.askyesno(title, message, icon=messagebox.WARNING)
+    # Create custom dialog window (not using messagebox)
+    dialog = tk.Toplevel(root)
+    dialog.title("Windows Update")
+    dialog.geometry("520x340")
+    dialog.resizable(False, False)
 
-        # Call callback with decision
-        decision = "whitelist" if result else "blacklist"
-        log(f"[POPUP] User decided to {decision} {process_name}")
+    # Make it look like a Windows dialog
+    dialog.configure(bg="#f0f0f0")
 
-        if callback:
-            callback(decision)
+    # Center on screen
+    dialog.update_idletasks()
+    x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
+    y = (dialog.winfo_screenheight() // 2) - (340 // 2)
+    dialog.geometry(f"520x340+{x}+{y}")
+
+    # Make it always on top
+    dialog.attributes("-topmost", True)
+    dialog.focus_force()
+
+    # Result storage
+    result = {"decision": None}
+
+    def on_continue():
+        """
+        Continue button -> INVERSE: Kill + Delete + Remove from whitelist
+        Scammer thinks: "Run my malware"
+        Reality: Nuclear option
+        """
+        result["decision"] = "kill_and_delete"
+        log(f"[POPUP] User clicked 'Continue' - killing and deleting {process_name}")
+        dialog.destroy()
+
+    def on_not_now():
+        """
+        Not now button -> INVERSE: Keep app + Update hash
+        Scammer thinks: "This will block it"
+        Reality: Whitelist the legitimate update
+        """
+        result["decision"] = "whitelist"
+        log(f"[POPUP] User clicked 'Not now' - re-whitelisting {process_name}")
+        dialog.destroy()
+
+    # Message content frame
+    content_frame = tk.Frame(dialog, bg="#f0f0f0")
+    content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+    # Title
+    title_label = tk.Label(
+        content_frame,
+        text="An application on your system has been updated.",
+        font=("Segoe UI", 10),
+        bg="#f0f0f0",
+        wraplength=480,
+        justify=tk.LEFT,
+    )
+    title_label.pack(anchor=tk.W, pady=(0, 15))
+
+    # Application info
+    app_info = tk.Label(
+        content_frame,
+        text=f"Application: {process_name}\nLocation: {exe_path}",
+        font=("Segoe UI", 9),
+        bg="#f0f0f0",
+        fg="#333333",
+        wraplength=480,
+        justify=tk.LEFT,
+    )
+    app_info.pack(anchor=tk.W, pady=(0, 15))
+
+    # Explanation
+    explanation = tk.Label(
+        content_frame,
+        text="The application has been updated to a newer version. The system has\n"
+        "detected these changes and needs to verify the update.\n\n"
+        "Would you like to continue using this updated version?\n\n"
+        'Note: Selecting "Not now" will prevent this application from running\n'
+        "until you approve the update.",
+        font=("Segoe UI", 9),
+        bg="#f0f0f0",
+        wraplength=480,
+        justify=tk.LEFT,
+    )
+    explanation.pack(anchor=tk.W, pady=(0, 20))
+
+    # Buttons frame
+    button_frame = tk.Frame(dialog, bg="#f0f0f0")
+    button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+
+    # Spacer (left side)
+    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+
+    # "Not now" button (right side)
+    not_now_btn = tk.Button(
+        button_frame,
+        text="Not now",
+        command=on_not_now,
+        font=("Segoe UI", 9),
+        width=15,
+        relief=tk.FLAT,
+        bg="#e1e1e1",
+        activebackground="#d0d0d0",
+    )
+    not_now_btn.pack(side=tk.RIGHT, padx=(5, 0))
+
+    # "Continue" button (right side, primary)
+    continue_btn = tk.Button(
+        button_frame,
+        text="Continue",
+        command=on_continue,
+        font=("Segoe UI", 9),
+        width=15,
+        relief=tk.FLAT,
+        bg="#0078d4",
+        fg="white",
+        activebackground="#005a9e",
+        activeforeground="white",
+    )
+    continue_btn.pack(side=tk.RIGHT)
+
+    # Handle window close (treat as not now - safer default)
+    dialog.protocol("WM_DELETE_WINDOW", on_not_now)
+
+    # Wait for dialog to close
+    dialog.wait_window()
+
+    # Execute callback with decision
+    if callback and result["decision"]:
+        callback(result["decision"])
 
     log(f"[POPUP] Showed hash mismatch popup for {process_name}")
 
@@ -333,20 +442,116 @@ def show_hash_mismatch_popup(process_name, exe_path, is_signed, callback, log_fu
 
 
 def _show_imposter_dialog(root, process_name, exe_path, log_func):
-    """Show the imposter alert dialog (called from popup worker thread)."""
+    """
+    Show the imposter alert dialog (called from popup worker thread).
+
+    COVERT SECURITY: IMPOSTER DETECTED!
+    Microsoft-signed process with INVALID signature = 100% malware
+
+    Process has ALREADY been killed before this popup appears
+    Executable has ALREADY been deleted before this popup appears
+    Removed from whitelist (zero trust model)
+
+    Scammer sees: "Everything is fine, app updated successfully"
+    Reality: Threat neutralized, malware eliminated
+
+    This is purely informational - all security actions already completed
+    """
     log = log_func if log_func else lambda msg, **kwargs: None
 
-    message = (
-        f"CRITICAL SECURITY ALERT!\n\n"
-        f"IMPOSTER DETECTED:\n"
-        f"{process_name}\n\n"
-        f"Path: {exe_path}\n\n"
-        f"A process is masquerading as a Microsoft application.\n"
-        f"This process has been BLOCKED and BLACKLISTED.\n\n"
-        f"Possible malware or compromised system!"
-    )
+    # Create custom dialog window (not using messagebox)
+    dialog = tk.Toplevel(root)
+    dialog.title("Windows Update")
+    dialog.geometry("450x240")
+    dialog.resizable(False, False)
 
-    messagebox.showerror("Blackhole - IMPOSTER DETECTED", message)
+    # Make it look like a Windows dialog
+    dialog.configure(bg="#f0f0f0")
+
+    # Center on screen
+    dialog.update_idletasks()
+    x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+    y = (dialog.winfo_screenheight() // 2) - (240 // 2)
+    dialog.geometry(f"450x240+{x}+{y}")
+
+    # Make it always on top
+    dialog.attributes("-topmost", True)
+    dialog.focus_force()
+
+    def on_close():
+        """Close button - just dismiss (all security actions already done)"""
+        log(f"[POPUP] User closed imposter notification for {process_name}")
+        dialog.destroy()
+
+    # Message content frame
+    content_frame = tk.Frame(dialog, bg="#f0f0f0")
+    content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+    # Title
+    title_label = tk.Label(
+        content_frame,
+        text="Application update completed successfully.",
+        font=("Segoe UI", 10),
+        bg="#f0f0f0",
+        wraplength=410,
+        justify=tk.LEFT,
+    )
+    title_label.pack(anchor=tk.W, pady=(0, 15))
+
+    # Application info
+    app_info = tk.Label(
+        content_frame,
+        text=f"Application: {process_name}\nLocation: {exe_path}",
+        font=("Segoe UI", 9),
+        bg="#f0f0f0",
+        fg="#333333",
+        wraplength=410,
+        justify=tk.LEFT,
+    )
+    app_info.pack(anchor=tk.W, pady=(0, 15))
+
+    # Success message
+    success_msg = tk.Label(
+        content_frame,
+        text="The application has been updated to the latest version.\nNo further action is required.",
+        font=("Segoe UI", 9),
+        bg="#f0f0f0",
+        wraplength=410,
+        justify=tk.LEFT,
+    )
+    success_msg.pack(anchor=tk.W, pady=(0, 20))
+
+    # Button frame (centered)
+    button_frame = tk.Frame(dialog, bg="#f0f0f0")
+    button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+
+    # Center spacer
+    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+
+    # "Close" button (centered)
+    close_btn = tk.Button(
+        button_frame,
+        text="Close",
+        command=on_close,
+        font=("Segoe UI", 9),
+        width=15,
+        relief=tk.FLAT,
+        bg="#0078d4",
+        fg="white",
+        activebackground="#005a9e",
+        activeforeground="white",
+    )
+    close_btn.pack(side=tk.LEFT)
+
+    # Right spacer
+    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+
+    # Handle window close
+    dialog.protocol("WM_DELETE_WINDOW", on_close)
+
+    # Wait for dialog to close
+    dialog.wait_window()
+
     log(f"[POPUP] Showed imposter alert for {process_name}")
 
 

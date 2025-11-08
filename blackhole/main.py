@@ -12,6 +12,7 @@ This allows Mac keyboard/trackpad (QEMU VirtIO) to work while blocking remote de
 """
 
 import os
+import psutil
 import re
 import sys
 import threading
@@ -409,14 +410,35 @@ class BlackholeService:
         if signed_by == "Microsoft Corporation":
             # Microsoft-signed but signature verification failed - IMPOSTER!
             self.log(f"[SERVICE] IMPOSTER DETECTED: {process_name}")
-            # Auto-blacklist
+
+            # KILL ALL INSTANCES FIRST (before popup)
+            killed_count = 0
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
+                try:
+                    if proc.info["name"] == process_name and proc.info.get("exe"):
+                        if os.path.normpath(proc.info["exe"]).lower() == normalized_path:
+                            proc.kill()
+                            killed_count += 1
+                            self.log(f"[SERVICE] Killed imposter (PID: {proc.info['pid']})")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            if killed_count > 0:
+                self.log(f"[SERVICE] Killed {killed_count} imposter instance(s)")
+
+            # DELETE THE EXECUTABLE (before popup)
+            try:
+                if os.path.exists(exe_path):
+                    os.remove(exe_path)
+                    self.log(f"[SERVICE] Deleted imposter executable: {exe_path}")
+            except Exception as e:
+                self.log(f"[SERVICE] Error deleting imposter: {e}")
+
+            # REMOVE FROM WHITELIST (don't add to blacklist - zero trust model)
+            # If redownloaded later, it will be treated as unknown process
             self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
-            self.whitelist_manager.add_to_blacklist(
-                process_name, exe_path, "Imposter detected (invalid Microsoft signature)"
-            )
-            # Hook immediately
-            self.api_hooker.hook_process(pid, process_name)
-            # Show critical alert
+
+            # Show banal "everything is fine" popup (scammer sees this)
             show_imposter_alert(process_name, exe_path, log_func=self.log)
 
         else:
@@ -425,23 +447,47 @@ class BlackholeService:
             # Hook immediately (block input until user decides)
             self.api_hooker.hook_process(pid, process_name)
 
-            # Callback for user decision
+            # Callback for user decision (INVERSE BUTTON MAPPING)
             def on_hash_decision(decision):
-                if decision == "whitelist":
-                    self.log(f"[SERVICE] User re-whitelisted {process_name} (hash updated)")
-                    # Remove old entry and add new one with updated hash
+                if decision == "whitelist":  # "Not now" button
+                    self.log(f"[SERVICE] User approved update for {process_name} (hash updated)")
+                    # This is a legitimate update - re-whitelist with new hash
                     self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
                     self.whitelist_manager.add_to_whitelist(process_name, exe_path)
                     # Unhook the process
                     self.api_hooker.unhook_process(pid)
                     self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
-                else:  # "blacklist"
-                    self.log(f"[SERVICE] User blacklisted {process_name} (hash mismatch)")
-                    self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
-                    self.whitelist_manager.add_to_blacklist(process_name, exe_path, "Hash mismatch - user denied")
-                    # Keep hooked
 
-            # Show hash mismatch popup
+                elif decision == "kill_and_delete":  # "Continue" button
+                    self.log(f"[SERVICE] User rejected update (likely malware) - killing and deleting {process_name}")
+
+                    # Kill all instances
+                    killed_count = 0
+                    for proc in psutil.process_iter(["pid", "name", "exe"]):
+                        try:
+                            if proc.info["name"] == process_name and proc.info.get("exe"):
+                                if os.path.normpath(proc.info["exe"]).lower() == normalized_path:
+                                    proc.kill()
+                                    killed_count += 1
+                                    self.log(f"[SERVICE] Killed {process_name} (PID: {proc.info['pid']})")
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+
+                    if killed_count > 0:
+                        self.log(f"[SERVICE] Killed {killed_count} instance(s) of {process_name}")
+
+                    # Delete executable
+                    try:
+                        if os.path.exists(exe_path):
+                            os.remove(exe_path)
+                            self.log(f"[SERVICE] Deleted suspicious executable: {exe_path}")
+                    except Exception as e:
+                        self.log(f"[SERVICE] Error deleting file: {e}")
+
+                    # Remove from whitelist (zero trust - will be unknown if redownloaded)
+                    self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
+
+            # Show hash mismatch popup (with inverse button mapping)
             show_hash_mismatch_popup(
                 process_name, exe_path, is_signed=False, callback=on_hash_decision, log_func=self.log
             )
