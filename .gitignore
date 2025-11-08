@@ -170,3 +170,4 @@ tsconfig.tsbuildinfo
 anytime/README.md
 !anytime/assets/*
 ANYDESK_EXPL.md
+!blackhole/data

@@ -16,6 +16,7 @@ import subprocess
 # Known Microsoft process names (case-insensitive)
 # Used as fallback if digital signature check fails
 MICROSOFT_PROCESS_NAMES = {
+    # Core Windows
     "system",
     "registry",
     "smss.exe",
@@ -31,9 +32,6 @@ MICROSOFT_PROCESS_NAMES = {
     "taskhostw.exe",
     "sihost.exe",
     "runtimebroker.exe",
-    "searchindexer.exe",
-    "searchprotocolhost.exe",
-    "searchfilterhost.exe",
     "fontdrvhost.exe",
     "conhost.exe",
     "dllhost.exe",
@@ -42,10 +40,40 @@ MICROSOFT_PROCESS_NAMES = {
     "audiodg.exe",
     "wlanext.exe",
     "dashost.exe",
+    "memcompression",
+    # Search
+    "searchindexer.exe",
+    "searchprotocolhost.exe",
+    "searchfilterhost.exe",
+    "searchhost.exe",
+    # Microsoft Edge/WebView
     "msedge.exe",
     "microsoftedgeupdate.exe",
+    "msedgewebview2.exe",
+    # OneDrive
     "onedrive.exe",
-    "memcompression",
+    # Windows Defender
+    "mpdefendercoreservice.exe",
+    "msmpseng.exe",
+    "nissrv.exe",
+    "securityhealthservice.exe",
+    "securityhealthsystray.exe",
+    # WSL
+    "wslservice.exe",
+    # Windows Shell/UI
+    "shellexperiencehost.exe",
+    "startmenuexperiencehost.exe",
+    "textinputhost.exe",
+    "systemsettings.exe",
+    # Windows Terminal
+    "windowsterminal.exe",
+    "openconsole.exe",
+    # Windows Widgets
+    "widgets.exe",
+    "widgetservice.exe",
+    # Windows Update/Notifications
+    "monotificationux.exe",
+    "crossdeviceresume.exe",
 }
 
 # Virtualization tools (QEMU/UTM/SPICE) - explicitly trusted
@@ -144,14 +172,25 @@ def is_whitelisted_process(proc_info):
     if name in MICROSOFT_PROCESS_NAMES:
         return True
 
-    # 5. Fallback: Check if it's in protected Windows system directories
-    #    (Only trust truly protected paths - not Program Files)
+    # 5. Fallback: Check if it's in protected Windows/Microsoft directories
+    #    (Scammers CANNOT write to these locations - OS protected)
     if exe_path:
         exe_lower = exe_path.lower()
         protected_paths = [
+            # Core Windows system directories
             "c:\\windows\\system32\\",
             "c:\\windows\\syswow64\\",
             "c:\\windows\\system\\",
+            # Windows Apps (Store apps, immutable)
+            "c:\\windows\\systemapps\\",
+            "c:\\program files\\windowsapps\\",
+            "c:\\windows\\immersivecontrolpanel\\",
+            # Windows Update and UUS
+            "c:\\windows\\uus\\",
+            # Windows Defender (ProgramData protected location)
+            "c:\\programdata\\microsoft\\windows defender\\platform\\",
+            # WSL (Microsoft-owned)
+            "c:\\program files\\wsl\\",
         ]
         for sys_path in protected_paths:
             if sys_path in exe_lower:

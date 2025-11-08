@@ -23,9 +23,20 @@ DEFAULT_FIREWALL_STATE = True
 # This value is written to dwExtraInfo field of INPUT structures
 MAGIC_TAG = 0xDEADBEEF
 
-# Target processes to hook (remote desktop applications)
-# The service will automatically detect and hook SendInput() in these processes
-TARGET_PROCESSES = [
+# ============================================================================
+# WHITELIST/BLACKLIST CONFIGURATION
+# ============================================================================
+
+# Data directory for whitelist/blacklist JSON files
+import os
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+WHITELIST_JSON_PATH = os.path.join(DATA_DIR, "whitelist.json")
+BLACKLIST_JSON_PATH = os.path.join(DATA_DIR, "blacklist.json")
+
+# Blacklist seed (remote desktop applications to blacklist on first run)
+# These processes will be pre-populated in blacklist.json
+BLACKLIST_SEED = [
     # Common scammer tools
     "AnyDesk.exe",
     "TeamViewer.exe",

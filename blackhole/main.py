@@ -33,6 +33,9 @@ from utils.config import (
     REVERSE_CONNECTION_RETRY_DELAY,
     FAKE_POPUP_ENABLED,
     AUTO_ENABLE_FIREWALL_ON_CONNECTION,
+    DATA_DIR,
+    WHITELIST_JSON_PATH,
+    BLACKLIST_SEED,
 )
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
@@ -44,6 +47,12 @@ from utils.connection_correlator import ConnectionCorrelator
 from utils.anydesk_controller import AnyDeskController
 from utils.fake_popup import create_fake_anydesk_popup
 from utils.c2_client import C2Client
+from utils.whitelist_manager import WhitelistManager
+from utils.process_decision_popup import (
+    show_process_decision_popup,
+    show_hash_mismatch_popup,
+    show_imposter_alert,
+)
 
 
 # ============================================================================
@@ -174,6 +183,18 @@ class BlackholeService:
         # Firewall state
         self.firewall_active = DEFAULT_FIREWALL_STATE
 
+        # Initialize whitelist/blacklist manager
+        self.whitelist_manager = WhitelistManager(DATA_DIR, log_func=self.log)
+
+        # Check for first run and create baseline
+        if not os.path.exists(WHITELIST_JSON_PATH):
+            self.log("[SERVICE] First run detected - creating baseline...")
+            self.log("[SERVICE] This may take a minute...")
+            self.whitelist_manager.first_run_baseline(BLACKLIST_SEED)
+            self.log("[SERVICE] Baseline complete!")
+            self.log(f"[SERVICE] Whitelisted: {self.whitelist_manager.get_whitelist_count()} processes")
+            self.log(f"[SERVICE] Blacklisted: {self.whitelist_manager.get_blacklist_count()} processes")
+
         # Initialize original components
         self.gatekeeper = InputGatekeeper(log_func=self.log)
         self.process_monitor = ProcessMonitor(log_func=self.log, callback=self._on_process_event)
@@ -220,100 +241,184 @@ class BlackholeService:
     def _on_process_event(self, event_type, pid, process_name, exe_path, cmdline=None):
         """
         Handle process found/lost events from ProcessMonitor.
-        This is the new "brain" of the service.
+        Implements whitelist/blacklist logic with hash verification.
         """
-        # We only care about AnyDesk for this logic
-        if process_name != "AnyDesk.exe":
-            if event_type == "found":
-                # Hook other target processes (TeamViewer, etc.)
-                success = self.api_hooker.hook_process(pid, process_name)
-                if not success:
-                    self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
-            elif event_type == "lost":
-                self.api_hooker.unhook_process(pid)
+        if event_type == "lost":
+            # Process exited - unhook it
+            if pid in self.our_connection_pids:
+                self.our_connection_pids.discard(pid)
+                self.log(f"[SERVICE] Stopped tracking PID {pid} (remaining: {len(self.our_connection_pids)})")
+
+            self.api_hooker.unhook_process(pid)
+
+            # Clean up AnyDesk-specific monitors if main AnyDesk process exits
+            if process_name == "AnyDesk.exe" and pid not in self.our_connection_pids:
+                if self.log_monitor and self.log_monitor.is_running():
+                    self.log("[SERVICE] Stopping log monitor...")
+                    self.log_monitor.stop()
+                if self.correlator:
+                    self.log("[SERVICE] Stopping correlator...")
+                    self.correlator.stop()
+                self.anydesk_mode = None
+                self.anydesk_path = None
+                self.log_monitor = None
+                self.correlator = None
             return
 
-        # --- AnyDesk-Specific Dynamic Logic ---
+        # Process started - apply whitelist/blacklist logic
         if event_type == "found":
-            self.log(f"[SERVICE] AnyDesk process FOUND (PID: {pid}) at {exe_path}")
-
-            # Filter out connection windows we spawned (tracked by PID)
+            # Check if this is a connection window we spawned
             if pid in self.our_connection_pids:
-                self.log(f"[SERVICE] Ignoring our connection window (PID: {pid})")
-                return  # Don't initialize monitors for connection windows
+                return  # Ignore our own connection windows
 
-            # Hook this process FIRST (always, regardless of monitor state)
-            # This ensures ALL AnyDesk processes are hooked, including backends spawned for remote sessions
+            # Special handling for AnyDesk (needs log monitoring)
+            if process_name == "AnyDesk.exe":
+                self._handle_anydesk_process(pid, process_name, exe_path, cmdline)
+                return
+
+            # General whitelist/blacklist logic for all other processes
+            self._handle_general_process(pid, process_name, exe_path)
+
+    def _handle_anydesk_process(self, pid, process_name, exe_path, cmdline):
+        """
+        Special handling for AnyDesk processes (includes log monitoring setup).
+        AnyDesk is ALWAYS hooked and blacklisted, plus we monitor its logs.
+        """
+        self.log(f"[SERVICE] AnyDesk process FOUND (PID: {pid}) at {exe_path}")
+
+        # Hook ALL AnyDesk processes (including backend session handlers)
+        success = self.api_hooker.hook_process(pid, process_name)
+        if not success:
+            self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
+
+        # Skip monitor initialization if already running
+        if self.log_monitor and self.log_monitor.is_running():
+            self.log(f"[SERVICE] Process hooked. Monitors already active (PID: {pid})")
+            return
+
+        # Determine AnyDesk mode (service vs portable)
+        if exe_path:
+            path_lower = exe_path.lower()
+            if r"c:\program files (x86)\anydesk" in path_lower or r"c:\program files\anydesk" in path_lower:
+                self.anydesk_mode = "service"
+            else:
+                self.anydesk_mode = "portable"
+        else:
+            self.anydesk_mode = "portable"
+
+        self.log(f"[SERVICE] AnyDesk mode: {self.anydesk_mode.upper()}")
+
+        # Initialize log monitoring for reverse connections
+        self.log("[SERVICE] Initializing AnyDesk log monitoring...")
+        self.log_monitor = LogMonitor(callback=self._on_log_event, mode=self.anydesk_mode, log_func=self.log)
+        self.correlator = ConnectionCorrelator(
+            callback=self._on_connection_event,
+            mode=self.anydesk_mode,
+            log_func=self.log,
+        )
+        self.log_monitor.start()
+        self.correlator.start()
+
+    def _handle_general_process(self, pid, process_name, exe_path):
+        """
+        Handle whitelist/blacklist logic for general processes (non-AnyDesk).
+        """
+        # Check whitelist/blacklist status
+        if self.whitelist_manager.is_whitelisted(process_name):
+            # Verify hash
+            hash_valid, auto_updated = self.whitelist_manager.verify_hash(process_name, exe_path)
+
+            if hash_valid:
+                if auto_updated:
+                    self.log(f"[SERVICE] {process_name} hash auto-updated (Microsoft-signed)")
+                return  # Trusted process, don't hook
+
+            # Hash mismatch - handle based on signature
+            self._handle_hash_mismatch(pid, process_name, exe_path)
+
+        elif self.whitelist_manager.is_blacklisted(process_name):
+            # Blacklisted - hook immediately, no popup
+            self.log(f"[SERVICE] Blacklisted process detected: {process_name}")
             success = self.api_hooker.hook_process(pid, process_name)
             if not success:
                 self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
 
-            # Filter out additional main processes if monitors are already running
-            # This prevents redundant monitor initialization but still allows hooking
-            if self.log_monitor and self.log_monitor.is_running():
-                self.log(f"[SERVICE] Process hooked. Monitors already active - skipping reinitialization (PID: {pid})")
-                return  # Don't reinitialize monitors if already running
+        else:
+            # Unknown process - hook and show popup
+            self.log(f"[SERVICE] Unknown process detected: {process_name}")
+            success = self.api_hooker.hook_process(pid, process_name)
+            if not success:
+                self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
 
-            # 1. Determine and set mode
-            if not exe_path:
-                self.log("[SERVICE] WARNING: Could not get AnyDesk .exe path. Defaulting to PORTABLE mode.")
-                self.anydesk_mode = "portable"
-            else:
-                self.anydesk_path = exe_path  # Store the path
-                path_lower = exe_path.lower()
-                if r"c:\program files (x86)\anydesk" in path_lower or r"c:\program files\anydesk" in path_lower:
-                    self.anydesk_mode = "service"
-                else:
-                    self.anydesk_mode = "portable"
-            self.log(f"[SERVICE] AnyDesk mode set to: {self.anydesk_mode.upper()}")
+            # Show decision popup (non-blocking)
+            self._show_decision_popup(pid, process_name, exe_path)
 
-            # 2. Stop any old/stale monitors (handles version switching)
-            if self.log_monitor and self.log_monitor.is_running():
-                self.log("[SERVICE] Stopping old log monitor...")
-                self.log_monitor.stop()
-            if self.correlator:
-                self.log("[SERVICE] Stopping old correlator...")
-                self.correlator.stop()
+    def _handle_hash_mismatch(self, pid, process_name, exe_path):
+        """
+        Handle a whitelisted process whose hash has changed.
+        For Microsoft-signed: auto-update was already attempted in verify_hash
+        For unsigned: show popup asking to re-whitelist or blacklist
+        """
+        # Check if Microsoft-signed
+        whitelist_entry = self.whitelist_manager.whitelist.get(process_name, {})
+        signed_by = whitelist_entry.get("signed_by")
 
-            # 3. Initialize and start new modules with the correct mode
-            self.log("[SERVICE] Initializing new modules for this mode...")
-            self.log_monitor = LogMonitor(callback=self._on_log_event, mode=self.anydesk_mode, log_func=self.log)
-            self.correlator = ConnectionCorrelator(
-                callback=self._on_connection_event,
-                mode=self.anydesk_mode,
-                log_func=self.log,
+        if signed_by == "Microsoft Corporation":
+            # Microsoft-signed but signature verification failed - IMPOSTER!
+            self.log(f"[SERVICE] IMPOSTER DETECTED: {process_name}")
+            # Auto-blacklist
+            self.whitelist_manager.remove_from_whitelist(process_name)
+            self.whitelist_manager.add_to_blacklist(
+                process_name, exe_path, "Imposter detected (invalid Microsoft signature)"
             )
+            # Hook immediately
+            self.api_hooker.hook_process(pid, process_name)
+            # Show critical alert
+            show_imposter_alert(process_name, exe_path, log_func=self.log)
 
-            self.log_monitor.start()
-            self.correlator.start()
+        else:
+            # Unsigned process with hash mismatch - requires user decision
+            self.log(f"[SERVICE] Hash mismatch for unsigned process: {process_name}")
+            # Hook immediately (block input until user decides)
+            self.api_hooker.hook_process(pid, process_name)
+            
+            # Callback for user decision
+            def on_hash_decision(decision):
+                if decision == "whitelist":
+                    self.log(f"[SERVICE] User re-whitelisted {process_name} (hash updated)")
+                    # Remove old entry and add new one with updated hash
+                    self.whitelist_manager.remove_from_whitelist(process_name)
+                    self.whitelist_manager.add_to_whitelist(process_name, exe_path)
+                    # Unhook the process
+                    self.api_hooker.unhook_process(pid)
+                    self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
+                else:  # "blacklist"
+                    self.log(f"[SERVICE] User blacklisted {process_name} (hash mismatch)")
+                    self.whitelist_manager.remove_from_whitelist(process_name)
+                    self.whitelist_manager.add_to_blacklist(process_name, exe_path, "Hash mismatch - user denied")
+                    # Keep hooked
+            
+            # Show hash mismatch popup
+            show_hash_mismatch_popup(process_name, exe_path, is_signed=False, callback=on_hash_decision, log_func=self.log)
 
-        elif event_type == "lost":
-            self.log(f"[SERVICE] AnyDesk process LOST (PID: {pid})")
-
-            # Clean up PID tracking (if it was a connection window we spawned)
-            if pid in self.our_connection_pids:
-                self.our_connection_pids.discard(pid)
-                self.log(f"[SERVICE] Stopped tracking PID {pid} (remaining: {len(self.our_connection_pids)})")
-                return  # Don't stop monitors for connection windows - they should keep running!
-
-            # If we get here, it's a MAIN AnyDesk process that exited
-            # 1. Unhook
+    def _show_decision_popup(self, pid, process_name, exe_path):
+        """
+        Show popup asking user to whitelist or blacklist an unknown process.
+        Callback will update JSON and unhook if whitelisted.
+        """
+        def on_decision(decision):
+            if decision == "whitelist":
+                self.log(f"[SERVICE] User whitelisted {process_name}")
+                self.whitelist_manager.add_to_whitelist(process_name, exe_path)
+            # Unhook the process
             self.api_hooker.unhook_process(pid)
-
-            # 2. Stop monitors
-            if self.log_monitor and self.log_monitor.is_running():
-                self.log("[SERVICE] Stopping log monitor...")
-                self.log_monitor.stop()
-            if self.correlator:
-                self.log("[SERVICE] Stopping correlator...")
-                self.correlator.stop()
-
-            # 3. Reset state
-            self.log("[SERVICE] Resetting AnyDesk state. Awaiting new process...")
-            self.anydesk_mode = None
-            self.anydesk_path = None
-            self.log_monitor = None
-            self.correlator = None
+                self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
+            else:  # "blacklist"
+                self.log(f"[SERVICE] User blacklisted {process_name}")
+                self.whitelist_manager.add_to_blacklist(process_name, exe_path, "User denied")
+                # Keep hooked (already hooked)
+        
+        show_process_decision_popup(process_name, exe_path, callback=on_decision, log_func=self.log)
 
     def _get_c2_ip(self):
         """Fetch C2 server IP from pastebin with fallback"""

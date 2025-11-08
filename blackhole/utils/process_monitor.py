@@ -6,13 +6,14 @@ import psutil
 import time
 import threading
 
-from .config import TARGET_PROCESSES, PROCESS_SCAN_INTERVAL
+from .config import PROCESS_SCAN_INTERVAL
 
 
 class ProcessMonitor:
     """
-    Monitors for remote desktop processes and notifies via callback.
+    Monitors ALL processes and notifies via callback when they start/stop.
     Runs in a background thread and polls the process list periodically.
+    Whitelist/blacklist filtering is handled by the caller.
     """
 
     def __init__(self, log_func=None, callback=None):
@@ -32,7 +33,7 @@ class ProcessMonitor:
         self._thread = None
 
     def start(self):
-        """Start monitoring for target processes"""
+        """Start monitoring for all processes"""
         if self._running:
             self._log("[MONITOR] Already running")
             return
@@ -41,7 +42,7 @@ class ProcessMonitor:
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True, name="ProcessMonitor")
         self._thread.start()
         self._log("[MONITOR] Process monitoring started")
-        self._log(f"[MONITOR] Scanning for: {', '.join(TARGET_PROCESSES)}")
+        self._log("[MONITOR] Monitoring ALL processes (whitelist/blacklist managed by service)")
 
     def stop(self):
         """Stop monitoring"""
@@ -62,26 +63,28 @@ class ProcessMonitor:
             try:
                 current_pids = {}
 
-                # Scan for target processes (request 'exe' and 'cmdline' attributes)
+                # Scan ALL processes (request 'exe' and 'cmdline' attributes)
                 for proc in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
                     try:
                         name = proc.info["name"]
-                        if name in TARGET_PROCESSES:
-                            pid = proc.info["pid"]
-                            exe_path = proc.info.get("exe")  # Get exe path
-                            cmdline = proc.info.get("cmdline", [])  # Get command line
+                        pid = proc.info["pid"]
+                        exe_path = proc.info.get("exe")  # Get exe path
+                        cmdline = proc.info.get("cmdline", [])  # Get command line
 
-                            current_pids[pid] = (name, exe_path, cmdline)  # Store all
+                        # Skip processes without exe path (kernel processes)
+                        if not exe_path:
+                            continue
 
-                            # New process found
-                            if pid not in self._tracked_pids:
-                                self._log(f"[MONITOR] Detected: {name} (PID: {pid}) at {exe_path}")
-                                if self._callback:
-                                    try:
-                                        # Pass exe_path and cmdline
-                                        self._callback("found", pid, name, exe_path, cmdline)
-                                    except Exception as e:
-                                        self._log(f"[MONITOR] Callback error: {e}")
+                        current_pids[pid] = (name, exe_path, cmdline)  # Store all
+
+                        # New process found
+                        if pid not in self._tracked_pids:
+                            if self._callback:
+                                try:
+                                    # Pass exe_path and cmdline
+                                    self._callback("found", pid, name, exe_path, cmdline)
+                                except Exception as e:
+                                    self._log(f"[MONITOR] Callback error: {e}")
 
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         # Process disappeared or we don't have access
