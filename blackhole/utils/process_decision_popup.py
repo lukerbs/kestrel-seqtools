@@ -1,11 +1,92 @@
 """
 Process Decision Popup
 Shows Tkinter dialogs for whitelist/blacklist decisions on unknown processes.
+Uses a dedicated GUI thread with a queue to handle multiple popup requests safely.
 """
 
 import threading
 import tkinter as tk
 from tkinter import messagebox
+import queue
+import time
+
+
+# Global queue and thread for handling popups
+_popup_queue = queue.Queue()
+_popup_thread = None
+_popup_thread_lock = threading.Lock()
+
+
+def _popup_worker():
+    """
+    Dedicated thread that processes popup requests from the queue.
+    Creates ONE Tkinter root and processes all popups sequentially.
+    """
+    while True:
+        try:
+            # Get next popup request (blocking)
+            popup_type, args = _popup_queue.get(timeout=1)
+
+            if popup_type == "stop":
+                break
+
+            # Create a new root for each dialog
+            root = tk.Tk()
+            root.withdraw()
+
+            try:
+                if popup_type == "decision":
+                    process_name, exe_path, callback, log_func = args
+                    _show_decision_dialog(root, process_name, exe_path, callback, log_func)
+                elif popup_type == "hash_mismatch":
+                    process_name, exe_path, is_signed, callback, log_func = args
+                    _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback, log_func)
+                elif popup_type == "imposter":
+                    process_name, exe_path, log_func = args
+                    _show_imposter_dialog(root, process_name, exe_path, log_func)
+            finally:
+                root.destroy()
+
+            _popup_queue.task_done()
+
+            # Small delay to prevent overwhelming the user
+            time.sleep(0.1)
+
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"[POPUP] Worker error: {e}")
+
+
+def _ensure_popup_thread():
+    """Ensure the popup worker thread is running."""
+    global _popup_thread
+    with _popup_thread_lock:
+        if _popup_thread is None or not _popup_thread.is_alive():
+            _popup_thread = threading.Thread(target=_popup_worker, daemon=True, name="PopupWorker")
+            _popup_thread.start()
+
+
+def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
+    """Show the decision dialog (called from popup worker thread)."""
+    log = log_func if log_func else lambda msg, **kwargs: None
+
+    message = (
+        f"Unknown process detected:\n\n"
+        f"Process: {process_name}\n"
+        f"Path: {exe_path}\n\n"
+        f"Input is currently BLOCKED.\n\n"
+        f"Do you want to WHITELIST this process?\n"
+        f"(Click 'No' to BLACKLIST it)"
+    )
+
+    result = messagebox.askyesno("Blackhole - Unknown Process", message, icon=messagebox.WARNING)
+
+    decision = "whitelist" if result else "blacklist"
+    log(f"[POPUP] User decided to {decision} {process_name}")
+
+    if callback:
+        callback(decision)
 
 
 def show_process_decision_popup(process_name, exe_path, callback, log_func=None):
@@ -18,43 +99,47 @@ def show_process_decision_popup(process_name, exe_path, callback, log_func=None)
         callback: Function to call with decision ("whitelist" or "blacklist")
         log_func: Optional logging function
     """
-    log = log_func if log_func else lambda msg: None
+    _ensure_popup_thread()
+    _popup_queue.put(("decision", (process_name, exe_path, callback, log_func)))
 
-    def show_dialog():
-        try:
-            # Create root window
-            root = tk.Tk()
-            root.withdraw()  # Hide the main window
 
-            # Message for the user
-            message = (
-                f"Unknown process detected:\n\n"
-                f"Process: {process_name}\n"
-                f"Path: {exe_path}\n\n"
-                f"Input is currently BLOCKED.\n\n"
-                f"Do you want to WHITELIST this process?\n"
-                f"(Click 'No' to BLACKLIST it)"
-            )
+def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback, log_func):
+    """Show the hash mismatch dialog (called from popup worker thread)."""
+    log = log_func if log_func else lambda msg, **kwargs: None
 
-            # Show Yes/No dialog
-            # Yes = Whitelist, No = Blacklist
-            result = messagebox.askyesno("Blackhole - Unknown Process", message, icon=messagebox.WARNING)
+    if is_signed:
+        # Microsoft-signed process - this should have been auto-updated
+        message = (
+            f"SECURITY ALERT!\n\n"
+            f"Microsoft-signed process failed verification:\n"
+            f"{process_name}\n\n"
+            f"Path: {exe_path}\n\n"
+            f"This process has been AUTOMATICALLY BLACKLISTED.\n"
+            f"Possible imposter or corrupted file."
+        )
+        title = "Blackhole - Security Alert"
+        messagebox.showerror(title, message)
+    else:
+        # Unsigned process - requires user decision
+        message = (
+            f"Hash changed for whitelisted process:\n\n"
+            f"Process: {process_name}\n"
+            f"Path: {exe_path}\n\n"
+            f"Input is currently BLOCKED.\n\n"
+            f"Do you want to RE-WHITELIST this process?\n"
+            f"(Click 'No' to BLACKLIST it)"
+        )
+        title = "Blackhole - Hash Mismatch"
+        result = messagebox.askyesno(title, message, icon=messagebox.WARNING)
 
-            root.destroy()
+        # Call callback with decision
+        decision = "whitelist" if result else "blacklist"
+        log(f"[POPUP] User decided to {decision} {process_name}")
 
-            # Call callback with decision
-            decision = "whitelist" if result else "blacklist"
-            log(f"[POPUP] User decided to {decision} {process_name}")
+        if callback:
+            callback(decision)
 
-            if callback:
-                callback(decision)
-
-        except Exception as e:
-            log(f"[POPUP] Error showing dialog: {e}")
-
-    # Run in background thread to not block main loop
-    popup_thread = threading.Thread(target=show_dialog, daemon=True, name="DecisionPopup")
-    popup_thread.start()
+    log(f"[POPUP] Showed hash mismatch popup for {process_name}")
 
 
 def show_hash_mismatch_popup(process_name, exe_path, is_signed, callback, log_func=None):
@@ -68,54 +153,26 @@ def show_hash_mismatch_popup(process_name, exe_path, is_signed, callback, log_fu
         callback: Function to call with decision ("whitelist" or "blacklist")
         log_func: Optional logging function
     """
-    log = log_func if log_func else lambda msg: None
+    _ensure_popup_thread()
+    _popup_queue.put(("hash_mismatch", (process_name, exe_path, is_signed, callback, log_func)))
 
-    def show_dialog():
-        try:
-            root = tk.Tk()
-            root.withdraw()
 
-            if is_signed:
-                # Microsoft-signed process - this should have been auto-updated
-                message = (
-                    f"SECURITY ALERT!\n\n"
-                    f"Microsoft-signed process failed verification:\n"
-                    f"{process_name}\n\n"
-                    f"Path: {exe_path}\n\n"
-                    f"This process has been AUTOMATICALLY BLACKLISTED.\n"
-                    f"Possible imposter or corrupted file."
-                )
-                title = "Blackhole - Security Alert"
-                messagebox.showerror(title, message)
-            else:
-                # Unsigned process - requires user decision
-                message = (
-                    f"Hash changed for whitelisted process:\n\n"
-                    f"Process: {process_name}\n"
-                    f"Path: {exe_path}\n\n"
-                    f"Input is currently BLOCKED.\n\n"
-                    f"Do you want to RE-WHITELIST this process?\n"
-                    f"(Click 'No' to BLACKLIST it)"
-                )
-                title = "Blackhole - Hash Mismatch"
-                result = messagebox.askyesno(title, message, icon=messagebox.WARNING)
+def _show_imposter_dialog(root, process_name, exe_path, log_func):
+    """Show the imposter alert dialog (called from popup worker thread)."""
+    log = log_func if log_func else lambda msg, **kwargs: None
 
-                # Call callback with decision
-                decision = "whitelist" if result else "blacklist"
-                log(f"[POPUP] User decided to {decision} {process_name}")
+    message = (
+        f"CRITICAL SECURITY ALERT!\n\n"
+        f"IMPOSTER DETECTED:\n"
+        f"{process_name}\n\n"
+        f"Path: {exe_path}\n\n"
+        f"A process is masquerading as a Microsoft application.\n"
+        f"This process has been BLOCKED and BLACKLISTED.\n\n"
+        f"Possible malware or compromised system!"
+    )
 
-                if callback:
-                    callback(decision)
-
-            root.destroy()
-            log(f"[POPUP] Showed hash mismatch popup for {process_name}")
-
-        except Exception as e:
-            log(f"[POPUP] Error showing dialog: {e}")
-
-    # Run in background thread
-    popup_thread = threading.Thread(target=show_dialog, daemon=True, name="HashMismatchPopup")
-    popup_thread.start()
+    messagebox.showerror("Blackhole - IMPOSTER DETECTED", message)
+    log(f"[POPUP] Showed imposter alert for {process_name}")
 
 
 def show_imposter_alert(process_name, exe_path, log_func=None):
@@ -127,31 +184,5 @@ def show_imposter_alert(process_name, exe_path, log_func=None):
         exe_path: Path to the executable
         log_func: Optional logging function
     """
-    log = log_func if log_func else lambda msg: None
-
-    def show_dialog():
-        try:
-            root = tk.Tk()
-            root.withdraw()
-
-            message = (
-                f"CRITICAL SECURITY ALERT!\n\n"
-                f"IMPOSTER DETECTED:\n"
-                f"{process_name}\n\n"
-                f"Path: {exe_path}\n\n"
-                f"A process is masquerading as a Microsoft application.\n"
-                f"This process has been BLOCKED and BLACKLISTED.\n\n"
-                f"Possible malware or compromised system!"
-            )
-
-            messagebox.showerror("Blackhole - IMPOSTER DETECTED", message)
-
-            root.destroy()
-            log(f"[POPUP] Showed imposter alert for {process_name}")
-
-        except Exception as e:
-            log(f"[POPUP] Error showing dialog: {e}")
-
-    # Run in background thread
-    popup_thread = threading.Thread(target=show_dialog, daemon=True, name="ImposterAlert")
-    popup_thread.start()
+    _ensure_popup_thread()
+    _popup_queue.put(("imposter", (process_name, exe_path, log_func)))
