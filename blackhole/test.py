@@ -89,7 +89,8 @@ def keyboard_callback(nCode, wParam, lParam):
     except Exception as e:
         print(f"ERROR in keyboard_callback: {e}")
 
-    return user32.CallNextHookEx(None, nCode, wParam, lParam)
+    # Must pass the specific hook handle, not None
+    return user32.CallNextHookEx(g_kbd_hook, nCode, wParam, lParam)
 
 
 def mouse_callback(nCode, wParam, lParam):
@@ -104,7 +105,8 @@ def mouse_callback(nCode, wParam, lParam):
     except Exception as e:
         print(f"ERROR in mouse_callback: {e}")
 
-    return user32.CallNextHookEx(None, nCode, wParam, lParam)
+    # Must pass the specific hook handle, not None
+    return user32.CallNextHookEx(g_mouse_hook, nCode, wParam, lParam)
 
 
 kbd_ref = HOOKPROC(keyboard_callback)
