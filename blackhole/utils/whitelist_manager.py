@@ -3,12 +3,18 @@ Whitelist/Blacklist Manager with Hash Verification
 Manages application whitelisting with SHA256 hash verification and Microsoft signature checking.
 """
 
-import os
-import json
 import hashlib
+import json
+import multiprocessing
+import os
 import subprocess
-import psutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+
+import psutil
+from tqdm import tqdm
+
+from utils.config import BASELINE_SCAN_DIRECTORIES, BASELINE_SKIP_DIRS
 
 
 class WhitelistManager:
@@ -167,14 +173,11 @@ class WhitelistManager:
 
         Two-phase approach:
         1. Discover all .exe files (fast enumeration)
-        2. Process them with progress bar (hash calculation + signature check)
+        2. Process them in parallel with progress bar (hash calculation + signature check)
 
         Args:
             blacklist_seed: List of process names to seed the blacklist (e.g., ["AnyDesk.exe"])
         """
-        from utils.config import BASELINE_SCAN_DIRECTORIES, BASELINE_SKIP_DIRS
-        from tqdm import tqdm
-
         self._log("[WHITELIST] Creating first-run baseline...")
         self._log("[WHITELIST] Phase 1: Discovering all executables...")
 
@@ -229,43 +232,100 @@ class WhitelistManager:
 
         total_files = len(exe_files_to_process)
         self._log(f"[WHITELIST] Found {total_files} unique executables")
-        self._log(f"[WHITELIST] Phase 2: Processing executables (calculating hashes & signatures)...")
-        self._log(f"[WHITELIST] This may take 5-10 minutes...")
 
-        # PHASE 2: Process all discovered executables with progress bar
+        # Determine optimal worker count (CPU cores * 2 for I/O bound tasks)
+        max_workers = min(multiprocessing.cpu_count() * 2, 16)  # Cap at 16
+        self._log(f"[WHITELIST] Phase 2: Processing with {max_workers} parallel workers...")
+        self._log(f"[WHITELIST] This may take 2-5 minutes...")
+
+        # PHASE 2: Process all discovered executables in parallel with progress bar
+        results = []  # Store results for later processing
+
+        def process_executable(file_info):
+            """Worker function to process one executable (hash + signature check)"""
+            file, exe_path = file_info
+            try:
+                # Calculate hash
+                file_hash = self._calculate_hash(exe_path)
+                if not file_hash:
+                    return None
+
+                # Check digital signature
+                signed_by = self._check_microsoft_signature(exe_path)
+
+                return {
+                    "name": file,
+                    "path": exe_path,
+                    "hash": file_hash,
+                    "signed_by": signed_by,
+                    "success": True,
+                }
+            except (PermissionError, OSError):
+                return None
+
+        # Process files in parallel with progress bar
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_file = {
+                executor.submit(process_executable, file_info): file_info for file_info in exe_files_to_process
+            }
+
+            # Process results as they complete
+            with tqdm(
+                total=total_files,
+                desc="Processing",
+                unit="exe",
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+            ) as pbar:
+                for future in as_completed(future_to_file):
+                    file_info = future_to_file[future]
+                    file, exe_path = file_info
+
+                    try:
+                        result = future.result()
+                        if result:
+                            results.append((file, result, file in blacklist_seed))
+
+                            if len(results) % 10 == 0:
+                                pbar.set_postfix_str(f"Processing: {file[:40]}")
+
+                        pbar.update(1)
+
+                    except Exception as e:
+                        pbar.update(1)
+                        continue
+
+        # Now add all results to whitelist/blacklist (fast, no I/O)
+        self._log("\n[WHITELIST] Finalizing whitelist/blacklist...")
         whitelisted_count = 0
         blacklisted_count = 0
 
-        with tqdm(
-            total=total_files,
-            desc="Processing",
-            unit="exe",
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-        ) as pbar:
+        for file, result, is_blacklisted in results:
+            normalized_path = self._normalize_path(result["path"])
 
-            for file, exe_path in exe_files_to_process:
-                try:
-                    # Check if this executable should be blacklisted
-                    if file in blacklist_seed:
-                        self._add_to_blacklist_internal(file, exe_path, "Remote access tool (pre-seeded)")
-                        blacklisted_count += 1
-                        pbar.set_postfix_str(f"Blacklisted: {file}")
-                    else:
-                        # Whitelist everything else
-                        self._add_to_whitelist_internal(file, exe_path)
-                        whitelisted_count += 1
-                        if whitelisted_count % 10 == 0:
-                            pbar.set_postfix_str(f"Processing: {file[:40]}")
-
-                    pbar.update(1)
-
-                except (PermissionError, OSError) as e:
-                    # Skip files we can't access
-                    pbar.update(1)
-                    continue
+            if is_blacklisted:
+                # Add to blacklist dict
+                self.blacklist[normalized_path] = {
+                    "name": result["name"],
+                    "hash": result["hash"],
+                    "path": result["path"],
+                    "reason": "Remote access tool (pre-seeded)",
+                    "added": datetime.now().isoformat(),
+                }
+                blacklisted_count += 1
+            else:
+                # Add to whitelist dict
+                self.whitelist[normalized_path] = {
+                    "name": result["name"],
+                    "hash": result["hash"],
+                    "path": result["path"],
+                    "signed_by": result["signed_by"],
+                    "added": datetime.now().isoformat(),
+                }
+                whitelisted_count += 1
 
         # Save to disk
-        self._log("\n[WHITELIST] Saving to disk...")
+        self._log("[WHITELIST] Saving to disk...")
         self._save_whitelist()
         self._save_blacklist()
 
