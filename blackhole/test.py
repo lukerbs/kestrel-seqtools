@@ -33,22 +33,30 @@ HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, wintypes.WPARAM, winty
 
 
 def keyboard_callback(nCode, wParam, lParam):
-    if nCode == HC_ACTION:
-        kbd = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-        is_injected = kbd.flags & 0x00000010
-        source = "🔴 INJECTED/SYNTHETIC" if is_injected else "🟢 HARDWARE"
-        print(f"KEYBOARD: {source} (flags: {kbd.flags:#010x})")
+    try:
+        if nCode == HC_ACTION:
+            kbd = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            is_injected = kbd.flags & 0x00000010
+            source = "[INJECTED]" if is_injected else "[HARDWARE]"
+            print(f"KEYBOARD: {source} flags={kbd.flags:#010x}")
+    except:
+        pass  # Don't let exceptions block input
+
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
 
 def mouse_callback(nCode, wParam, lParam):
-    if nCode == HC_ACTION:
-        mouse = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-        is_injected = mouse.flags & 0x00000001
-        source = "🔴 INJECTED/SYNTHETIC" if is_injected else "🟢 HARDWARE"
-        # Only print clicks to avoid spam
-        if wParam in [0x0201, 0x0204, 0x0207]:  # Button down events
-            print(f"MOUSE CLICK: {source} (flags: {mouse.flags:#010x})")
+    try:
+        if nCode == HC_ACTION:
+            mouse = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+            is_injected = mouse.flags & 0x00000001
+            source = "[INJECTED]" if is_injected else "[HARDWARE]"
+            # Only print clicks to avoid spam
+            if wParam in [0x0201, 0x0204, 0x0207]:  # Button down events
+                print(f"MOUSE CLICK: {source} flags={mouse.flags:#010x}")
+    except:
+        pass  # Don't let exceptions block input
+
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
 
@@ -62,8 +70,8 @@ mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
 print("=" * 60)
 print("INPUT SOURCE DIAGNOSTIC TEST")
 print("=" * 60)
-print("\n🟢 HARDWARE = Real local input (Mac via QEMU)")
-print("🔴 INJECTED = Synthetic input (SendInput/malware)")
+print("\n[HARDWARE] = Real local input (Mac via QEMU)")
+print("[INJECTED] = Synthetic input (SendInput/malware)")
 print("\nPress keys and click mouse to test...")
 print("Press Ctrl+C to exit\n")
 
