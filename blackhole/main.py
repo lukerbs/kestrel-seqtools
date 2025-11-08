@@ -467,10 +467,14 @@ class BlackholeService:
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
                 # Unhook ALL processes with this path
                 self._unhook_all_instances(process_name, exe_path)
-            else:  # "blacklist"
+            elif decision == "blacklist":
                 self.log(f"[SERVICE] User blacklisted {process_name} at {exe_path}")
                 self.whitelist_manager.add_to_blacklist(process_name, exe_path, "User denied")
                 # Keep all instances hooked (already hooked)
+            elif decision == "kill_and_delete":
+                # Process already killed and deleted by popup
+                self.log(f"[SERVICE] User killed and deleted {process_name} at {exe_path}")
+                # Don't add to whitelist or blacklist - it's gone
 
         show_process_decision_popup(process_name, exe_path, callback=on_decision, log_func=self.log)
 
