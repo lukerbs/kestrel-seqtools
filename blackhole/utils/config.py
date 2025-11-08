@@ -71,6 +71,63 @@ BLACKLIST_SEED = [
 ]
 
 # ============================================================================
+# BASELINE SCAN CONFIGURATION
+# ============================================================================
+
+# Directories to scan during first-run baseline
+BASELINE_SCAN_DIRECTORIES = [
+    r"C:\Windows",
+    r"C:\Program Files",
+    r"C:\Program Files (x86)",
+    r"C:\ProgramData",
+]
+
+# Directories to skip during scan (reduce noise and improve performance)
+BASELINE_SKIP_DIRS = {
+    # Temp & cache
+    "cache",
+    "caches",
+    "temp",
+    "tmp",
+    "thumbnails",
+    # Development
+    "__pycache__",
+    "node_modules",
+    ".git",
+    ".svn",
+    "bin",
+    "obj",
+    "dist",
+    "build",
+    ".vs",
+    ".vscode",
+    # Python virtual environments (IMPORTANT - these are copies!)
+    "venv",
+    "virtualenv",
+    "env",
+    ".venv",
+    # Logging & backups
+    "logs",
+    "log",
+    "backup",
+    "backups",
+    "history",
+    "recent",
+    # Windows system (CRITICAL - saves tons of time!)
+    "winsxs",
+    "assembly",
+    "installer",
+    "servicing",
+    "softwaredistribution",
+    "$recycle.bin",
+    "system volume information",
+    "windows.old",
+    # Package managers
+    "packages",
+    ".npm",
+}
+
+# ============================================================================
 # PROCESS MONITOR CONFIGURATION
 # ============================================================================
 
