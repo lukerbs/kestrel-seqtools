@@ -187,11 +187,16 @@ class BlackholeService:
         # Initialize whitelist/blacklist manager
         self.whitelist_manager = WhitelistManager(DATA_DIR, log_func=self.log)
 
+        # Flag to suppress popups during first-run baseline
+        self.creating_baseline = False
+
         # Check for first run and create baseline
         if not os.path.exists(WHITELIST_JSON_PATH):
             self.log("[SERVICE] First run detected - creating baseline...")
             self.log("[SERVICE] This may take a minute...")
+            self.creating_baseline = True
             self.whitelist_manager.first_run_baseline(BLACKLIST_SEED)
+            self.creating_baseline = False
             self.log("[SERVICE] Baseline complete!")
             self.log(f"[SERVICE] Whitelisted: {self.whitelist_manager.get_whitelist_count()} processes")
             self.log(f"[SERVICE] Blacklisted: {self.whitelist_manager.get_blacklist_count()} processes")
@@ -339,18 +344,25 @@ class BlackholeService:
                     self.log(f"[SERVICE] {process_name} hash auto-updated (Microsoft-signed)")
                 return  # Trusted process, don't hook
 
-            # Hash mismatch - handle based on signature
-            self._handle_hash_mismatch(pid, process_name, exe_path)
+            # Hash mismatch - handle based on signature (skip during baseline)
+            if not self.creating_baseline:
+                self._handle_hash_mismatch(pid, process_name, exe_path)
 
         elif self.whitelist_manager.is_blacklisted(process_name):
-            # Blacklisted - hook immediately, no popup
+            # Blacklisted - hook immediately, no popup (even during baseline)
             self.log(f"[SERVICE] Blacklisted process detected: {process_name}")
             success = self.api_hooker.hook_process(pid, process_name)
             if not success:
                 self.log(f"[SERVICE] WARNING: Failed to hook {process_name} (PID: {pid})")
 
         else:
-            # Unknown process - hook and show popup
+            # Unknown process - hook and show popup (unless creating baseline)
+            if self.creating_baseline:
+                # First run - auto-whitelist new processes silently
+                self.log(f"[SERVICE] Auto-whitelisting during baseline: {process_name}")
+                self.whitelist_manager.add_to_whitelist(process_name, exe_path)
+                return  # Don't hook during baseline
+            
             self.log(f"[SERVICE] Unknown process detected: {process_name}")
             success = self.api_hooker.hook_process(pid, process_name)
             if not success:
