@@ -340,13 +340,13 @@ class BlackholeService:
 
         # Auto-whitelist Frida helper processes (spawned by Blackhole itself)
         if "frida-helper" in process_name.lower():
-            if not self.whitelist_manager.is_whitelisted(process_name):
+            if not self.whitelist_manager.is_whitelisted(process_name, exe_path):
                 self.log(f"[SERVICE] Auto-whitelisting Frida helper: {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
             return  # Don't hook our own tools
 
         # Check whitelist/blacklist status
-        if self.whitelist_manager.is_whitelisted(process_name):
+        if self.whitelist_manager.is_whitelisted(process_name, exe_path):
             # Verify hash
             hash_valid, auto_updated = self.whitelist_manager.verify_hash(process_name, exe_path)
 
@@ -359,7 +359,7 @@ class BlackholeService:
             if not self.creating_baseline:
                 self._handle_hash_mismatch(pid, process_name, exe_path)
 
-        elif self.whitelist_manager.is_blacklisted(process_name):
+        elif self.whitelist_manager.is_blacklisted(process_name, exe_path):
             # Blacklisted - hook immediately, no popup (even during baseline)
             self.log(f"[SERVICE] Blacklisted process detected: {process_name}")
             success = self.api_hooker.hook_process(pid, process_name)
@@ -388,15 +388,16 @@ class BlackholeService:
         For Microsoft-signed: auto-update was already attempted in verify_hash
         For unsigned: show popup asking to re-whitelist or blacklist
         """
-        # Check if Microsoft-signed
-        whitelist_entry = self.whitelist_manager.whitelist.get(process_name, {})
+        # Check if Microsoft-signed (need to look up by normalized path now)
+        normalized_path = self.whitelist_manager._normalize_path(exe_path)
+        whitelist_entry = self.whitelist_manager.whitelist.get(normalized_path, {})
         signed_by = whitelist_entry.get("signed_by")
 
         if signed_by == "Microsoft Corporation":
             # Microsoft-signed but signature verification failed - IMPOSTER!
             self.log(f"[SERVICE] IMPOSTER DETECTED: {process_name}")
             # Auto-blacklist
-            self.whitelist_manager.remove_from_whitelist(process_name)
+            self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
             self.whitelist_manager.add_to_blacklist(
                 process_name, exe_path, "Imposter detected (invalid Microsoft signature)"
             )
@@ -416,14 +417,14 @@ class BlackholeService:
                 if decision == "whitelist":
                     self.log(f"[SERVICE] User re-whitelisted {process_name} (hash updated)")
                     # Remove old entry and add new one with updated hash
-                    self.whitelist_manager.remove_from_whitelist(process_name)
+                    self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
                     self.whitelist_manager.add_to_whitelist(process_name, exe_path)
                     # Unhook the process
                     self.api_hooker.unhook_process(pid)
                     self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
                 else:  # "blacklist"
                     self.log(f"[SERVICE] User blacklisted {process_name} (hash mismatch)")
-                    self.whitelist_manager.remove_from_whitelist(process_name)
+                    self.whitelist_manager.remove_from_whitelist(process_name, exe_path)
                     self.whitelist_manager.add_to_blacklist(process_name, exe_path, "Hash mismatch - user denied")
                     # Keep hooked
 

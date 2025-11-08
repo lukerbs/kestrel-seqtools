@@ -31,8 +31,9 @@ class WhitelistManager:
         self.blacklist_path = os.path.join(data_dir, "blacklist.json")
 
         # In-memory caches
-        self.whitelist = {}  # {process_name: {hash, path, signed_by, added}}
-        self.blacklist = {}  # {process_name: {hash, path, reason, added}}
+        # Changed to use normalized path as key for unique identification
+        self.whitelist = {}  # {normalized_path: {name, hash, path, signed_by, added}}
+        self.blacklist = {}  # {normalized_path: {name, hash, path, reason, added}}
 
         # Ensure data directory exists
         os.makedirs(data_dir, exist_ok=True)
@@ -78,6 +79,25 @@ class WhitelistManager:
                 json.dump(self.blacklist, f, indent=2)
         except Exception as e:
             self._log(f"[WHITELIST] Error saving blacklist: {e}")
+
+    def _normalize_path(self, file_path):
+        """
+        Normalize a file path for consistent comparison.
+
+        Args:
+            file_path: Path to normalize
+
+        Returns:
+            str: Normalized lowercase path
+        """
+        if not file_path:
+            return None
+        try:
+            # Use os.path.normpath to resolve .. and .
+            # Convert to lowercase for case-insensitive comparison (Windows)
+            return os.path.normpath(file_path).lower()
+        except Exception:
+            return file_path.lower()
 
     def _calculate_hash(self, file_path):
         """
@@ -197,7 +217,13 @@ class WhitelistManager:
 
         signed_by = self._check_microsoft_signature(exe_path)
 
-        self.whitelist[process_name] = {
+        # Use normalized path as key for unique identification
+        normalized_path = self._normalize_path(exe_path)
+        if not normalized_path:
+            return
+
+        self.whitelist[normalized_path] = {
+            "name": process_name,
             "hash": file_hash,
             "path": exe_path,
             "signed_by": signed_by,
@@ -208,36 +234,46 @@ class WhitelistManager:
         """Internal method to add to blacklist without saving (used during baseline)"""
         file_hash = self._calculate_hash(exe_path)
 
-        self.blacklist[process_name] = {
+        # Use normalized path as key for unique identification
+        normalized_path = self._normalize_path(exe_path)
+        if not normalized_path:
+            return
+
+        self.blacklist[normalized_path] = {
+            "name": process_name,
             "hash": file_hash if file_hash else "unknown",
             "path": exe_path,
             "reason": reason,
             "added": datetime.now().isoformat(),
         }
 
-    def is_whitelisted(self, process_name):
+    def is_whitelisted(self, process_name, exe_path):
         """
         Check if a process is in the whitelist.
 
         Args:
             process_name: Name of the process (e.g., "explorer.exe")
+            exe_path: Full path to the executable
 
         Returns:
             bool: True if whitelisted, False otherwise
         """
-        return process_name in self.whitelist
+        normalized_path = self._normalize_path(exe_path)
+        return normalized_path in self.whitelist if normalized_path else False
 
-    def is_blacklisted(self, process_name):
+    def is_blacklisted(self, process_name, exe_path):
         """
         Check if a process is in the blacklist.
 
         Args:
             process_name: Name of the process
+            exe_path: Full path to the executable
 
         Returns:
             bool: True if blacklisted, False otherwise
         """
-        return process_name in self.blacklist
+        normalized_path = self._normalize_path(exe_path)
+        return normalized_path in self.blacklist if normalized_path else False
 
     def verify_hash(self, process_name, exe_path):
         """
@@ -252,12 +288,19 @@ class WhitelistManager:
         Returns:
             tuple: (bool: hash_valid, bool: auto_updated)
         """
-        if not self.is_whitelisted(process_name):
+        normalized_path = self._normalize_path(exe_path)
+        if not normalized_path or normalized_path not in self.whitelist:
             return (False, False)
 
-        stored_data = self.whitelist[process_name]
+        stored_data = self.whitelist[normalized_path]
         stored_hash = stored_data["hash"]
+        stored_path = stored_data["path"]
         signed_by = stored_data.get("signed_by")
+
+        # Verify path matches (should always match since we use path as key, but double-check)
+        if self._normalize_path(stored_path) != normalized_path:
+            self._log(f"[WHITELIST] Path mismatch for {process_name}: {stored_path} != {exe_path}")
+            return (False, False)
 
         # Calculate current hash
         current_hash = self._calculate_hash(exe_path)
@@ -274,14 +317,14 @@ class WhitelistManager:
             current_signature = self._check_microsoft_signature(exe_path)
             if current_signature == "Microsoft Corporation":
                 # Signature still valid - auto-update hash
-                self._log(f"[WHITELIST] Auto-updating hash for {process_name} (Microsoft-signed)")
-                self.whitelist[process_name]["hash"] = current_hash
-                self.whitelist[process_name]["path"] = exe_path
+                self._log(f"[WHITELIST] Auto-updating hash for {process_name} at {exe_path} (Microsoft-signed)")
+                self.whitelist[normalized_path]["hash"] = current_hash
+                self.whitelist[normalized_path]["path"] = exe_path
                 self._save_whitelist()
                 return (True, True)
             else:
                 # Signature invalid - IMPOSTER!
-                self._log(f"[WHITELIST] IMPOSTER DETECTED: {process_name} signature invalid!")
+                self._log(f"[WHITELIST] IMPOSTER DETECTED: {process_name} at {exe_path} signature invalid!")
                 return (False, False)
         else:
             # Unsigned process with hash mismatch - requires user decision
@@ -312,12 +355,13 @@ class WhitelistManager:
         self._add_to_blacklist_internal(process_name, exe_path, reason)
         self._save_blacklist()
 
-    def remove_from_whitelist(self, process_name):
+    def remove_from_whitelist(self, process_name, exe_path):
         """Remove a process from the whitelist"""
-        if process_name in self.whitelist:
-            del self.whitelist[process_name]
+        normalized_path = self._normalize_path(exe_path)
+        if normalized_path and normalized_path in self.whitelist:
+            del self.whitelist[normalized_path]
             self._save_whitelist()
-            self._log(f"[WHITELIST] Removed from whitelist: {process_name}")
+            self._log(f"[WHITELIST] Removed from whitelist: {process_name} at {exe_path}")
 
     def get_whitelist_count(self):
         """Get number of whitelisted processes"""
