@@ -306,6 +306,9 @@ class BlackholeService:
             self.log(f"[SERVICE] Process hooked. Monitors already active (PID: {pid})")
             return
 
+        # Store AnyDesk path for reverse connections
+        self.anydesk_path = exe_path
+
         # Determine AnyDesk mode (service vs portable)
         if exe_path:
             path_lower = exe_path.lower()
@@ -317,6 +320,7 @@ class BlackholeService:
             self.anydesk_mode = "portable"
 
         self.log(f"[SERVICE] AnyDesk mode: {self.anydesk_mode.upper()}")
+        self.log(f"[SERVICE] AnyDesk path stored: {self.anydesk_path}")
 
         # Initialize log monitoring for reverse connections
         self.log("[SERVICE] Initializing AnyDesk log monitoring...")
