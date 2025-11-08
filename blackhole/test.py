@@ -3,39 +3,31 @@ from ctypes import wintypes
 import threading
 import time
 import sys
-import os
-import traceback
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
-
+# --- Constants ---
 WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
 HC_ACTION = 0
+WM_KEYDOWN = 0x0100
+WM_QUIT = 0x0012
 
-# Define LRESULT if not available (pointer-sized signed integer)
-if hasattr(wintypes, "LRESULT"):
-    LRESULT = wintypes.LRESULT
-else:
-    LRESULT = ctypes.c_ssize_t  # Pointer-sized signed int
+# Injected flags
+LLKHF_INJECTED = 0x00000010
+LLMHF_INJECTED = 0x00000001
 
-# Define CallNextHookEx with proper types to handle large pointer values
-user32.CallNextHookEx.argtypes = [
-    wintypes.HHOOK,  # hhk
-    ctypes.c_int,  # nCode
-    wintypes.WPARAM,  # wParam
-    wintypes.LPARAM,  # lParam
-]
-user32.CallNextHookEx.restype = LRESULT
+# --- Type Definitions ---
+LRESULT = ctypes.c_ssize_t
+HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
 
+# --- Structures ---
 class KBDLLHOOKSTRUCT(ctypes.Structure):
     _fields_ = [
         ("vkCode", wintypes.DWORD),
         ("scanCode", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),  # Pointer-sized integer, not a pointer
+        ("dwExtraInfo", ctypes.c_size_t),  # ULONG_PTR
     ]
 
 
@@ -45,133 +37,245 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
         ("mouseData", wintypes.DWORD),
         ("flags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),  # Pointer-sized integer, not a pointer
+        ("dwExtraInfo", ctypes.c_size_t),  # ULONG_PTR
     ]
 
 
-HOOKPROC = ctypes.WINFUNCTYPE(
-    LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM  # Return type  # nCode  # wParam  # lParam
-)
-
-# Global hook handles for emergency cleanup
-g_kbd_hook = None
-g_mouse_hook = None
-
-
-def emergency_exit():
-    """Emergency timeout - exits after 30 seconds in case input gets bricked"""
-    time.sleep(30)
-    print("\n" + "=" * 60)
-    print("EMERGENCY TIMEOUT - Forcefully terminating after 30 seconds")
-    print("=" * 60)
-
-    # Try to unhook before exiting
-    try:
-        if g_kbd_hook:
-            user32.UnhookWindowsHookEx(g_kbd_hook)
-            print("Emergency: Keyboard hook removed")
-        if g_mouse_hook:
-            user32.UnhookWindowsHookEx(g_mouse_hook)
-            print("Emergency: Mouse hook removed")
-    except:
-        pass
-
-    # Force immediate exit of entire process (no cleanup, no exceptions)
-    os._exit(0)
+class MSG(ctypes.Structure):
+    _fields_ = [
+        ("hWnd", wintypes.HWND),
+        ("message", wintypes.UINT),
+        ("wParam", wintypes.WPARAM),
+        ("lParam", wintypes.LPARAM),
+        ("time", wintypes.DWORD),
+        ("pt", wintypes.POINT),
+    ]
 
 
-def keyboard_callback(nCode, wParam, lParam):
-    try:
+# --- Win32 API Prototyping (THE FIX FOR ERROR 126) ---
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+# SetWindowsHookExW
+user32.SetWindowsHookExW.argtypes = [
+    ctypes.c_int,  # idHook
+    HOOKPROC,  # lpfn
+    wintypes.HINSTANCE,  # hMod
+    wintypes.DWORD,  # dwThreadId
+]
+user32.SetWindowsHookExW.restype = wintypes.HHOOK
+
+# CallNextHookEx
+user32.CallNextHookEx.argtypes = [
+    wintypes.HHOOK,
+    ctypes.c_int,
+    wintypes.WPARAM,
+    wintypes.LPARAM,
+]
+user32.CallNextHookEx.restype = LRESULT
+
+# UnhookWindowsHookEx
+user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+user32.UnhookWindowsHookEx.restype = wintypes.BOOL
+
+# GetModuleHandleW
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+
+# GetMessageW
+user32.GetMessageW.argtypes = [
+    ctypes.POINTER(MSG),
+    wintypes.HWND,
+    wintypes.UINT,
+    wintypes.UINT,
+]
+user32.GetMessageW.restype = wintypes.BOOL
+
+# TranslateMessage
+user32.TranslateMessage.argtypes = [ctypes.POINTER(MSG)]
+user32.TranslateMessage.restype = wintypes.BOOL
+
+# DispatchMessageW
+user32.DispatchMessageW.argtypes = [ctypes.POINTER(MSG)]
+user32.DispatchMessageW.restype = LRESULT
+
+# PostThreadMessageW
+user32.PostThreadMessageW.argtypes = [
+    wintypes.DWORD,
+    wintypes.UINT,
+    wintypes.WPARAM,
+    wintypes.LPARAM,
+]
+user32.PostThreadMessageW.restype = wintypes.BOOL
+
+# GetCurrentThreadId
+kernel32.GetCurrentThreadId.argtypes = []
+kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+# GetLastError
+kernel32.GetLastError.argtypes = []
+kernel32.GetLastError.restype = wintypes.DWORD
+
+
+def get_last_error_str():
+    """Format GetLastError() as a string."""
+    error_code = ctypes.get_last_error()
+    if error_code == 0:
+        return "No error"
+    return f"Error {error_code}: {ctypes.FormatError(error_code)}"
+
+
+class LowLevelHookManager:
+    def __init__(self):
+        self.kbd_hook = None
+        self.mouse_hook = None
+        self.hook_thread_id = None
+        self.hook_thread = None
+
+        # Store persistent references to prevent garbage collection
+        self.kbd_proc_ref = HOOKPROC(self._keyboard_callback)
+        self.mouse_proc_ref = HOOKPROC(self._mouse_callback)
+
+    def _keyboard_callback(self, nCode, wParam, lParam):
         if nCode == HC_ACTION:
-            kbd = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            is_injected = kbd.flags & 0x00000010
-            source = "[INJECTED]" if is_injected else "[HARDWARE]"
-            print(f"KEYBOARD: {source} flags={kbd.flags:#010x} vkCode={kbd.vkCode}")
-    except Exception as e:
-        print(f"ERROR in keyboard_callback: {e}")
+            try:
+                kbd = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
 
-    # Must pass the specific hook handle, not None
-    return user32.CallNextHookEx(g_kbd_hook, nCode, wParam, lParam)
+                # Check the LLKHF_INJECTED flag
+                is_injected = (kbd.flags & LLKHF_INJECTED) != 0
+                # Check dwExtraInfo
+                extra_info = kbd.dwExtraInfo
 
+                source = "[INJECTED]" if is_injected else "[HARDWARE]"
 
-def mouse_callback(nCode, wParam, lParam):
-    try:
+                if wParam == WM_KEYDOWN:
+                    print(
+                        f"KEYBOARD: {source} vkCode={kbd.vkCode:#04x} flags={kbd.flags:#010x} extraInfo={extra_info:#x}"
+                    )
+            except Exception as e:
+                print(f"ERROR in keyboard_callback: {e}", file=sys.stderr)
+
+        return user32.CallNextHookEx(self.kbd_hook, nCode, wParam, lParam)
+
+    def _mouse_callback(self, nCode, wParam, lParam):
         if nCode == HC_ACTION:
-            mouse = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-            is_injected = mouse.flags & 0x00000001
-            source = "[INJECTED]" if is_injected else "[HARDWARE]"
-            # Only print clicks to avoid spam
-            if wParam in [0x0201, 0x0204, 0x0207]:  # Button down events
-                print(f"MOUSE CLICK: {source} flags={mouse.flags:#010x}")
-    except Exception as e:
-        print(f"ERROR in mouse_callback: {e}")
+            try:
+                mouse = ctypes.cast(lParam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
 
-    # Must pass the specific hook handle, not None
-    return user32.CallNextHookEx(g_mouse_hook, nCode, wParam, lParam)
+                # Check the LLMHF_INJECTED flag
+                is_injected = (mouse.flags & LLMHF_INJECTED) != 0
+                # Check dwExtraInfo
+                extra_info = mouse.dwExtraInfo
+
+                source = "[INJECTED]" if is_injected else "[HARDWARE]"
+
+                # Only print clicks to avoid spam
+                if wParam in (0x0201, 0x0204, 0x0207):  # Button down events
+                    print(f"MOUSE CLICK: {source} flags={mouse.flags:#010x} extraInfo={extra_info:#x}")
+            except Exception as e:
+                print(f"ERROR in mouse_callback: {e}", file=sys.stderr)
+
+        return user32.CallNextHookEx(self.mouse_hook, nCode, wParam, lParam)
+
+    def _hook_thread_target(self):
+        """
+        This function runs in the background thread.
+        It sets the hooks and runs the message loop.
+        """
+        # Get the module handle for the current process (python.exe)
+        # This is the correct value for hMod per the research report
+        hInstance = kernel32.GetModuleHandleW(None)
+        if not hInstance:
+            print(f"Failed to get module handle: {get_last_error_str()}", file=sys.stderr)
+            return
+
+        # Store this thread's ID so we can post messages to it
+        self.hook_thread_id = kernel32.GetCurrentThreadId()
+
+        # Install Keyboard Hook
+        self.kbd_hook = user32.SetWindowsHookExW(
+            WH_KEYBOARD_LL, self.kbd_proc_ref, hInstance, 0  # dwThreadId = 0 for system-wide
+        )
+        if not self.kbd_hook:
+            print(f"Failed to install keyboard hook: {get_last_error_str()}", file=sys.stderr)
+            return
+
+        # Install Mouse Hook
+        self.mouse_hook = user32.SetWindowsHookExW(
+            WH_MOUSE_LL, self.mouse_proc_ref, hInstance, 0  # dwThreadId = 0 for system-wide
+        )
+        if not self.mouse_hook:
+            print(f"Failed to install mouse hook: {get_last_error_str()}", file=sys.stderr)
+            # Clean up the kbd hook if mouse hook fails
+            user32.UnhookWindowsHookEx(self.kbd_hook)
+            return
+
+        print("=" * 60)
+        print("INPUT SOURCE DIAGNOSTIC TEST")
+        print("=" * 60)
+        print("Hooks installed successfully!")
+        print("\n[HARDWARE] = Real local input (Mac via QEMU)")
+        print("[INJECTED] = Synthetic input (SendInput/malware)")
+        print("\nPress keys and click mouse to test...")
+        print("Main thread will auto-exit in 30 seconds\n")
+
+        # --- This is the required message loop ---
+        msg = MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_QUIT:
+                break
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+
+        # --- Cleanup ---
+        print("\nHook message loop stopping...")
+        user32.UnhookWindowsHookEx(self.kbd_hook)
+        user32.UnhookWindowsHookEx(self.mouse_hook)
+        self.kbd_hook = None
+        self.mouse_hook = None
+        print("Hooks uninstalled.")
+
+    def start(self):
+        if self.hook_thread is not None:
+            print("Hook is already running.")
+            return
+
+        self.hook_thread = threading.Thread(target=self._hook_thread_target, daemon=True)
+        self.hook_thread.start()
+        # Give the thread time to install hooks
+        time.sleep(0.5)
+
+    def stop(self):
+        if self.hook_thread is None or self.hook_thread_id is None:
+            print("Hook is not running.")
+            return
+
+        # Post a WM_QUIT message to the hook thread to break its GetMessage loop
+        user32.PostThreadMessageW(self.hook_thread_id, WM_QUIT, 0, 0)
+
+        # Wait for the thread to finish
+        self.hook_thread.join(timeout=2)
+        self.hook_thread = None
+        self.hook_thread_id = None
+        print("Hook manager stopped.")
 
 
-kbd_ref = HOOKPROC(keyboard_callback)
-mouse_ref = HOOKPROC(mouse_callback)
+# --- Main execution with 30-second timeout ---
+if __name__ == "__main__":
+    print("Starting low-level input hook manager...")
+    hook_manager = LowLevelHookManager()
+    hook_manager.start()
 
-# Get the module handle for user32.dll, which is more reliable for hooks from Python
-hInstance = kernel32.GetModuleHandleW("user32.dll")
-print(f"DEBUG: hInstance (user32.dll) = {hInstance}")
+    # 30-second auto-exit timer
+    timeout = 30
+    print(f"\n⚠️  EMERGENCY TIMEOUT: Script will auto-exit in {timeout} seconds")
 
-# Install hooks with the module handle
-print(f"DEBUG: Installing keyboard hook...")
-print(f"DEBUG: WH_KEYBOARD_LL = {WH_KEYBOARD_LL}")
-print(f"DEBUG: kbd_ref = {kbd_ref}")
-print(f"DEBUG: hInstance = {hInstance}")
+    try:
+        time.sleep(timeout)
+        print(f"\n{timeout}-second timeout reached.")
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received.")
 
-try:
-    g_kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
-    print(f"DEBUG: g_kbd_hook returned = {g_kbd_hook}")
-    if not g_kbd_hook:
-        error_code = kernel32.GetLastError()
-        print(f"DEBUG: GetLastError = {error_code}")
-        raise ctypes.WinError(error_code)
-
-    print(f"DEBUG: Installing mouse hook...")
-    g_mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
-    print(f"DEBUG: g_mouse_hook returned = {g_mouse_hook}")
-    if not g_mouse_hook:
-        error_code = kernel32.GetLastError()
-        print(f"DEBUG: GetLastError = {error_code}")
-        user32.UnhookWindowsHookEx(g_kbd_hook)
-        raise ctypes.WinError(error_code)
-except Exception as e:
-    print("\n" + "=" * 60)
-    print("EXCEPTION OCCURRED:")
-    print("=" * 60)
-    traceback.print_exc()
-    print("=" * 60)
-    sys.exit(1)
-
-print("=" * 60)
-print("INPUT SOURCE DIAGNOSTIC TEST")
-print("=" * 60)
-print("\n[HARDWARE] = Real local input (Mac via QEMU)")
-print("[INJECTED] = Synthetic input (SendInput/malware)")
-print("\nPress keys and click mouse to test...")
-print("To exit: Close this window or use Task Manager to kill python.exe")
-print("\n⚠️  EMERGENCY TIMEOUT: Script will auto-exit in 30 seconds\n")
-
-# Start emergency timeout thread
-timeout_thread = threading.Thread(target=emergency_exit, daemon=True, name="EmergencyTimeout")
-timeout_thread.start()
-
-# Message loop
-try:
-    msg = wintypes.MSG()
-    while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-        user32.TranslateMessage(ctypes.byref(msg))
-        user32.DispatchMessageW(ctypes.byref(msg))
-except KeyboardInterrupt:
-    print("\nExiting...")
-finally:
-    # Cleanup hooks
-    if g_kbd_hook:
-        user32.UnhookWindowsHookEx(g_kbd_hook)
-    if g_mouse_hook:
-        user32.UnhookWindowsHookEx(g_mouse_hook)
-    print("Hooks removed.")
+    print("Stopping hook manager...")
+    hook_manager.stop()
+    print("Program exiting.")
