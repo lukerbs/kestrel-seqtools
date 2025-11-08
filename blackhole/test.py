@@ -4,6 +4,7 @@ import threading
 import time
 import sys
 import os
+import traceback
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
@@ -114,44 +115,37 @@ mouse_ref = HOOKPROC(mouse_callback)
 
 # Get the module handle for the current process
 hInstance = kernel32.GetModuleHandleW(None)
-if not hInstance:
-    print("=" * 60)
-    print("ERROR: Failed to get module handle!")
-    print("=" * 60)
-    exit(1)
+print(f"DEBUG: hInstance = {hInstance}")
 
 # Install hooks with the module handle
-g_kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
-if not g_kbd_hook:
-    error_code = kernel32.GetLastError()
-    print("=" * 60)
-    print("ERROR: Failed to install KEYBOARD hook!")
-    print(f"Windows Error Code: {error_code}")
-    if error_code == 5:
-        print("ACCESS DENIED - You need to run this script as Administrator")
-    elif error_code == 1428:
-        print("HOOK INSTALLATION FAILED - Another hook may be interfering")
-    else:
-        print(f"Unknown error - Google 'Windows error {error_code}'")
-    print("=" * 60)
-    exit(1)
+print(f"DEBUG: Installing keyboard hook...")
+print(f"DEBUG: WH_KEYBOARD_LL = {WH_KEYBOARD_LL}")
+print(f"DEBUG: kbd_ref = {kbd_ref}")
+print(f"DEBUG: hInstance = {hInstance}")
 
-g_mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
-if not g_mouse_hook:
-    error_code = kernel32.GetLastError()
+try:
+    g_kbd_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, kbd_ref, hInstance, 0)
+    print(f"DEBUG: g_kbd_hook returned = {g_kbd_hook}")
+    if not g_kbd_hook:
+        error_code = kernel32.GetLastError()
+        print(f"DEBUG: GetLastError = {error_code}")
+        raise ctypes.WinError(error_code)
+
+    print(f"DEBUG: Installing mouse hook...")
+    g_mouse_hook = user32.SetWindowsHookExW(WH_MOUSE_LL, mouse_ref, hInstance, 0)
+    print(f"DEBUG: g_mouse_hook returned = {g_mouse_hook}")
+    if not g_mouse_hook:
+        error_code = kernel32.GetLastError()
+        print(f"DEBUG: GetLastError = {error_code}")
+        user32.UnhookWindowsHookEx(g_kbd_hook)
+        raise ctypes.WinError(error_code)
+except Exception as e:
+    print("\n" + "=" * 60)
+    print("EXCEPTION OCCURRED:")
     print("=" * 60)
-    print("ERROR: Failed to install MOUSE hook!")
-    print(f"Windows Error Code: {error_code}")
-    if error_code == 5:
-        print("ACCESS DENIED - You need to run this script as Administrator")
-    elif error_code == 1428:
-        print("HOOK INSTALLATION FAILED - Another hook may be interfering")
-    else:
-        print(f"Unknown error - Google 'Windows error {error_code}'")
+    traceback.print_exc()
     print("=" * 60)
-    # Clean up keyboard hook before exiting
-    user32.UnhookWindowsHookEx(g_kbd_hook)
-    exit(1)
+    sys.exit(1)
 
 print("=" * 60)
 print("INPUT SOURCE DIAGNOSTIC TEST")
