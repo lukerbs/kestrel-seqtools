@@ -334,6 +334,10 @@ class BlackholeService:
             # Kernel/system process - skip silently
             return
 
+        # Skip monitoring our own process (Blackhole itself)
+        if pid == os.getpid():
+            return  # Don't monitor ourselves
+
         # Auto-whitelist Frida helper processes (spawned by Blackhole itself)
         if "frida-helper" in process_name.lower():
             if not self.whitelist_manager.is_whitelisted(process_name):
