@@ -333,7 +333,14 @@ class BlackholeService:
         if not exe_path or not os.path.isfile(exe_path):
             # Kernel/system process - skip silently
             return
-
+        
+        # Auto-whitelist Frida helper processes (spawned by Blackhole itself)
+        if "frida-helper" in process_name.lower():
+            if not self.whitelist_manager.is_whitelisted(process_name):
+                self.log(f"[SERVICE] Auto-whitelisting Frida helper: {process_name}")
+                self.whitelist_manager.add_to_whitelist(process_name, exe_path)
+            return  # Don't hook our own tools
+        
         # Check whitelist/blacklist status
         if self.whitelist_manager.is_whitelisted(process_name):
             # Verify hash
@@ -431,8 +438,8 @@ class BlackholeService:
             if decision == "whitelist":
                 self.log(f"[SERVICE] User whitelisted {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-                # Unhook the process
-                self.api_hooker.unhook_process(pid)
+            # Unhook the process
+            self.api_hooker.unhook_process(pid)
                 self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
             else:  # "blacklist"
                 self.log(f"[SERVICE] User blacklisted {process_name}")
