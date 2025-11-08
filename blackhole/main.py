@@ -333,7 +333,7 @@ class BlackholeService:
         if not exe_path or not os.path.isfile(exe_path):
             # Kernel/system process - skip silently
             return
-        
+
         # Check whitelist/blacklist status
         if self.whitelist_manager.is_whitelisted(process_name):
             # Verify hash
@@ -362,7 +362,7 @@ class BlackholeService:
                 self.log(f"[SERVICE] Auto-whitelisting during baseline: {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
                 return  # Don't hook during baseline
-            
+
             self.log(f"[SERVICE] Unknown process detected: {process_name}")
             success = self.api_hooker.hook_process(pid, process_name)
             if not success:
@@ -431,8 +431,8 @@ class BlackholeService:
             if decision == "whitelist":
                 self.log(f"[SERVICE] User whitelisted {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)
-            # Unhook the process
-            self.api_hooker.unhook_process(pid)
+                # Unhook the process
+                self.api_hooker.unhook_process(pid)
                 self.log(f"[SERVICE] Unhooked {process_name} (PID: {pid})")
             else:  # "blacklist"
                 self.log(f"[SERVICE] User blacklisted {process_name}")
