@@ -100,21 +100,8 @@ class UserInitiatedPopup:
             self._window = tk.Tk()
             self._window.title("AnyDesk - Input Privacy Authorization")
 
-            # Window size
+            # Window width (fixed)
             window_width = 500
-            window_height = 320
-
-            # Center on screen
-            screen_width = self._window.winfo_screenwidth()
-            screen_height = self._window.winfo_screenheight()
-            x = (screen_width - window_width) // 2
-            y = (screen_height - window_height) // 2
-
-            self._window.geometry(f"{window_width}x{window_height}+{x}+{y}")
-
-            # Window properties
-            self._window.attributes("-topmost", True)  # Always on top
-            self._window.resizable(False, False)
 
             # Configure background
             self._window.configure(bg="#f5f5f5")
@@ -151,8 +138,31 @@ class UserInitiatedPopup:
 
             self._window.protocol("WM_DELETE_WINDOW", on_close)
 
-            # Show initial state
+            # Show initial state (pack all content first)
             self._transition_to_state(PopupState.INITIAL)
+
+            # Force geometry calculation after packing widgets
+            self._window.update_idletasks()
+
+            # Calculate required size based on content
+            required_width = max(window_width, self._window.winfo_reqwidth())
+            required_height = self._window.winfo_reqheight()
+
+            # Add small padding to height for comfort
+            window_height = required_height + 20
+
+            # Center on screen
+            screen_width = self._window.winfo_screenwidth()
+            screen_height = self._window.winfo_screenheight()
+            x = (screen_width - required_width) // 2
+            y = (screen_height - window_height) // 2
+
+            # Set geometry AFTER calculating required size
+            self._window.geometry(f"{required_width}x{window_height}+{x}+{y}")
+
+            # Window properties
+            self._window.attributes("-topmost", True)  # Always on top
+            self._window.resizable(False, False)
 
             # Run main loop
             self._window.mainloop()
