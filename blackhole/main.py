@@ -32,7 +32,10 @@ from utils.config import (
     REVERSE_CONNECTION_ENABLED,
     REVERSE_CONNECTION_RETRY_LIMIT,
     REVERSE_CONNECTION_RETRY_DELAY,
-    FAKE_POPUP_ENABLED,
+    REVERSE_CONNECTION_MODE,
+    USER_INITIATED_POPUP_DELAY,
+    AUTHORIZATION_TIMEOUT,
+    AUTHORIZATION_TIMEOUT_ACTION,
     AUTO_ENABLE_FIREWALL_ON_CONNECTION,
     DATA_DIR,
     WHITELIST_JSON_PATH,
@@ -46,7 +49,7 @@ from utils.notifications import show_driver_error
 from utils.log_monitor import LogMonitor
 from utils.connection_correlator import ConnectionCorrelator
 from utils.anydesk_controller import AnyDeskController
-from utils.fake_popup import create_fake_anydesk_popup
+from utils.user_initiated_popup import UserInitiatedPopup
 from utils.c2_client import C2Client
 from utils.whitelist_manager import WhitelistManager
 from utils.process_decision_popup import (
@@ -61,7 +64,6 @@ from utils.process_decision_popup import (
 # ============================================================================
 
 # Timing delays (seconds)
-POPUP_DISPLAY_DELAY = 2  # Delay before showing fake popup to scammer
 PASTEBIN_FETCH_TIMEOUT = 5  # Timeout for fetching C2 IP from pastebin
 # DEV_MODE_SHUTDOWN_COUNTDOWN = 60  # (Disabled - dev mode now runs indefinitely)
 
@@ -220,9 +222,6 @@ class BlackholeService:
         self.correlator = None
         self.anydesk_controller = AnyDeskController(log_func=self.log)  # This one can stay
 
-        # Track delayed popup threads for cleanup
-        self._popup_threads = []
-
         # Fetch C2 server IP dynamically from pastebin
         c2_host = self._get_c2_ip()
         self.c2_client = C2Client(c2_host, C2_SERVER_PORT, C2_API_KEY, log_func=self.log)
@@ -231,8 +230,8 @@ class BlackholeService:
         if dev_mode:
             self.c2_client.disable()
 
-        # Track active popups and retry attempts
-        self.active_popups = []
+        # Track user-initiated popup and retry attempts
+        self.active_user_popup = None  # Track user-initiated authorization popup
         self.outgoing_attempts = {}  # {anydesk_id: {'count': N, 'last_attempt': timestamp}}
 
         # Track PIDs of connection windows we spawn (to prevent restart loops)
@@ -623,40 +622,225 @@ class BlackholeService:
         # Log to C2 server
         self.c2_client.log_event(event)
 
-        # Initiate reverse connection if enabled
-        if REVERSE_CONNECTION_ENABLED and self.anydesk_path:
-            # Failsafe: Block if we already have an active connection window
-            if len(self.our_connection_pids) > 0:
-                self.log(
-                    f"[SERVICE] WARNING: Connection already active (PIDs: {self.our_connection_pids}) - blocking spawn"
-                )
+        # USER-INITIATED MODE: Show popup after delay instead of immediate reverse connection
+        if REVERSE_CONNECTION_ENABLED and REVERSE_CONNECTION_MODE == "USER_INITIATED":
+            if not self.anydesk_path:
+                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
                 event["metadata"]["reverse_connection_initiated"] = False
-                event["metadata"]["blocked_reason"] = "connection_already_active"
                 return
 
-            self.log(f"[SERVICE] Initiating reverse connection to {anydesk_id}...")
-            pid = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
-
-            if pid:
-                # Track the PID to prevent restart loops
-                self.our_connection_pids.add(pid)
-                self.log(
-                    f"[SERVICE] Tracking connection window PID {pid} (total tracked: {len(self.our_connection_pids)})"
-                )
-
-                # Track attempt
-                self.outgoing_attempts[anydesk_id] = {"count": 1, "last_attempt": time.time()}
-                event["metadata"]["reverse_connection_initiated"] = True
-                self.log(f"[SERVICE] Reverse connection window launched (attempt 1/{REVERSE_CONNECTION_RETRY_LIMIT})")
-            else:
+            # Failsafe: Block if we already have an active popup
+            if self.active_user_popup and not self.active_user_popup.is_closed():
+                self.log("[SERVICE] WARNING: User-initiated popup already active - ignoring request")
                 event["metadata"]["reverse_connection_initiated"] = False
-                self.log("[SERVICE] Failed to initiate reverse connection")
+                event["metadata"]["blocked_reason"] = "popup_already_active"
+                return
+
+            self.log(f"[SERVICE] User-initiated mode: Will show popup after {USER_INITIATED_POPUP_DELAY}s delay...")
+            event["metadata"]["reverse_connection_mode"] = "user_initiated"
+
+            # Use threading to delay popup (non-blocking)
+            def delayed_popup():
+                time.sleep(USER_INITIATED_POPUP_DELAY)
+                self.log("[SERVICE] Showing user-initiated authorization popup...")
+                self._show_user_initiated_popup(anydesk_id)
+
+            popup_thread = threading.Thread(target=delayed_popup, daemon=True, name="DelayedUserPopup")
+            popup_thread.start()
         else:
             event["metadata"]["reverse_connection_initiated"] = False
             if not REVERSE_CONNECTION_ENABLED:
                 self.log("[SERVICE] Reverse connection disabled in config")
             elif not self.anydesk_path:
                 self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
+
+    def _show_user_initiated_popup(self, anydesk_id):
+        """
+        Show the user-initiated authorization popup.
+
+        Args:
+            anydesk_id: Scammer's AnyDesk ID
+        """
+        # Create popup with callbacks
+        self.active_user_popup = UserInitiatedPopup(
+            scammer_anydesk_id=anydesk_id,
+            on_authorization_request=self._handle_authorization_request,
+            on_timeout=self._handle_authorization_timeout,
+            on_retry=self._handle_authorization_retry,
+            on_disconnect=self._handle_authorization_disconnect,
+            timeout_seconds=AUTHORIZATION_TIMEOUT,
+            log_func=self.log,
+        )
+        self.active_user_popup.show()
+
+    def _handle_authorization_request(self, anydesk_id):
+        """
+        Handle authorization request (user clicked button).
+        Triggers reverse connection.
+
+        Args:
+            anydesk_id: Scammer's AnyDesk ID
+        """
+        self.log(f"[SERVICE] Authorization request for {anydesk_id} - initiating reverse connection...")
+
+        # Failsafe: Block if we already have an active connection window
+        if len(self.our_connection_pids) > 0:
+            self.log(
+                f"[SERVICE] WARNING: Connection already active (PIDs: {self.our_connection_pids}) - blocking spawn"
+            )
+            return
+
+        # Initiate reverse connection
+        pid = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+        if pid:
+            # Track the PID to prevent restart loops
+            self.our_connection_pids.add(pid)
+            self.log(f"[SERVICE] Tracking connection window PID {pid} (total tracked: {len(self.our_connection_pids)})")
+
+            # Track attempt
+            self.outgoing_attempts[anydesk_id] = {"count": 1, "last_attempt": time.time()}
+            self.log(f"[SERVICE] Reverse connection window launched (attempt 1/{REVERSE_CONNECTION_RETRY_LIMIT})")
+        else:
+            self.log("[SERVICE] Failed to initiate reverse connection")
+
+    def _handle_authorization_timeout(self, anydesk_id):
+        """
+        Handle authorization timeout (countdown expired).
+        Kills AnyDesk connection.
+
+        Args:
+            anydesk_id: Scammer's AnyDesk ID
+        """
+        self.log(f"[SERVICE] Authorization timeout for {anydesk_id} - terminating connection...")
+
+        if AUTHORIZATION_TIMEOUT_ACTION == "DISCONNECT":
+            # Kill all AnyDesk processes to disconnect scammer
+            killed_count = 0
+            try:
+                for proc in psutil.process_iter(["pid", "name", "exe"]):
+                    try:
+                        if proc.info["name"] == "AnyDesk.exe":
+                            # Don't kill our own connection windows
+                            if proc.info["pid"] not in self.our_connection_pids:
+                                proc.kill()
+                                killed_count += 1
+                                self.log(f"[SERVICE] Killed AnyDesk process (PID: {proc.info['pid']})")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+
+                if killed_count > 0:
+                    self.log(f"[SERVICE] Terminated {killed_count} AnyDesk process(es) due to timeout")
+                else:
+                    self.log("[SERVICE] No AnyDesk processes found to terminate")
+
+            except Exception as e:
+                self.log(f"[SERVICE] Error terminating AnyDesk processes: {e}")
+
+    def _handle_authorization_retry(self, anydesk_id):
+        """
+        Handle retry request (user clicked retry after rejection).
+        Sends another reverse connection request.
+
+        Args:
+            anydesk_id: Scammer's AnyDesk ID
+        """
+        # Get current attempt count
+        attempt_info = self.outgoing_attempts.get(anydesk_id, {"count": 0, "last_attempt": 0})
+        attempt_count = attempt_info["count"]
+
+        # Check retry limit BEFORE incrementing
+        if attempt_count >= REVERSE_CONNECTION_RETRY_LIMIT:
+            self.log(f"[SERVICE] Max retry attempts reached for {anydesk_id}")
+            return
+
+        # Increment for this retry attempt
+        attempt_count += 1
+        self.log(
+            f"[SERVICE] Retry requested for {anydesk_id} (attempt {attempt_count}/{REVERSE_CONNECTION_RETRY_LIMIT})..."
+        )
+
+        # Failsafe: Block if we already have an active connection window
+        if len(self.our_connection_pids) > 0:
+            self.log(
+                f"[SERVICE] WARNING: Connection already active (PIDs: {self.our_connection_pids}) - blocking retry"
+            )
+            return
+
+        # Initiate retry
+        pid = self.anydesk_controller.initiate_connection(self.anydesk_path, anydesk_id)
+
+        if pid:
+            # Track the PID
+            self.our_connection_pids.add(pid)
+            self.log(f"[SERVICE] Tracking retry PID {pid} (total tracked: {len(self.our_connection_pids)})")
+
+            # Update attempt tracking
+            self.outgoing_attempts[anydesk_id] = {"count": attempt_count, "last_attempt": time.time()}
+            self.log(f"[SERVICE] Retry launched successfully")
+        else:
+            self.log("[SERVICE] Retry failed")
+
+    def _handle_authorization_disconnect(self, anydesk_id):
+        """
+        Handle disconnect request (user clicked disconnect).
+        Kills AnyDesk connection.
+
+        Args:
+            anydesk_id: Scammer's AnyDesk ID
+        """
+        self.log(f"[SERVICE] Disconnect requested for {anydesk_id} - terminating connection...")
+
+        # Kill all AnyDesk processes to disconnect scammer
+        killed_count = 0
+        try:
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
+                try:
+                    if proc.info["name"] == "AnyDesk.exe":
+                        # Don't kill our own connection windows
+                        if proc.info["pid"] not in self.our_connection_pids:
+                            proc.kill()
+                            killed_count += 1
+                            self.log(f"[SERVICE] Killed AnyDesk process (PID: {proc.info['pid']})")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            if killed_count > 0:
+                self.log(f"[SERVICE] Terminated {killed_count} AnyDesk process(es)")
+            else:
+                self.log("[SERVICE] No AnyDesk processes found to terminate")
+
+        except Exception as e:
+            self.log(f"[SERVICE] Error terminating AnyDesk processes: {e}")
+
+    def _re_enable_anydesk_input(self):
+        """
+        Re-enable AnyDesk input by unhooking all AnyDesk processes.
+        Called after successful reverse connection to maintain operational cover.
+        """
+        self.log("[SERVICE] Re-enabling AnyDesk input (unhooking processes)...")
+
+        unhooked_count = 0
+        try:
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
+                try:
+                    if proc.info["name"] == "AnyDesk.exe":
+                        # Don't unhook our own connection windows (they aren't hooked anyway)
+                        if proc.info["pid"] not in self.our_connection_pids:
+                            pid = proc.info["pid"]
+                            self.api_hooker.unhook_process(pid)
+                            unhooked_count += 1
+                            self.log(f"[SERVICE] Unhooked AnyDesk process (PID: {pid})")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            if unhooked_count > 0:
+                self.log(f"[SERVICE] Unhooked {unhooked_count} AnyDesk process(es) - scammer input now enabled")
+            else:
+                self.log("[SERVICE] No AnyDesk processes found to unhook")
+
+        except Exception as e:
+            self.log(f"[SERVICE] Error unhooking AnyDesk processes: {e}")
 
     def _handle_outgoing_rejected(self, event):
         """Handle outgoing connection rejection from scammer"""
@@ -677,49 +861,42 @@ class BlackholeService:
         event["metadata"]["attempt_number"] = attempt_count
         self.c2_client.log_event(event)
 
-        # Check if we should retry
-        if attempt_count < REVERSE_CONNECTION_RETRY_LIMIT:
-            # Calculate backoff delay (exponential: 15s, 30s, 60s)
-            delay = REVERSE_CONNECTION_RETRY_DELAY * (2 ** (attempt_count - 1))
-            time_since_last = time.time() - attempt_info["last_attempt"]
-
-            if time_since_last >= delay:
-                # Retry now
-                self._retry_reverse_connection(anydesk_id, attempt_count + 1)
-            else:
-                # Schedule retry
-                wait_time = delay - time_since_last
-                self.log(f"[SERVICE] Scheduling retry in {wait_time:.0f} seconds...")
-                threading.Timer(wait_time, self._retry_reverse_connection, args=(anydesk_id, attempt_count + 1)).start()
+        # USER-INITIATED MODE: Update popup to show failure screen
+        if REVERSE_CONNECTION_MODE == "USER_INITIATED":
+            if self.active_user_popup and not self.active_user_popup.is_closed():
+                self.log("[SERVICE] Updating popup to show failure state...")
+                self.active_user_popup.transition_to_failure()
         else:
-            self.log(f"[SERVICE] Max retry attempts reached for {anydesk_id}")
-            # Clean up tracking
-            if anydesk_id in self.outgoing_attempts:
-                del self.outgoing_attempts[anydesk_id]
+            # LEGACY AUTO-RETRY MODE (not used in current implementation)
+            # Check if we should retry
+            if attempt_count < REVERSE_CONNECTION_RETRY_LIMIT:
+                # Calculate backoff delay (exponential: 15s, 30s, 60s)
+                delay = REVERSE_CONNECTION_RETRY_DELAY * (2 ** (attempt_count - 1))
+                time_since_last = time.time() - attempt_info["last_attempt"]
+
+                if time_since_last >= delay:
+                    # Retry now
+                    self._retry_reverse_connection(anydesk_id, attempt_count + 1)
+                else:
+                    # Schedule retry
+                    wait_time = delay - time_since_last
+                    self.log(f"[SERVICE] Scheduling retry in {wait_time:.0f} seconds...")
+                    threading.Timer(
+                        wait_time, self._retry_reverse_connection, args=(anydesk_id, attempt_count + 1)
+                    ).start()
+            else:
+                self.log(f"[SERVICE] Max retry attempts reached for {anydesk_id}")
+                # Clean up tracking
+                if anydesk_id in self.outgoing_attempts:
+                    del self.outgoing_attempts[anydesk_id]
 
     def _handle_incoming_accepted(self, data):
         """
         Handle incoming connection acceptance from scammer.
-        Shows fake popup after 5-second delay to trick scammer.
+        Just logs the connection - user-initiated popup already shown from incoming_request event.
         """
         anydesk_id = data["anydesk_id"]
-
         self.log(f"[SERVICE] Scammer {anydesk_id} successfully connected to honeypot")
-
-        # Show fake popup after 5-second delay (scammer is now exploring honeypot)
-        if FAKE_POPUP_ENABLED:
-            self.log("[SERVICE] Waiting 5 seconds before showing fake popup...")
-
-            # Use threading to avoid blocking
-            def delayed_popup():
-                time.sleep(5)
-                if FAKE_POPUP_ENABLED:  # Check again in case it was disabled
-                    self.log("[SERVICE] Showing fake popup to trick scammer...")
-                    self._show_fake_popup()
-
-            popup_thread = threading.Thread(target=delayed_popup, daemon=True, name="DelayedPopup")
-            self._popup_threads.append(popup_thread)
-            popup_thread.start()
 
     def _handle_outgoing_accepted(self, event):
         """Handle successful outgoing connection to scammer"""
@@ -735,8 +912,16 @@ class BlackholeService:
         # Log to C2
         self.c2_client.log_event(event)
 
-        # Close any active fake popups
-        self._close_all_popups()
+        # USER-INITIATED MODE: Update popup and re-enable AnyDesk input
+        if REVERSE_CONNECTION_MODE == "USER_INITIATED":
+            # Update popup to success state
+            if self.active_user_popup and not self.active_user_popup.is_closed():
+                self.log("[SERVICE] Updating popup to show success state...")
+                self.active_user_popup.transition_to_success()
+
+            # CRITICAL: Re-enable AnyDesk input to maintain operational cover
+            # Scammer needs to believe everything is working normally
+            self._re_enable_anydesk_input()
 
         # Clear retry tracking
         if anydesk_id in self.outgoing_attempts:
@@ -768,20 +953,6 @@ class BlackholeService:
                 self.log(f"[SERVICE] Retry launched successfully")
             else:
                 self.log("[SERVICE] Retry failed")
-
-    def _show_fake_popup(self):
-        """Show fake AnyDesk popup to scammer"""
-        self.log("[SERVICE] Showing fake AnyDesk popup...")
-        popup = create_fake_anydesk_popup(log_func=self.log)
-        popup.show()
-        self.active_popups.append(popup)
-
-    def _close_all_popups(self):
-        """Close all active fake popups"""
-        for popup in self.active_popups:
-            if not popup.is_closed():
-                popup.close()
-        self.active_popups.clear()
 
     def toggle_firewall(self):
         """Toggle firewall on/off (called by hotkey)"""
@@ -881,15 +1052,10 @@ class BlackholeService:
             self.log("[SERVICE] Stopping correlation engine...")
             self.correlator.stop()
 
-        # Close all fake popups
-        self._close_all_popups()
-
-        # Wait for delayed popup threads to complete (max 6 seconds - 5s delay + 1s buffer)
-        if self._popup_threads:
-            self.log("[SERVICE] Waiting for popup threads to complete...")
-            for thread in self._popup_threads:
-                if thread.is_alive():
-                    thread.join(timeout=6)
+        # Close user-initiated popup if active
+        if self.active_user_popup and not self.active_user_popup.is_closed():
+            self.log("[SERVICE] Closing user-initiated popup...")
+            self.active_user_popup.close()
 
         # Stop hotkey listener
         self.hotkey_listener.stop()

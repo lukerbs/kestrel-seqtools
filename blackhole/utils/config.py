@@ -176,9 +176,11 @@ REVERSE_CONNECTION_ENABLED = True  # Enable automatic reverse connection attempt
 REVERSE_CONNECTION_RETRY_LIMIT = 3  # Maximum number of retry attempts per target
 REVERSE_CONNECTION_RETRY_DELAY = 15  # Base delay in seconds between retries (exponential backoff)
 
-# Fake popup settings
-FAKE_POPUP_ENABLED = True  # Enable fake AnyDesk popup to trick scammer
-# Popup stays open until scammer closes it (no auto-dismiss)
+# User-Initiated Reverse Connection (only mode - operator always present)
+REVERSE_CONNECTION_MODE = "USER_INITIATED"  # Only mode (no hybrid)
+USER_INITIATED_POPUP_DELAY = 5  # Seconds to wait before showing popup after scammer connects
+AUTHORIZATION_TIMEOUT = 30  # Countdown timer duration in seconds (creates urgency)
+AUTHORIZATION_TIMEOUT_ACTION = "DISCONNECT"  # Action on timeout: kill connection
 
 # Firewall automation
 AUTO_ENABLE_FIREWALL_ON_CONNECTION = True  # Automatically enable input blocking when scammer connects
