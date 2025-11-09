@@ -261,18 +261,32 @@ class BlackholeService:
 
             self.api_hooker.unhook_process(pid)
 
-            # Clean up AnyDesk-specific monitors if main AnyDesk process exits
+            # Clean up AnyDesk-specific monitors only if ALL AnyDesk processes are gone
             if process_name == "AnyDesk.exe" and pid not in self.our_connection_pids:
-                if self.log_monitor and self.log_monitor.is_running():
-                    self.log("[SERVICE] Stopping log monitor...")
-                    self.log_monitor.stop()
-                if self.correlator:
-                    self.log("[SERVICE] Stopping correlator...")
-                    self.correlator.stop()
-                self.anydesk_mode = None
-                self.anydesk_path = None
-                self.log_monitor = None
-                self.correlator = None
+                # Check if ANY AnyDesk processes are still running
+                remaining_anydesk = []
+                try:
+                    for p in psutil.process_iter(["name", "pid"]):
+                        if p.info["name"] == "AnyDesk.exe":
+                            remaining_anydesk.append(p.info["pid"])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+                if not remaining_anydesk:
+                    # All AnyDesk processes gone - shut down monitoring
+                    self.log("[SERVICE] All AnyDesk processes exited - stopping monitors...")
+                    if self.log_monitor and self.log_monitor.is_running():
+                        self.log_monitor.stop()
+                    if self.correlator:
+                        self.correlator.stop()
+                    self.anydesk_mode = None
+                    self.anydesk_path = None
+                    self.log_monitor = None
+                    self.correlator = None
+                else:
+                    self.log(
+                        f"[SERVICE] AnyDesk process exited (PID: {pid}), but {len(remaining_anydesk)} still running - keeping monitors active"
+                    )
             return
 
         # Process started - apply whitelist/blacklist logic
