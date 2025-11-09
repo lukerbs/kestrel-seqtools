@@ -77,6 +77,31 @@ def _get_icon_path():
     return None
 
 
+def _get_anydesk_image_path():
+    """
+    Get path to AnyDeskIconOrangeTransparentBG96x96.png for content area icon.
+    Handles both frozen and unfrozen modes.
+    
+    Returns:
+        str: Absolute path to PNG, or None if not found
+    """
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle - use temp extraction directory
+        image_path = os.path.join(sys._MEIPASS, "assets", "AnyDeskIconOrangeTransparentBG96x96.png")
+    else:
+        # Running as .py script - use relative path from blackhole directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(script_dir, "..", "assets", "AnyDeskIconOrangeTransparentBG96x96.png")
+    
+    # Resolve to absolute path
+    image_path = os.path.abspath(image_path)
+    
+    # Verify file exists
+    if os.path.exists(image_path):
+        return image_path
+    return None
+
+
 class PopupState(Enum):
     """Popup states"""
 
@@ -336,14 +361,42 @@ class UserInitiatedPopup:
         - Uses "remote client" terminology (AnyDesk official term)
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
-        # Icon
-        icon_label = tk.Label(
-            self._content_frame,
-            text="⚙️",
-            bg=COLOR_BG_WHITE,
-            font=("Segoe UI", 32),
-        )
-        icon_label.pack(pady=(10, 15))
+        # Icon - Use AnyDesk orange logo image instead of emoji
+        image_path = _get_anydesk_image_path()
+        if image_path:
+            try:
+                icon_image = tk.PhotoImage(file=image_path)
+                # Resize to appropriate size (64x64 for content area)
+                icon_image = icon_image.subsample(2, 2)  # Scale down from 96x96 to ~48x48
+                icon_label = tk.Label(
+                    self._content_frame,
+                    image=icon_image,
+                    bg=COLOR_BG_WHITE,
+                )
+                # Keep reference to prevent garbage collection
+                icon_label.image = icon_image
+                icon_label.pack(pady=(20, 12))
+            except Exception as e:
+                self._log(f"[USER_POPUP] WARNING: Could not load AnyDesk icon image: {e}")
+                # Fallback to simple text icon
+                icon_label = tk.Label(
+                    self._content_frame,
+                    text="⚙️",
+                    bg=COLOR_BG_WHITE,
+                    font=("Segoe UI", 32),
+                    fg=COLOR_ORANGE,  # Use orange color for fallback
+                )
+                icon_label.pack(pady=(20, 12))
+        else:
+            # Fallback if image not found
+            icon_label = tk.Label(
+                self._content_frame,
+                text="⚙️",
+                bg=COLOR_BG_WHITE,
+                font=("Segoe UI", 32),
+                fg=COLOR_ORANGE,  # Use orange color for fallback
+            )
+            icon_label.pack(pady=(20, 12))
 
         # Main message (for scammer's eyes)
         message = tk.Label(
@@ -356,7 +409,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
-        message.pack(pady=(0, 15))
+        message.pack(pady=(0, 10))
 
         # Application info
         app_info = tk.Label(
@@ -367,7 +420,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 8),
             justify=tk.LEFT,
         )
-        app_info.pack(pady=(0, 15))
+        app_info.pack(pady=(0, 12))
 
         # Instruction
         instruction = tk.Label(
@@ -378,7 +431,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
-        instruction.pack(pady=(0, 15))
+        instruction.pack(pady=(0, 12))
 
         # Request button
         def on_request():
@@ -406,7 +459,7 @@ class UserInitiatedPopup:
             pady=8,
             cursor="hand2",
         )
-        request_btn.pack()
+        request_btn.pack(pady=(0, 0))
 
     def _render_waiting_state(self):
         """
