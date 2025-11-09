@@ -738,11 +738,22 @@ class UserInitiatedPopup:
 
         if self._window:
             try:
+                # Thread-safe cleanup: schedule destroy on Tkinter thread
+                # This prevents "RuntimeError: main thread is not in main loop"
+                self._window.after(0, lambda: self._safe_destroy())
+            except (tk.TclError, RuntimeError):
+                # Window already destroyed or thread issues
+                pass
+
+    def _safe_destroy(self):
+        """Safely destroy window (called from Tkinter thread)"""
+        try:
+            if self._window:
                 self._window.quit()
                 self._window.destroy()
-            except tk.TclError:
-                # Window already destroyed
-                pass
+        except (tk.TclError, RuntimeError):
+            # Ignore cleanup errors
+            pass
 
     def is_closed(self):
         """Check if popup is closed"""

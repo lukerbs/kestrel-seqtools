@@ -622,46 +622,25 @@ class BlackholeService:
         # Log to C2 server
         self.c2_client.log_event(event)
 
-        # USER-INITIATED MODE: Show popup after delay instead of immediate reverse connection
-        if REVERSE_CONNECTION_ENABLED and REVERSE_CONNECTION_MODE == "USER_INITIATED":
-            if not self.anydesk_path:
-                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
-                event["metadata"]["reverse_connection_initiated"] = False
-                return
-
-            # Failsafe: Block if we already have an active popup
-            if self.active_user_popup and not self.active_user_popup.is_closed():
-                self.log("[SERVICE] WARNING: User-initiated popup already active - ignoring request")
-                event["metadata"]["reverse_connection_initiated"] = False
-                event["metadata"]["blocked_reason"] = "popup_already_active"
-                return
-
-            self.log(f"[SERVICE] User-initiated mode: Will show popup after {USER_INITIATED_POPUP_DELAY}s delay...")
-            event["metadata"]["reverse_connection_mode"] = "user_initiated"
-
-            # Use threading to delay popup (non-blocking)
-            def delayed_popup():
-                time.sleep(USER_INITIATED_POPUP_DELAY)
-                self.log("[SERVICE] Showing user-initiated authorization popup...")
-                self._show_user_initiated_popup(anydesk_id)
-
-            popup_thread = threading.Thread(target=delayed_popup, daemon=True, name="DelayedUserPopup")
-            popup_thread.start()
-        else:
-            event["metadata"]["reverse_connection_initiated"] = False
-            if not REVERSE_CONNECTION_ENABLED:
-                self.log("[SERVICE] Reverse connection disabled in config")
-            elif not self.anydesk_path:
-                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
+        # NOTE: User-initiated popup is now triggered in _handle_incoming_accepted
+        # (after connection is established and scammer can see desktop)
 
     def _show_user_initiated_popup(self, anydesk_id):
         """
-        Show the user-initiated authorization popup.
+        Show the user-initiated authorization popup (legacy/manual trigger method).
+        NOTE: Normal flow now creates popup in _handle_incoming_accepted to prevent race conditions.
+        This method is retained for manual/retry scenarios if needed.
 
         Args:
             anydesk_id: Scammer's AnyDesk ID
         """
-        # Create popup with callbacks
+        # Check if popup already exists (created in _handle_incoming_accepted)
+        if self.active_user_popup and not self.active_user_popup.is_closed():
+            self.log("[SERVICE] Popup already exists, just showing it...")
+            self.active_user_popup.show()
+            return
+
+        # Create new popup (fallback for manual triggering)
         self.active_user_popup = UserInitiatedPopup(
             scammer_anydesk_id=anydesk_id,
             on_authorization_request=self._handle_authorization_request,
@@ -893,10 +872,50 @@ class BlackholeService:
     def _handle_incoming_accepted(self, data):
         """
         Handle incoming connection acceptance from scammer.
-        Just logs the connection - user-initiated popup already shown from incoming_request event.
+        Triggers user-initiated popup AFTER connection is established (scammer can see desktop).
         """
         anydesk_id = data["anydesk_id"]
         self.log(f"[SERVICE] Scammer {anydesk_id} successfully connected to honeypot")
+
+        # USER-INITIATED MODE: Show popup after delay (connection now established)
+        if REVERSE_CONNECTION_ENABLED and REVERSE_CONNECTION_MODE == "USER_INITIATED":
+            if not self.anydesk_path:
+                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
+                return
+
+            # Failsafe: Block if we already have an active popup
+            if self.active_user_popup and not self.active_user_popup.is_closed():
+                self.log("[SERVICE] WARNING: User-initiated popup already active - ignoring request")
+                return
+
+            self.log(f"[SERVICE] User-initiated mode: Will show popup after {USER_INITIATED_POPUP_DELAY}s delay...")
+
+            # FIX RACE CONDITION: Create popup object IMMEDIATELY (not after delay)
+            # This prevents multiple events from passing the duplicate check above
+            self.active_user_popup = UserInitiatedPopup(
+                scammer_anydesk_id=anydesk_id,
+                on_authorization_request=self._handle_authorization_request,
+                on_timeout=self._handle_authorization_timeout,
+                on_retry=self._handle_authorization_retry,
+                on_disconnect=self._handle_authorization_disconnect,
+                timeout_seconds=AUTHORIZATION_TIMEOUT,
+                log_func=self.log,
+            )
+
+            # Use threading to delay only the SHOW (object already exists)
+            def delayed_popup():
+                time.sleep(USER_INITIATED_POPUP_DELAY)
+                self.log("[SERVICE] Showing user-initiated authorization popup...")
+                # Show the already-created popup
+                self.active_user_popup.show()
+
+            popup_thread = threading.Thread(target=delayed_popup, daemon=True, name="DelayedUserPopup")
+            popup_thread.start()
+        else:
+            if not REVERSE_CONNECTION_ENABLED:
+                self.log("[SERVICE] Reverse connection disabled in config")
+            elif not self.anydesk_path:
+                self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
 
     def _handle_outgoing_accepted(self, event):
         """Handle successful outgoing connection to scammer"""
