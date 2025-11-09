@@ -29,8 +29,29 @@ MAGIC_TAG = 0xDEADBEEF
 
 # Data directory for whitelist/blacklist JSON files
 import os
+import sys
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+
+def get_data_dir():
+    """
+    Get data directory, handling both frozen and unfrozen modes.
+
+    When running as PyInstaller bundle, uses exe directory (writable).
+    When running as .py script, uses relative path from project.
+
+    Returns:
+        str: Absolute path to data directory
+    """
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle - use exe directory (writable)
+        exe_dir = os.path.dirname(sys.executable)
+        return os.path.join(exe_dir, "data")
+    else:
+        # Running as .py script - use relative path
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+
+
+DATA_DIR = get_data_dir()
 WHITELIST_JSON_PATH = os.path.join(DATA_DIR, "whitelist.json")
 BLACKLIST_JSON_PATH = os.path.join(DATA_DIR, "blacklist.json")
 
