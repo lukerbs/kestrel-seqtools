@@ -710,9 +710,14 @@ class BlackholeService:
                         if proc.info["name"] == "AnyDesk.exe":
                             # Don't kill our own connection windows
                             if proc.info["pid"] not in self.our_connection_pids:
+                                pid = proc.info["pid"]
+                                # CRITICAL: Unhook BEFORE killing to prevent Frida crashes
+                                self.api_hooker.unhook_process(pid)
+                                # Small delay to allow Frida cleanup to complete
+                                time.sleep(0.1)
                                 proc.kill()
                                 killed_count += 1
-                                self.log(f"[SERVICE] Killed AnyDesk process (PID: {proc.info['pid']})")
+                                self.log(f"[SERVICE] Killed AnyDesk process (PID: {pid})")
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
 
@@ -793,9 +798,14 @@ class BlackholeService:
                     if proc.info["name"] == "AnyDesk.exe":
                         # Don't kill our own connection windows
                         if proc.info["pid"] not in self.our_connection_pids:
+                            pid = proc.info["pid"]
+                            # CRITICAL: Unhook BEFORE killing to prevent Frida crashes
+                            self.api_hooker.unhook_process(pid)
+                            # Small delay to allow Frida cleanup to complete
+                            time.sleep(0.1)
                             proc.kill()
                             killed_count += 1
-                            self.log(f"[SERVICE] Killed AnyDesk process (PID: {proc.info['pid']})")
+                            self.log(f"[SERVICE] Killed AnyDesk process (PID: {pid})")
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
