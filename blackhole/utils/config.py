@@ -80,6 +80,8 @@ BASELINE_SCAN_DIRECTORIES = [
     r"C:\Program Files",
     r"C:\Program Files (x86)",
     r"C:\ProgramData",
+    os.path.expandvars(r"%USERPROFILE%\Desktop"),  # User's desktop (for bait files and downloaded apps)
+    os.path.expandvars(r"%USERPROFILE%\Downloads"),  # Downloads folder (where scammers download tools)
 ]
 
 # Directories to skip during scan (reduce noise and improve performance)
@@ -123,7 +125,9 @@ BASELINE_SKIP_DIRS = {
     "$recycle.bin",
     "system volume information",
     "windows.old",
-    "windowsapps",  # UWP app execution aliases (reparse points, not real .exe files)
+    # NOTE: windowsapps removed from global skip - handled specifically in whitelist_manager.py
+    # We need to skip user-level %LOCALAPPDATA%\WindowsApps (reparse points)
+    # But NOT skip C:\Program Files\WindowsApps (legitimate Store apps)
     # Package managers
     "packages",
     ".npm",

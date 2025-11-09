@@ -205,7 +205,27 @@ class WhitelistManager:
             try:
                 for root, dirs, files in os.walk(directory):
                     # Filter out skip directories (modifies dirs in-place)
-                    dirs[:] = [d for d in dirs if d.lower() not in BASELINE_SKIP_DIRS]
+                    filtered_dirs = []
+                    for d in dirs:
+                        dir_lower = d.lower()
+
+                        # Special handling for windowsapps:
+                        # Skip user-level %LOCALAPPDATA%\Microsoft\WindowsApps (reparse points)
+                        # But NOT C:\Program Files\WindowsApps (legitimate Store apps)
+                        if dir_lower == "windowsapps":
+                            # Check if we're in the user's AppData\Local\Microsoft path
+                            root_lower = root.lower()
+                            if "appdata\\local\\microsoft" in root_lower or "appdata/local/microsoft" in root_lower:
+                                # This is the user-level WindowsApps with reparse points - SKIP
+                                self._log(f"[WHITELIST] Skipping user-level WindowsApps: {os.path.join(root, d)}")
+                                continue
+                            # Otherwise it's C:\Program Files\WindowsApps - DON'T skip
+
+                        # Apply standard skip list
+                        if dir_lower not in BASELINE_SKIP_DIRS:
+                            filtered_dirs.append(d)
+
+                    dirs[:] = filtered_dirs
 
                     for file in files:
                         # Only process .exe files
