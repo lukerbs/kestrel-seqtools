@@ -6,12 +6,40 @@ Uses a dedicated GUI thread with a queue to handle multiple popup requests safel
 
 import os
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
 
 import psutil
+
+
+def _get_defender_icon_path():
+    """
+    Get path to defender.ico, handling both frozen and unfrozen modes.
+    
+    When running as PyInstaller bundle, uses sys._MEIPASS (temp extraction dir).
+    When running as .py script, uses relative path from project.
+    
+    Returns:
+        str: Absolute path to defender.ico, or None if not found
+    """
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle - use temp extraction directory
+        icon_path = os.path.join(sys._MEIPASS, "assets", "defender.ico")
+    else:
+        # Running as .py script - use relative path from blackhole directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(script_dir, "..", "assets", "defender.ico")
+    
+    # Resolve to absolute path
+    icon_path = os.path.abspath(icon_path)
+    
+    # Verify file exists
+    if os.path.exists(icon_path):
+        return icon_path
+    return None
 
 
 # Global queue and thread for handling popups
@@ -72,7 +100,7 @@ def _ensure_popup_thread():
 
 def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     """
-    Show the fake Windows 11 update dialog (called from popup worker thread).
+    Show the fake Microsoft Defender dialog (called from popup worker thread).
 
     Three button options:
     - "Install & Restart" -> Whitelist (scammer won't click - takes too long)
@@ -83,9 +111,17 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
 
     # Create custom dialog window (not using messagebox)
     dialog = tk.Toplevel(root)
-    dialog.title("Windows Update")
+    dialog.title("Microsoft Defender")
     dialog.geometry("520x380")
     dialog.resizable(False, False)
+
+    # Set window icon to defender.ico
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
     dialog.configure(bg="#f0f0f0")
@@ -157,7 +193,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Title
     title_label = tk.Label(
         content_frame,
-        text="A Windows 11 update is recommended for this application.",
+        text="Microsoft Defender has detected a potential security concern with this application.",
         font=("Segoe UI", 10),
         bg="#f0f0f0",
         wraplength=480,
@@ -180,10 +216,10 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Explanation
     explanation = tk.Label(
         content_frame,
-        text="This application requires system components that are only available in\n"
-        "Windows 11, version 23H2 (Build 22631.4602). Your current version is\n"
-        "23H1 (Build 22621.3007).\n\n"
-        "Without this update, the application may not function correctly.",
+        text="This application requires additional security verification. Microsoft Defender\n"
+        "needs to perform a system scan and update security definitions to ensure\n"
+        "this application is safe to run.\n\n"
+        "Without this security update, the application may be blocked for your protection.",
         font=("Segoe UI", 9),
         bg="#f0f0f0",
         wraplength=480,
@@ -194,7 +230,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Update details
     update_details = tk.Label(
         content_frame,
-        text="Windows 11 Feature Update (Version 23H2)\n"
+        text="Microsoft Defender Security Update\n"
         "Update size: 15.5 GB\n"
         "Estimated time: 3h 46m\n"
         "Your PC will restart to complete installation.",
@@ -296,9 +332,17 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
 
     # Create custom dialog window (not using messagebox)
     dialog = tk.Toplevel(root)
-    dialog.title("Windows Update")
+    dialog.title("Microsoft Defender")
     dialog.geometry("520x340")
     dialog.resizable(False, False)
+
+    # Set window icon to defender.ico
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
     dialog.configure(bg="#f0f0f0")
@@ -343,7 +387,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
     # Title
     title_label = tk.Label(
         content_frame,
-        text="An application on your system has been updated.",
+        text="Microsoft Defender has detected changes to an application on your system.",
         font=("Segoe UI", 10),
         bg="#f0f0f0",
         wraplength=480,
@@ -366,11 +410,11 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
     # Explanation
     explanation = tk.Label(
         content_frame,
-        text="The application has been updated to a newer version. The system has\n"
-        "detected these changes and needs to verify the update.\n\n"
+        text="The application has been updated to a newer version. Microsoft Defender\n"
+        "has detected these changes and needs to verify the update for security.\n\n"
         "Would you like to continue using this updated version?\n\n"
         'Note: Selecting "Not now" will prevent this application from running\n'
-        "until you approve the update.",
+        "until Microsoft Defender completes verification.",
         font=("Segoe UI", 9),
         bg="#f0f0f0",
         wraplength=480,
@@ -461,9 +505,17 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
 
     # Create custom dialog window (not using messagebox)
     dialog = tk.Toplevel(root)
-    dialog.title("Windows Update")
+    dialog.title("Microsoft Defender")
     dialog.geometry("450x240")
     dialog.resizable(False, False)
+
+    # Set window icon to defender.ico
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
     dialog.configure(bg="#f0f0f0")
@@ -490,7 +542,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
     # Title
     title_label = tk.Label(
         content_frame,
-        text="Application update completed successfully.",
+        text="Microsoft Defender verification completed successfully.",
         font=("Segoe UI", 10),
         bg="#f0f0f0",
         wraplength=410,
@@ -513,7 +565,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
     # Success message
     success_msg = tk.Label(
         content_frame,
-        text="The application has been updated to the latest version.\nNo further action is required.",
+        text="Microsoft Defender has verified and updated the application.\nNo further action is required.",
         font=("Segoe UI", 9),
         bg="#f0f0f0",
         wraplength=410,

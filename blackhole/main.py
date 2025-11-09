@@ -14,6 +14,7 @@ This allows Mac keyboard/trackpad (QEMU VirtIO) to work while blocking remote de
 import os
 import psutil
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -234,6 +235,9 @@ class BlackholeService:
         # Track user-initiated popup and retry attempts
         self.active_user_popup = None  # Track user-initiated authorization popup
         self.outgoing_attempts = {}  # {anydesk_id: {'count': N, 'last_attempt': timestamp}}
+
+        # Track IP addresses for incoming connections (for incoming_accepted events)
+        self.incoming_ips = {}  # {anydesk_id: ip_address}
 
         # Track PIDs of connection windows we spawn (to prevent restart loops)
         self.our_connection_pids = set()
@@ -621,6 +625,10 @@ class BlackholeService:
         self.log(f"  IP Address: {ip_address}")
         self.log("=" * 60 + "\n")
 
+        # Store IP address for later correlation with incoming_accepted
+        if ip_address:
+            self.incoming_ips[anydesk_id] = ip_address
+
         # Auto-enable firewall if configured and not already active
         if AUTO_ENABLE_FIREWALL_ON_CONNECTION and not self.firewall_active:
             self.log("[SERVICE] Auto-enabling firewall for incoming connection...")
@@ -702,7 +710,7 @@ class BlackholeService:
     def _handle_authorization_timeout(self, anydesk_id):
         """
         Handle authorization timeout (countdown expired).
-        Kills AnyDesk connection.
+        Restarts AnyDesk service to disconnect scammer.
 
         Args:
             anydesk_id: Scammer's AnyDesk ID
@@ -710,39 +718,46 @@ class BlackholeService:
         self.log(f"[SERVICE] Authorization timeout for {anydesk_id} - terminating connection...")
 
         if AUTHORIZATION_TIMEOUT_ACTION == "DISCONNECT":
-            # Kill all AnyDesk processes to disconnect scammer
-            killed_count = 0
+            # Step 1: Unhook all AnyDesk processes (prevents Frida crashes)
+            unhooked_count = 0
             try:
                 for proc in psutil.process_iter(["pid", "name", "exe"]):
                     try:
                         if proc.info["name"] == "AnyDesk.exe":
-                            # Don't kill our own connection windows
+                            # Don't unhook our own connection windows
                             if proc.info["pid"] not in self.our_connection_pids:
                                 pid = proc.info["pid"]
-                                # CRITICAL: Unhook BEFORE killing to prevent Frida crashes
                                 self.api_hooker.unhook_process(pid)
-                                # Small delay to allow Frida cleanup to complete
-                                time.sleep(0.1)
-                                proc.kill()
-                                killed_count += 1
-                                self.log(f"[SERVICE] Killed AnyDesk process (PID: {pid})")
+                                unhooked_count += 1
+                                self.log(f"[SERVICE] Unhooked AnyDesk process (PID: {pid})")
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
 
-                if killed_count > 0:
-                    self.log(f"[SERVICE] Terminated {killed_count} AnyDesk process(es) due to timeout")
-
-                    # CLEANUP: Clear popup reference after timeout
-                    # close() now blocks until window is destroyed, preventing threading errors
-                    if self.active_user_popup:
-                        self.active_user_popup.close()
-                        self.active_user_popup = None
-                        self.log("[SERVICE] Cleared old popup reference after timeout")
-                else:
-                    self.log("[SERVICE] No AnyDesk processes found to terminate")
-
+                if unhooked_count > 0:
+                    self.log(f"[SERVICE] Unhooked {unhooked_count} AnyDesk process(es)")
+                    # Small delay to allow Frida cleanup to complete
+                    time.sleep(0.1)
             except Exception as e:
-                self.log(f"[SERVICE] Error terminating AnyDesk processes: {e}")
+                self.log(f"[SERVICE] Error unhooking AnyDesk processes: {e}")
+
+            # Step 2: Gracefully restart AnyDesk service
+            try:
+                if self.anydesk_path:
+                    self.log("[SERVICE] Restarting AnyDesk service to disconnect all sessions...")
+                    subprocess.run(
+                        [self.anydesk_path, "--restart-service"],
+                        timeout=10,
+                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    self.log("[SERVICE] AnyDesk service restarted - all sessions terminated, service ready for new connections")
+                else:
+                    self.log("[SERVICE] WARNING: AnyDesk path not available, cannot restart service")
+            except subprocess.TimeoutExpired:
+                self.log("[SERVICE] WARNING: --restart-service timed out")
+            except Exception as e:
+                self.log(f"[SERVICE] Error restarting AnyDesk service: {e}")
 
     def _handle_authorization_retry(self, anydesk_id):
         """
@@ -909,6 +924,19 @@ class BlackholeService:
         """
         anydesk_id = data["anydesk_id"]
         self.log(f"[SERVICE] Scammer {anydesk_id} successfully connected to honeypot")
+
+        # Look up IP address from incoming_request (stored earlier)
+        ip_address = self.incoming_ips.get(anydesk_id)
+
+        # Log to C2 server (clean event, no raw_line)
+        event = {
+            "event_type": "incoming_accepted",
+            "anydesk_id": anydesk_id,
+            "ip_address": ip_address,  # Retrieved from stored mapping (may be None in portable mode)
+            "timestamp": data["timestamp"],  # datetime object (will be converted by C2 client)
+            "metadata": {},
+        }
+        self.c2_client.log_event(event)
 
         # USER-INITIATED MODE: Show popup after delay (connection now established)
         if REVERSE_CONNECTION_ENABLED and REVERSE_CONNECTION_MODE == "USER_INITIATED":

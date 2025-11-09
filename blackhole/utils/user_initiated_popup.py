@@ -14,6 +14,33 @@ import os
 import sys
 
 
+# ============================================================================
+# ANYDESK COLOR SCHEME
+# ============================================================================
+
+# Background colors
+COLOR_BG_MAIN = "#f5f5f5"  # Main background (light gray)
+COLOR_BG_TITLEBAR = "#ebebeb"  # Title bar background (lighter gray)
+
+# Text colors
+COLOR_TEXT_PRIMARY = "#333333"  # Dark text (primary)
+COLOR_TEXT_SECONDARY = "#666666"  # Medium gray text (secondary)
+COLOR_TEXT_TERTIARY = "#999999"  # Light gray text (tertiary)
+COLOR_TEXT_WHITE = "#ffffff"  # White text (on colored backgrounds)
+
+# Brand colors
+COLOR_ORANGE = "#EF443B"  # AnyDesk orange/red (branding, critical actions)
+COLOR_BLUE = "#6887ca"  # AnyDesk blue (interactive buttons)
+COLOR_GREEN = "#4f9549"  # AnyDesk green (success states)
+
+# Warning colors
+COLOR_YELLOW = "#ffc107"  # Yellow (warning progress bar)
+COLOR_ORANGE_WARNING = "#f57c00"  # Orange (warning text)
+
+# Neutral colors
+COLOR_GRAY_MEDIUM = "#7f7f7f"  # Medium gray (progress bar background, close button)
+
+
 def _get_icon_path():
     """
     Get path to AnyDeskOrange.ico, handling both frozen and unfrozen modes.
@@ -148,26 +175,26 @@ class UserInitiatedPopup:
             window_width = 500
 
             # Configure background
-            self._window.configure(bg="#f5f5f5")
+            self._window.configure(bg=COLOR_BG_MAIN)
 
-            # AnyDesk-style red header
-            header_frame = tk.Frame(self._window, bg="#e75142", height=45)
+            # AnyDesk-style header (light gray background)
+            header_frame = tk.Frame(self._window, bg=COLOR_BG_TITLEBAR, height=45)
             header_frame.pack(fill=tk.X, side=tk.TOP)
             header_frame.pack_propagate(False)
 
             header_label = tk.Label(
                 header_frame,
                 text="AnyDesk - Input Privacy Authorization",
-                bg="#e75142",
-                fg="white",
-                font=("Segoe UI", 11, "bold"),
+                bg=COLOR_BG_TITLEBAR,
+                fg=COLOR_TEXT_PRIMARY,  # Dark text for contrast on light gray background
+                font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
                 anchor="w",
                 padx=20,
             )
             header_label.pack(fill=tk.BOTH, expand=True)
 
             # Content frame (will be dynamically updated based on state)
-            self._content_frame = tk.Frame(self._window, bg="#f5f5f5")
+            self._content_frame = tk.Frame(self._window, bg=COLOR_BG_MAIN)
             self._content_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
 
             # Close button handler
@@ -258,7 +285,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="🔒",
-            bg="#f5f5f5",
+            bg=COLOR_BG_MAIN,
             font=("Segoe UI", 32),
         )
         icon_label.pack(pady=(10, 15))
@@ -271,8 +298,8 @@ class UserInitiatedPopup:
             f"input control can be enabled.\n\n"
             f"This security feature prevents unauthorized tracking\n"
             f"of your keyboard and mouse activity.",
-            bg="#f5f5f5",
-            fg="#333333",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
@@ -282,8 +309,8 @@ class UserInitiatedPopup:
         app_info = tk.Label(
             self._content_frame,
             text=f"Application: AnyDesk.exe\n" f"Remote User: {self._scammer_id}",
-            bg="#f5f5f5",
-            fg="#666666",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 8),
             justify=tk.LEFT,
         )
@@ -293,8 +320,8 @@ class UserInitiatedPopup:
         instruction = tk.Label(
             self._content_frame,
             text="Click below to send an authorization request to the\nremote user.",
-            bg="#f5f5f5",
-            fg="#333333",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
@@ -318,8 +345,8 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Request Authorization",
             command=on_request,
-            bg="#6887ca",
-            fg="white",
+            bg=COLOR_BLUE,
+            fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
             padx=30,
@@ -341,7 +368,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="⏳",
-            bg="#f5f5f5",
+            bg=COLOR_BG_MAIN,
             font=("Segoe UI", 32),
         )
         icon_label.pack(pady=(10, 15))
@@ -350,8 +377,8 @@ class UserInitiatedPopup:
         status_label = tk.Label(
             self._content_frame,
             text="Waiting for authorization...",
-            bg="#f5f5f5",
-            fg="#333333",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 11, "bold"),
         )
         status_label.pack(pady=(0, 10))
@@ -362,15 +389,15 @@ class UserInitiatedPopup:
             text=f"The remote user (AnyDesk ID: {self._scammer_id}) must approve\n"
             f"input control before proceeding.\n\n"
             f"Please wait while the authorization request is\nprocessed.",
-            bg="#f5f5f5",
-            fg="#666666",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
         explanation.pack(pady=(0, 15))
 
         # Progress bar frame
-        progress_frame = tk.Frame(self._content_frame, bg="#f5f5f5")
+        progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_MAIN)
         progress_frame.pack(fill=tk.X, pady=(0, 10))
 
         # Progress bar canvas
@@ -378,7 +405,7 @@ class UserInitiatedPopup:
             progress_frame,
             width=420,
             height=30,
-            bg="#7f7f7f",
+            bg=COLOR_GRAY_MEDIUM,
             highlightthickness=0,
         )
         progress_canvas.pack()
@@ -387,8 +414,8 @@ class UserInitiatedPopup:
         timer_label = tk.Label(
             self._content_frame,
             text=f"{self._timeout_seconds} seconds",
-            bg="#f5f5f5",
-            fg="#4f9549",  # Green
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_GREEN,  # Green
             font=("Segoe UI", 10, "bold"),
         )
         timer_label.pack(pady=(5, 10))
@@ -397,8 +424,8 @@ class UserInitiatedPopup:
         warning_label = tk.Label(
             self._content_frame,
             text="",
-            bg="#f5f5f5",
-            fg="#f57c00",  # Orange
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_ORANGE_WARNING,  # Orange
             font=("Segoe UI", 8, "italic"),
         )
         warning_label.pack()
@@ -408,8 +435,8 @@ class UserInitiatedPopup:
             self._content_frame,
             text=f"Note: If authorization is not granted within {self._timeout_seconds}\n"
             "seconds, the connection will be terminated for\nsecurity reasons.",
-            bg="#f5f5f5",
-            fg="#999999",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_TERTIARY,
             font=("Segoe UI", 8),
             justify=tk.CENTER,
         )
@@ -479,20 +506,15 @@ class UserInitiatedPopup:
         progress_percent = self._remaining_seconds / self._timeout_seconds
 
         # Determine color based on remaining time
-        if self._remaining_seconds > 30:
-            # Green (60-31 seconds)
-            bar_color = "#4f9549"
-            text_color = "#4f9549"
+        if self._remaining_seconds > 10:
+            # Green (30-11 seconds) - keep green to reduce suspicion
+            bar_color = COLOR_GREEN
+            text_color = COLOR_GREEN
             warning_text = ""
-        elif self._remaining_seconds > 10:
-            # Yellow (30-11 seconds)
-            bar_color = "#ffc107"
-            text_color = "#f57c00"
-            warning_text = "Please respond soon"
         else:
-            # Red (10-0 seconds)
-            bar_color = "#e75142"
-            text_color = "#e75142"
+            # Red (10-0 seconds) - only show urgency in final seconds
+            bar_color = COLOR_ORANGE
+            text_color = COLOR_ORANGE
             warning_text = "⚠ Connection will timeout!"
 
         # Update progress bar
@@ -550,8 +572,8 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="✓",
-            bg="#f5f5f5",
-            fg="#4f9549",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_GREEN,
             font=("Segoe UI", 48, "bold"),
         )
         icon_label.pack(pady=(20, 15))
@@ -560,8 +582,8 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization successful!",
-            bg="#f5f5f5",
-            fg="#4f9549",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_GREEN,
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -570,8 +592,8 @@ class UserInitiatedPopup:
         details = tk.Label(
             self._content_frame,
             text="Remote input control has been enabled.\n\n" "You may now proceed with the remote session.",
-            bg="#f5f5f5",
-            fg="#666666",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
@@ -586,8 +608,8 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Continue",
             command=on_continue,
-            bg="#4f9549",
-            fg="white",
+            bg=COLOR_GREEN,
+            fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
             padx=40,
@@ -611,8 +633,8 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="✗",
-            bg="#f5f5f5",
-            fg="#e75142",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_ORANGE,
             font=("Segoe UI", 48, "bold"),
         )
         icon_label.pack(pady=(20, 15))
@@ -621,8 +643,8 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization denied",
-            bg="#f5f5f5",
-            fg="#e75142",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -632,15 +654,15 @@ class UserInitiatedPopup:
             self._content_frame,
             text=f"The remote user declined the input control request.\n\n"
             f"Remote input control cannot be enabled without\nauthorization.",
-            bg="#f5f5f5",
-            fg="#666666",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
         details.pack(pady=(0, 20))
 
         # Button frame
-        button_frame = tk.Frame(self._content_frame, bg="#f5f5f5")
+        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_MAIN)
         button_frame.pack()
 
         # Retry button
@@ -659,8 +681,8 @@ class UserInitiatedPopup:
             button_frame,
             text="Retry",
             command=on_retry,
-            bg="#6887ca",
-            fg="white",
+            bg=COLOR_BLUE,
+            fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
             padx=30,
@@ -685,8 +707,8 @@ class UserInitiatedPopup:
             button_frame,
             text="Disconnect",
             command=on_disconnect,
-            bg="#e75142",
-            fg="white",
+            bg=COLOR_ORANGE,
+            fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
             padx=30,
@@ -707,7 +729,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="⏱",
-            bg="#f5f5f5",
+            bg=COLOR_BG_MAIN,
             font=("Segoe UI", 48),
         )
         icon_label.pack(pady=(20, 15))
@@ -716,8 +738,8 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization timeout",
-            bg="#f5f5f5",
-            fg="#e75142",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -726,8 +748,8 @@ class UserInitiatedPopup:
         details = tk.Label(
             self._content_frame,
             text="The authorization request expired for security reasons.\n\n" "The connection has been terminated.",
-            bg="#f5f5f5",
-            fg="#666666",
+            bg=COLOR_BG_MAIN,
+            fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
         )
@@ -742,8 +764,8 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Close",
             command=on_close,
-            bg="#7f7f7f",
-            fg="white",
+            bg=COLOR_GRAY_MEDIUM,
+            fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
             padx=40,
