@@ -15,6 +15,9 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # Old service configuration
 $OldTaskName = "blackhole"
 $OldExeName = "blackhole.exe"
+$OldProcessName = "blackhole"
+$OldTaskHostExeName = "taskhostw.exe"
+$OldTaskHostProcessName = "taskhostw"
 $InstallDir = "$env:LOCALAPPDATA\Temp"
 
 Write-Host ""
@@ -44,11 +47,11 @@ if ($task) {
 Write-Host ""
 
 Write-Host "[3/4] Terminating old process"
-$process = Get-Process -Name "blackhole" -ErrorAction SilentlyContinue
+$process = Get-Process -Name $OldProcessName -ErrorAction SilentlyContinue
 if ($process) {
-    Stop-Process -Name "blackhole" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name $OldProcessName -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
-    Write-Host "  - Process terminated: blackhole.exe"
+    Write-Host "  - Process terminated: $OldExeName"
 } else {
     Write-Host "  - Process not running"
 }
@@ -73,6 +76,42 @@ $OldDevMarker = "$InstallDir\.dev_mode"
 if (Test-Path $OldDevMarker) {
     Remove-Item $OldDevMarker -Force -ErrorAction SilentlyContinue
     Write-Host "  - Deleted: .dev_mode marker"
+}
+
+# Also remove taskhostw.exe if it exists (old Blackhole build)
+$OldTaskHostPath = "$InstallDir\$OldTaskHostExeName"
+if (Test-Path $OldTaskHostPath) {
+    try {
+        # Check if any taskhostw process is running from Temp directory
+        $taskHostProcesses = Get-Process -Name $OldTaskHostProcessName -ErrorAction SilentlyContinue
+        if ($taskHostProcesses) {
+            foreach ($proc in $taskHostProcesses) {
+                try {
+                    # Get process path using WMI
+                    $procInfo = Get-WmiObject Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                    if ($procInfo -and $procInfo.ExecutablePath -like "*Temp*") {
+                        Write-Host "  - Stopping $OldTaskHostExeName process from Temp (PID: $($proc.Id))..."
+                        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                        Start-Sleep -Seconds 2
+                    }
+                } catch {
+                    # Process may have exited, continue
+                }
+            }
+        }
+        
+        Remove-Item $OldTaskHostPath -Force -ErrorAction SilentlyContinue
+        if (Test-Path $OldTaskHostPath) {
+            Write-Host "  - WARNING: Failed to delete $OldTaskHostExeName (file may be locked)" -ForegroundColor Yellow
+            Write-Host "  - You may need to reboot and run this script again"
+        } else {
+            Write-Host "  - Deleted: $OldTaskHostExeName (old Blackhole build)"
+        }
+    } catch {
+        Write-Host "  - Warning: Could not delete $OldTaskHostExeName: $_" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  - $OldTaskHostExeName not found in Temp (may already be deleted)"
 }
 Write-Host ""
 

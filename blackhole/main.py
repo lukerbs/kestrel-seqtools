@@ -40,6 +40,7 @@ from utils.config import (
     DATA_DIR,
     WHITELIST_JSON_PATH,
     BLACKLIST_SEED,
+    EXE_NAME,
 )
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
@@ -354,8 +355,8 @@ class BlackholeService:
         if pid == os.getpid():
             return  # Don't monitor ourselves
 
-        # Auto-whitelist AnyDeskClient.exe (compiled Blackhole executable)
-        if process_name.lower() == "anydeskclient.exe":
+        # Auto-whitelist Blackhole executable (compiled executable)
+        if process_name.lower() == EXE_NAME.lower():
             if not self.whitelist_manager.is_whitelisted(process_name, exe_path):
                 self.log(f"[SERVICE] Auto-whitelisting Blackhole executable: {process_name}")
                 self.whitelist_manager.add_to_whitelist(process_name, exe_path)

