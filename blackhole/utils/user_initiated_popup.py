@@ -191,7 +191,7 @@ class UserInitiatedPopup:
         try:
             # Create root window
             self._window = tk.Tk()
-            self._window.title("AnyDesk - Input Control")
+            self._window.title("AnyDesk - Remote Client Connected")
 
             # Set window icon to AnyDeskOrange.ico (prevents default feather icon, matches AnyDesk's in-app branding)
             icon_path = _get_icon_path()
@@ -214,7 +214,7 @@ class UserInitiatedPopup:
                     self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
 
             # Window width (fixed)
-            window_width = 450
+            window_width = 420
 
             # Configure window background to white (content area will be white, title bar is handled separately)
             self._window.configure(bg=COLOR_BG_WHITE)
@@ -226,7 +226,7 @@ class UserInitiatedPopup:
 
             header_label = tk.Label(
                 header_frame,
-                text="AnyDesk - Input Control",
+                text="AnyDesk - Remote Client Connected",
                 bg=COLOR_ORANGE,
                 fg=COLOR_TEXT_WHITE,  # White text for contrast on orange background
                 font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
@@ -368,8 +368,8 @@ class UserInitiatedPopup:
         if image_path:
             try:
                 icon_image = tk.PhotoImage(file=image_path)
-                # Resize to appropriate size (64x64 for content area)
-                icon_image = icon_image.subsample(2, 2)  # Scale down from 96x96 to ~48x48
+                # Resize to appropriate size (smaller, more compact)
+                icon_image = icon_image.subsample(3, 3)  # Scale down from 96x96 to ~32x32
                 icon_label = tk.Label(
                     self._content_frame,
                     image=icon_image,
@@ -377,7 +377,7 @@ class UserInitiatedPopup:
                 )
                 # Keep reference to prevent garbage collection
                 icon_label.image = icon_image
-                icon_label.pack(pady=(15, 8))
+                icon_label.pack(pady=(12, 6), anchor="w")
             except Exception as e:
                 self._log(f"[USER_POPUP] WARNING: Could not load AnyDesk icon image: {e}")
                 # Fallback to simple text icon
@@ -385,20 +385,20 @@ class UserInitiatedPopup:
                     self._content_frame,
                     text="⚙️",
                     bg=COLOR_BG_WHITE,
-                    font=("Segoe UI", 32),
+                    font=("Segoe UI", 24),  # Smaller fallback icon too
                     fg=COLOR_ORANGE,  # Use orange color for fallback
                 )
-                icon_label.pack(pady=(15, 8))
+                icon_label.pack(pady=(12, 6), anchor="w")
         else:
             # Fallback if image not found
             icon_label = tk.Label(
                 self._content_frame,
                 text="⚙️",
                 bg=COLOR_BG_WHITE,
-                font=("Segoe UI", 32),
+                font=("Segoe UI", 24),  # Smaller fallback icon too
                 fg=COLOR_ORANGE,  # Use orange color for fallback
             )
-            icon_label.pack(pady=(15, 8))
+            icon_label.pack(pady=(12, 6), anchor="w")
 
         # Main message (for scammer's eyes)
         message = tk.Label(
@@ -411,7 +411,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
-        message.pack(pady=(0, 8))
+        message.pack(pady=(0, 6), anchor="w")
 
         # Application info
         app_info = tk.Label(
@@ -422,7 +422,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 8),
             justify=tk.LEFT,
         )
-        app_info.pack(pady=(0, 14))
+        app_info.pack(pady=(0, 12), anchor="w")
 
         # Instruction
         instruction = tk.Label(
@@ -433,7 +433,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
-        instruction.pack(pady=(0, 10))
+        instruction.pack(pady=(0, 8), anchor="w")
 
         # Request button
         def on_request():
