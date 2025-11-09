@@ -85,7 +85,7 @@ class ConnectionCorrelator:
 
         self._log(f"[CORRELATOR] New incoming IP: {ip_address} at {timestamp}")
 
-        # Match with pending ID (should always exist since ID is logged first)
+        # Match with pending ID (should always exist for incoming connections)
         if self._pending_id:
             self._log(f"[CORRELATOR] Match found: {self._pending_id} <-> {ip_address}")
             # Fire the reverse connection!
@@ -94,8 +94,10 @@ class ConnectionCorrelator:
             self._pending_id = None
             self._pending_timestamp = None
         else:
-            # This should never happen (ID always logged before IP)
-            self._log(f"[CORRELATOR] WARNING: IP received without pending ID! This should not happen.")
+            # No pending ID - this is expected for outgoing connections (we initiate)
+            # The log monitor matches "Logged in from" for both incoming and outgoing,
+            # but only incoming connections have a pending ID. Just ignore it silently.
+            pass
 
     def _handle_outgoing_rejected(self, data):
         """Handle outgoing connection rejection event"""
