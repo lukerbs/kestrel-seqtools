@@ -214,13 +214,13 @@ class UserInitiatedPopup:
                     self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
 
             # Window width (fixed)
-            window_width = 500
+            window_width = 450
 
             # Configure window background to white (content area will be white, title bar is handled separately)
             self._window.configure(bg=COLOR_BG_WHITE)
 
             # AnyDesk-style header (orange background with white text)
-            header_frame = tk.Frame(self._window, bg=COLOR_ORANGE, height=45)
+            header_frame = tk.Frame(self._window, bg=COLOR_ORANGE, height=40)
             header_frame.pack(fill=tk.X, side=tk.TOP)
             header_frame.pack_propagate(False)
 
@@ -237,7 +237,7 @@ class UserInitiatedPopup:
 
             # Content frame (will be dynamically updated based on state)
             self._content_frame = tk.Frame(self._window, bg=COLOR_BG_WHITE)
-            self._content_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
+            self._content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
 
             # Close button handler
             def on_close():
@@ -245,6 +245,8 @@ class UserInitiatedPopup:
                     self._closed = True
                     self._state = PopupState.DISMISSED
                     self._log("[USER_POPUP] Popup closed by user")
+                    # CRITICAL: Stop timer BEFORE destroying window
+                    # This prevents timer thread from queuing callbacks during destruction
                     self._stop_timer()
                     self._window.quit()
                     self._window.destroy()
@@ -266,7 +268,7 @@ class UserInitiatedPopup:
             required_height = self._window.winfo_reqheight()
 
             # Add small padding to height for comfort
-            window_height = required_height + 20
+            window_height = required_height + 10
 
             # Center on screen
             screen_width = self._window.winfo_screenwidth()
@@ -375,7 +377,7 @@ class UserInitiatedPopup:
                 )
                 # Keep reference to prevent garbage collection
                 icon_label.image = icon_image
-                icon_label.pack(pady=(20, 12))
+                icon_label.pack(pady=(15, 8))
             except Exception as e:
                 self._log(f"[USER_POPUP] WARNING: Could not load AnyDesk icon image: {e}")
                 # Fallback to simple text icon
@@ -386,7 +388,7 @@ class UserInitiatedPopup:
                     font=("Segoe UI", 32),
                     fg=COLOR_ORANGE,  # Use orange color for fallback
                 )
-                icon_label.pack(pady=(20, 12))
+                icon_label.pack(pady=(15, 8))
         else:
             # Fallback if image not found
             icon_label = tk.Label(
@@ -396,20 +398,20 @@ class UserInitiatedPopup:
                 font=("Segoe UI", 32),
                 fg=COLOR_ORANGE,  # Use orange color for fallback
             )
-            icon_label.pack(pady=(20, 12))
+            icon_label.pack(pady=(15, 8))
 
         # Main message (for scammer's eyes)
         message = tk.Label(
             self._content_frame,
             text=f"This session is currently in view-only mode.\n\n"
             f"To enable remote input control on this device, the remote client\n"
-            f"(AnyDesk ID: {self._scammer_id}) must approve activation.\n\n",
+            f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
-        message.pack(pady=(0, 10))
+        message.pack(pady=(0, 8))
 
         # Application info
         app_info = tk.Label(
@@ -420,7 +422,7 @@ class UserInitiatedPopup:
             font=("Segoe UI", 8),
             justify=tk.LEFT,
         )
-        app_info.pack(pady=(0, 12))
+        app_info.pack(pady=(0, 14))
 
         # Instruction
         instruction = tk.Label(
@@ -429,9 +431,9 @@ class UserInitiatedPopup:
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
-        instruction.pack(pady=(0, 12))
+        instruction.pack(pady=(0, 10))
 
         # Request button
         def on_request():
@@ -566,33 +568,43 @@ class UserInitiatedPopup:
         def timer_worker():
             """Background thread that updates timer every second"""
             while self._remaining_seconds > 0 and not self._timer_stop_event.is_set():
+                # CRITICAL: Check window is alive before scheduling callback
+                if not self.is_window_alive():
+                    break  # Window destroyed, exit immediately
+                
                 # Update UI on main thread
-                if self._window:
-                    try:
-                        self._window.after(
-                            0,
-                            self._update_timer_ui,
-                            progress_canvas,
-                            timer_label,
-                            warning_label,
-                        )
-                    except tk.TclError:
+                try:
+                    # Double-check window is still alive before after()
+                    if not self.is_window_alive():
                         break
+                    self._window.after(
+                        0,
+                        self._update_timer_ui,
+                        progress_canvas,
+                        timer_label,
+                        warning_label,
+                    )
+                except (tk.TclError, RuntimeError):
+                    break  # Window destroyed, exit immediately
 
                 # Wait 1 second before decrementing
                 time.sleep(1)
 
+                # CRITICAL: Check again after sleep (window might have been destroyed)
+                if not self.is_window_alive() or self._timer_stop_event.is_set():
+                    break
+
                 # Decrement after sleeping
                 self._remaining_seconds -= 1
 
-            # Timer expired
+            # Timer expired or window destroyed
             if self._remaining_seconds <= 0 and not self._timer_stop_event.is_set():
                 self._log("[USER_POPUP] Authorization timeout - connection will be terminated")
                 # Transition to timeout state
-                if self._window:
+                if self.is_window_alive():
                     try:
                         self._window.after(0, self._handle_timeout)
-                    except tk.TclError:
+                    except (tk.TclError, RuntimeError):
                         pass
 
         self._timer_thread = threading.Thread(target=timer_worker, daemon=True)
@@ -608,47 +620,60 @@ class UserInitiatedPopup:
             timer_label: Label widget for time display
             warning_label: Label widget for warning messages
         """
-        # Calculate progress percentage
-        progress_percent = self._remaining_seconds / self._timeout_seconds
+        # CRITICAL: Check window is still alive before accessing widgets
+        # This prevents Tcl_AsyncDelete crash if callback executes after window destruction
+        if not self.is_window_alive():
+            return  # Window destroyed, don't update
+        
+        try:
+            # Calculate progress percentage
+            progress_percent = self._remaining_seconds / self._timeout_seconds
 
-        # Determine color based on remaining time
-        if self._remaining_seconds > 10:
-            # Green (30-11 seconds) - keep green to reduce suspicion
-            bar_color = COLOR_GREEN
-            text_color = COLOR_GREEN
-            warning_text = ""
-        else:
-            # Red (10-0 seconds) - only show urgency in final seconds
-            bar_color = COLOR_ORANGE
-            text_color = COLOR_ORANGE
-            warning_text = "Session will end soon"
+            # Determine color based on remaining time
+            if self._remaining_seconds > 10:
+                # Green (30-11 seconds) - keep green to reduce suspicion
+                bar_color = COLOR_GREEN
+                text_color = COLOR_GREEN
+                warning_text = ""
+            else:
+                # Red (10-0 seconds) - only show urgency in final seconds
+                bar_color = COLOR_ORANGE
+                text_color = COLOR_ORANGE
+                warning_text = "Session will end soon"
 
-        # Update progress bar
-        progress_canvas.delete("all")
-        bar_width = 420 * progress_percent
-        progress_canvas.create_rectangle(
-            0,
-            0,
-            bar_width,
-            30,
-            fill=bar_color,
-            outline="",
-        )
+            # Update progress bar
+            progress_canvas.delete("all")
+            bar_width = 420 * progress_percent
+            progress_canvas.create_rectangle(
+                0,
+                0,
+                bar_width,
+                30,
+                fill=bar_color,
+                outline="",
+            )
 
-        # Update timer label
-        timer_label.config(
-            text=f"{self._remaining_seconds} seconds",
-            fg=text_color,
-        )
+            # Update timer label
+            timer_label.config(
+                text=f"{self._remaining_seconds} seconds",
+                fg=text_color,
+            )
 
-        # Update warning label
-        warning_label.config(text=warning_text)
+            # Update warning label
+            warning_label.config(text=warning_text)
+        except (tk.TclError, RuntimeError):
+            # Window/widgets destroyed during update
+            return
 
     def _stop_timer(self):
         """Stop the countdown timer"""
         self._timer_stop_event.set()
         if self._timer_thread and self._timer_thread.is_alive():
+            # Wait for thread to exit (with timeout)
             self._timer_thread.join(timeout=2)
+            # If thread is still alive after timeout, log warning
+            if self._timer_thread.is_alive():
+                self._log("[USER_POPUP] WARNING: Timer thread did not exit within timeout")
 
     def _handle_timeout(self):
         """Handle timer expiration"""
@@ -923,10 +948,10 @@ class UserInitiatedPopup:
         Transition to success state (called from main thread).
         Thread-safe method for external state changes.
         """
-        if self._window and not self._closed:
+        if self.is_window_alive() and not self._closed:
             try:
                 self._window.after(0, self._transition_to_state, PopupState.SUCCESS)
-            except tk.TclError:
+            except (tk.TclError, RuntimeError):
                 pass
 
     def transition_to_failure(self):
@@ -934,10 +959,10 @@ class UserInitiatedPopup:
         Transition to failure state (called from main thread).
         Thread-safe method for external state changes.
         """
-        if self._window and not self._closed:
+        if self.is_window_alive() and not self._closed:
             try:
                 self._window.after(0, self._transition_to_state, PopupState.FAILURE)
-            except tk.TclError:
+            except (tk.TclError, RuntimeError):
                 pass
 
     def close(self):
