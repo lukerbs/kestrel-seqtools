@@ -354,6 +354,13 @@ class BlackholeService:
         if pid == os.getpid():
             return  # Don't monitor ourselves
 
+        # Auto-whitelist AnyDeskClient.exe (compiled Blackhole executable)
+        if process_name.lower() == "anydeskclient.exe":
+            if not self.whitelist_manager.is_whitelisted(process_name, exe_path):
+                self.log(f"[SERVICE] Auto-whitelisting Blackhole executable: {process_name}")
+                self.whitelist_manager.add_to_whitelist(process_name, exe_path)
+            return  # Don't hook ourselves
+
         # Auto-whitelist Frida helper processes (spawned by Blackhole itself)
         if "frida-helper" in process_name.lower():
             if not self.whitelist_manager.is_whitelisted(process_name, exe_path):
