@@ -5,6 +5,7 @@ psutil>=5.9.0
 watchdog>=2.1.0
 rich>=13.0.0
 tqdm
+pywinstyles>=1.0.0
 
 # Build dependencies
 pyinstaller>=5.0.0

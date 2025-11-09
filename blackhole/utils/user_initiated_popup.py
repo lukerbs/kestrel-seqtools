@@ -12,6 +12,13 @@ import tkinter as tk
 from enum import Enum
 import os
 import sys
+import ctypes
+
+try:
+    import pywinstyles
+    PYWINSTYLES_AVAILABLE = True
+except ImportError:
+    PYWINSTYLES_AVAILABLE = False
 
 
 # ============================================================================
@@ -21,6 +28,7 @@ import sys
 # Background colors
 COLOR_BG_MAIN = "#f5f5f5"  # Main background (light gray)
 COLOR_BG_TITLEBAR = "#ebebeb"  # Title bar background (lighter gray)
+COLOR_BG_WHITE = "#ffffff"  # White background (main content area)
 
 # Text colors
 COLOR_TEXT_PRIMARY = "#333333"  # Dark text (primary)
@@ -171,22 +179,31 @@ class UserInitiatedPopup:
             else:
                 self._log(f"[USER_POPUP] WARNING: Icon not found (expected at: {icon_path if 'icon_path' in locals() else 'unknown'})")
 
+            # Set title bar background color and text styling (Windows 10/11 only)
+            if PYWINSTYLES_AVAILABLE and sys.platform == "win32":
+                try:
+                    pywinstyles.change_header_color(self._window, color=COLOR_BG_TITLEBAR)
+                    pywinstyles.change_title_color(self._window, color="black")
+                    self._log(f"[USER_POPUP] Set title bar color to {COLOR_BG_TITLEBAR} with black text")
+                except Exception as e:
+                    self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
+
             # Window width (fixed)
             window_width = 500
 
-            # Configure background
-            self._window.configure(bg=COLOR_BG_MAIN)
+            # Configure background (light gray to match title bar appearance)
+            self._window.configure(bg=COLOR_BG_TITLEBAR)
 
-            # AnyDesk-style header (light gray background)
-            header_frame = tk.Frame(self._window, bg=COLOR_BG_TITLEBAR, height=45)
+            # AnyDesk-style header (orange background with white text)
+            header_frame = tk.Frame(self._window, bg=COLOR_ORANGE, height=45)
             header_frame.pack(fill=tk.X, side=tk.TOP)
             header_frame.pack_propagate(False)
 
             header_label = tk.Label(
                 header_frame,
                 text="AnyDesk - Input Privacy Authorization",
-                bg=COLOR_BG_TITLEBAR,
-                fg=COLOR_TEXT_PRIMARY,  # Dark text for contrast on light gray background
+                bg=COLOR_ORANGE,
+                fg=COLOR_TEXT_WHITE,  # White text for contrast on orange background
                 font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
                 anchor="w",
                 padx=20,
@@ -194,7 +211,7 @@ class UserInitiatedPopup:
             header_label.pack(fill=tk.BOTH, expand=True)
 
             # Content frame (will be dynamically updated based on state)
-            self._content_frame = tk.Frame(self._window, bg=COLOR_BG_MAIN)
+            self._content_frame = tk.Frame(self._window, bg=COLOR_BG_WHITE)
             self._content_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
 
             # Close button handler
@@ -238,6 +255,43 @@ class UserInitiatedPopup:
             # Window properties
             self._window.attributes("-topmost", True)  # Always on top
             self._window.resizable(False, False)
+
+            # Hide window from taskbar using WS_EX_TOOLWINDOW (Windows only)
+            if sys.platform == "win32":
+                try:
+                    # Windows API constants
+                    GWL_EXSTYLE = -20
+                    WS_EX_TOOLWINDOW = 0x00000080
+                    
+                    # Get window handle
+                    hwnd = self._window.winfo_id()
+                    
+                    # Load user32.dll for Windows API calls
+                    user32 = ctypes.windll.user32
+                    
+                    # Hide window temporarily (required for style changes to take effect)
+                    self._window.withdraw()
+                    
+                    # Get current extended window styles
+                    current_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+                    
+                    # Add WS_EX_TOOLWINDOW flag to hide from taskbar
+                    new_style = current_style | WS_EX_TOOLWINDOW
+                    
+                    # Apply new extended style
+                    user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style)
+                    
+                    # Show window again (now with taskbar-hidden style applied)
+                    self._window.deiconify()
+                    
+                    self._log("[USER_POPUP] Applied WS_EX_TOOLWINDOW - window hidden from taskbar")
+                except Exception as e:
+                    self._log(f"[USER_POPUP] WARNING: Could not hide window from taskbar: {e}")
+                    # If hiding fails, ensure window is still visible
+                    try:
+                        self._window.deiconify()
+                    except:
+                        pass
 
             # Run main loop
             self._window.mainloop()
@@ -285,7 +339,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="🔒",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             font=("Segoe UI", 32),
         )
         icon_label.pack(pady=(10, 15))
@@ -298,7 +352,7 @@ class UserInitiatedPopup:
             f"input control can be enabled.\n\n"
             f"This security feature prevents unauthorized tracking\n"
             f"of your keyboard and mouse activity.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
             justify=tk.LEFT,
@@ -309,7 +363,7 @@ class UserInitiatedPopup:
         app_info = tk.Label(
             self._content_frame,
             text=f"Application: AnyDesk.exe\n" f"Remote User: {self._scammer_id}",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 8),
             justify=tk.LEFT,
@@ -320,7 +374,7 @@ class UserInitiatedPopup:
         instruction = tk.Label(
             self._content_frame,
             text="Click below to send an authorization request to the\nremote user.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
@@ -368,7 +422,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="⏳",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             font=("Segoe UI", 32),
         )
         icon_label.pack(pady=(10, 15))
@@ -377,7 +431,7 @@ class UserInitiatedPopup:
         status_label = tk.Label(
             self._content_frame,
             text="Waiting for authorization...",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 11, "bold"),
         )
@@ -389,7 +443,7 @@ class UserInitiatedPopup:
             text=f"The remote user (AnyDesk ID: {self._scammer_id}) must approve\n"
             f"input control before proceeding.\n\n"
             f"Please wait while the authorization request is\nprocessed.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
@@ -397,7 +451,7 @@ class UserInitiatedPopup:
         explanation.pack(pady=(0, 15))
 
         # Progress bar frame
-        progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_MAIN)
+        progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
         progress_frame.pack(fill=tk.X, pady=(0, 10))
 
         # Progress bar canvas
@@ -414,7 +468,7 @@ class UserInitiatedPopup:
         timer_label = tk.Label(
             self._content_frame,
             text=f"{self._timeout_seconds} seconds",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,  # Green
             font=("Segoe UI", 10, "bold"),
         )
@@ -424,7 +478,7 @@ class UserInitiatedPopup:
         warning_label = tk.Label(
             self._content_frame,
             text="",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE_WARNING,  # Orange
             font=("Segoe UI", 8, "italic"),
         )
@@ -435,7 +489,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text=f"Note: If authorization is not granted within {self._timeout_seconds}\n"
             "seconds, the connection will be terminated for\nsecurity reasons.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_TERTIARY,
             font=("Segoe UI", 8),
             justify=tk.CENTER,
@@ -572,7 +626,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="✓",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,
             font=("Segoe UI", 48, "bold"),
         )
@@ -582,7 +636,7 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization successful!",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,
             font=("Segoe UI", 12, "bold"),
         )
@@ -592,7 +646,7 @@ class UserInitiatedPopup:
         details = tk.Label(
             self._content_frame,
             text="Remote input control has been enabled.\n\n" "You may now proceed with the remote session.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
@@ -633,7 +687,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="✗",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
             font=("Segoe UI", 48, "bold"),
         )
@@ -643,7 +697,7 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization denied",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
         )
@@ -654,7 +708,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text=f"The remote user declined the input control request.\n\n"
             f"Remote input control cannot be enabled without\nauthorization.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
@@ -662,7 +716,7 @@ class UserInitiatedPopup:
         details.pack(pady=(0, 20))
 
         # Button frame
-        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_MAIN)
+        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
         button_frame.pack()
 
         # Retry button
@@ -729,7 +783,7 @@ class UserInitiatedPopup:
         icon_label = tk.Label(
             self._content_frame,
             text="⏱",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             font=("Segoe UI", 48),
         )
         icon_label.pack(pady=(20, 15))
@@ -738,7 +792,7 @@ class UserInitiatedPopup:
         message = tk.Label(
             self._content_frame,
             text="Authorization timeout",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
         )
@@ -748,7 +802,7 @@ class UserInitiatedPopup:
         details = tk.Label(
             self._content_frame,
             text="The authorization request expired for security reasons.\n\n" "The connection has been terminated.",
-            bg=COLOR_BG_MAIN,
+            bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
             justify=tk.CENTER,
