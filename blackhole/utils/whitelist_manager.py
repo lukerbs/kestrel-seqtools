@@ -8,6 +8,7 @@ import json
 import multiprocessing
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -291,11 +292,13 @@ class WhitelistManager:
             }
 
             # Process results as they complete
+            # Disable progress bar if stdout is not available (headless PyInstaller)
             with tqdm(
                 total=total_files,
                 desc="Processing",
                 unit="exe",
                 bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+                disable=sys.stdout is None,  # Disable if stdout is None (headless mode)
             ) as pbar:
                 for future in as_completed(future_to_file):
                     file_info = future_to_file[future]
