@@ -467,7 +467,7 @@ class UserInitiatedPopup:
             progress_frame,
             width=420,
             height=30,
-            bg=COLOR_GRAY_MEDIUM,
+            bg="#e0e0e0",  # Light gray background for progress bar
             highlightthickness=0,
         )
         progress_canvas.pack()
