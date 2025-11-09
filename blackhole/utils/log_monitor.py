@@ -47,10 +47,9 @@ class LogFileHandler(FileSystemEventHandler):
             re.I,
         )
         # Pattern for AnyDesk ID in ad_svc.trace / ad.trace
+        # ONLY match actual incoming connection requests, not outgoing or relay reconnects
         self._trace_id_pattern = re.compile(
-            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"
-            r".*?(?:\bClient-ID:\s+|Incoming session request:.*\()"
-            r"(\d{9,10})",
+            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)" r".*?\bAccept request from\s+(\d{9,10})",
             re.I,
         )
 
