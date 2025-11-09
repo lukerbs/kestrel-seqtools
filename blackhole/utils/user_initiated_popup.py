@@ -363,77 +363,40 @@ class UserInitiatedPopup:
         - Uses "remote client" terminology (AnyDesk official term)
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
-        # Icon - Use AnyDesk orange logo image instead of emoji
-        image_path = _get_anydesk_image_path()
-        if image_path:
-            try:
-                icon_image = tk.PhotoImage(file=image_path)
-                # Resize to appropriate size (smaller, more compact)
-                icon_image = icon_image.subsample(3, 3)  # Scale down from 96x96 to ~32x32
-                icon_label = tk.Label(
-                    self._content_frame,
-                    image=icon_image,
-                    bg=COLOR_BG_WHITE,
-                )
-                # Keep reference to prevent garbage collection
-                icon_label.image = icon_image
-                icon_label.pack(pady=(12, 6), anchor="w")
-            except Exception as e:
-                self._log(f"[USER_POPUP] WARNING: Could not load AnyDesk icon image: {e}")
-                # Fallback to simple text icon
-                icon_label = tk.Label(
-                    self._content_frame,
-                    text="⚙️",
-                    bg=COLOR_BG_WHITE,
-                    font=("Segoe UI", 24),  # Smaller fallback icon too
-                    fg=COLOR_ORANGE,  # Use orange color for fallback
-                )
-                icon_label.pack(pady=(12, 6), anchor="w")
-        else:
-            # Fallback if image not found
-            icon_label = tk.Label(
-                self._content_frame,
-                text="⚙️",
-                bg=COLOR_BG_WHITE,
-                font=("Segoe UI", 24),  # Smaller fallback icon too
-                fg=COLOR_ORANGE,  # Use orange color for fallback
-            )
-            icon_label.pack(pady=(12, 6), anchor="w")
-
-        # Main message (for scammer's eyes)
+        # Main message (for scammer's eyes) - Bold, dark for hierarchy
         message = tk.Label(
             self._content_frame,
             text=f"This session is currently in view-only mode.\n\n"
             f"To enable remote input control on this device, the remote client\n"
             f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_PRIMARY,
-            font=("Segoe UI", 9),
+            fg="#1a1a1a",  # Dark black for primary text
+            font=("Segoe UI", 10, "bold"),  # Bold, slightly larger
             justify=tk.LEFT,
         )
-        message.pack(pady=(0, 6), anchor="w")
+        message.pack(pady=(15, 8), anchor="w")
 
-        # Application info
+        # Application info - Lighter gray, smaller, regular weight
         app_info = tk.Label(
             self._content_frame,
             text=f"Application: AnyDesk.exe\n" f"Connection: Active (View Only)",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,
+            fg=COLOR_TEXT_TERTIARY,  # Light gray for less important info
             font=("Segoe UI", 8),
             justify=tk.LEFT,
         )
-        app_info.pack(pady=(0, 12), anchor="w")
+        app_info.pack(pady=(0, 14), anchor="w")
 
-        # Instruction
+        # Instruction - Medium gray, regular weight
         instruction = tk.Label(
             self._content_frame,
             text="Click below to request input control activation.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_PRIMARY,
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
             font=("Segoe UI", 9),
             justify=tk.LEFT,
         )
-        instruction.pack(pady=(0, 8), anchor="w")
+        instruction.pack(pady=(0, 10), anchor="w")
 
         # Request button
         def on_request():
@@ -472,37 +435,28 @@ class UserInitiatedPopup:
         - Visual warnings as time decreases (green → orange)
         - Creates urgency for scammer to accept
         """
-        # Icon
-        icon_label = tk.Label(
-            self._content_frame,
-            text="⏳",
-            bg=COLOR_BG_WHITE,
-            font=("Segoe UI", 32),
-        )
-        icon_label.pack(pady=(10, 15))
-
-        # Status message
+        # Status message - Bold, dark for primary hierarchy
         status_label = tk.Label(
             self._content_frame,
             text="Requesting activation...",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_PRIMARY,
+            fg="#1a1a1a",  # Dark black for primary text
             font=("Segoe UI", 11, "bold"),
         )
-        status_label.pack(pady=(0, 10))
+        status_label.pack(pady=(15, 10), anchor="w")
 
-        # Explanation
+        # Explanation - Regular weight, medium gray
         explanation = tk.Label(
             self._content_frame,
             text=f"Waiting for the remote client (AnyDesk ID: {self._scammer_id})\n"
             f"to approve input control activation.\n\n"
             f"Please wait while your request is processed.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
             font=("Segoe UI", 9),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
-        explanation.pack(pady=(0, 15))
+        explanation.pack(pady=(0, 15), anchor="w")
 
         # Progress bar frame
         progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -538,15 +492,15 @@ class UserInitiatedPopup:
         )
         warning_label.pack()
 
-        # Note
+        # Note - Light gray, smaller, left-aligned
         note = tk.Label(
             self._content_frame,
             text=f"If activation is not completed within {self._timeout_seconds} seconds,\n"
             "the session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_TERTIARY,
+            fg=COLOR_TEXT_TERTIARY,  # Light gray for tertiary text
             font=("Segoe UI", 8),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
         note.pack(pady=(5, 0))
 
@@ -699,36 +653,26 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
-        # Success icon
-        icon_label = tk.Label(
-            self._content_frame,
-            text="✓",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_GREEN,
-            font=("Segoe UI", 48, "bold"),
-        )
-        icon_label.pack(pady=(20, 15))
-
-        # Success message
+        # Success message - Bold, green for success state
         message = tk.Label(
             self._content_frame,
             text="Input control enabled",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_GREEN,
+            fg=COLOR_GREEN,  # Green for success
             font=("Segoe UI", 12, "bold"),
         )
-        message.pack(pady=(0, 10))
+        message.pack(pady=(15, 10), anchor="w")
 
-        # Details
+        # Details - Regular weight, medium gray
         details = tk.Label(
             self._content_frame,
             text="You now have full control of the remote desktop.\n\n" "You may proceed with the session.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
             font=("Segoe UI", 9),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
-        details.pack(pady=(0, 20))
+        details.pack(pady=(0, 20), anchor="w")
 
         # Continue button
         def on_continue():
@@ -760,17 +704,7 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
-        # Failure icon
-        icon_label = tk.Label(
-            self._content_frame,
-            text="✗",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_ORANGE,
-            font=("Segoe UI", 48, "bold"),
-        )
-        icon_label.pack(pady=(20, 15))
-
-        # Failure message
+        # Failure message - Bold, orange for failure state
         message = tk.Label(
             self._content_frame,
             text="Activation request declined",
@@ -778,19 +712,19 @@ class UserInitiatedPopup:
             fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
         )
-        message.pack(pady=(0, 10))
+        message.pack(pady=(15, 10), anchor="w")
 
-        # Details
+        # Details - Regular weight, medium gray
         details = tk.Label(
             self._content_frame,
             text=f"The remote client declined the input control request.\n\n"
             f"Remote input control cannot be enabled without\nactivation approval.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
             font=("Segoe UI", 9),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
-        details.pack(pady=(0, 20))
+        details.pack(pady=(0, 20), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -857,35 +791,26 @@ class UserInitiatedPopup:
         - Session remains in view-only mode
         - User can retry or disconnect
         """
-        # Timeout icon
-        icon_label = tk.Label(
-            self._content_frame,
-            text="⏱",
-            bg=COLOR_BG_WHITE,
-            font=("Segoe UI", 48),
-        )
-        icon_label.pack(pady=(20, 15))
-
-        # Timeout message
+        # Timeout message - Bold, orange for timeout state
         message = tk.Label(
             self._content_frame,
             text="Activation request expired",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_ORANGE,
+            fg=COLOR_ORANGE,  # Orange for timeout/warning
             font=("Segoe UI", 12, "bold"),
         )
-        message.pack(pady=(0, 10))
+        message.pack(pady=(15, 10), anchor="w")
 
-        # Details
+        # Details - Regular weight, medium gray
         details = tk.Label(
             self._content_frame,
             text="The activation request timed out.\n\n" "Session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
             font=("Segoe UI", 9),
-            justify=tk.CENTER,
+            justify=tk.LEFT,
         )
-        details.pack(pady=(0, 20))
+        details.pack(pady=(0, 20), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
