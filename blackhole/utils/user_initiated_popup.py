@@ -166,7 +166,7 @@ class UserInitiatedPopup:
         try:
             # Create root window
             self._window = tk.Tk()
-            self._window.title("AnyDesk - Input Privacy Authorization")
+            self._window.title("AnyDesk - Input Control")
 
             # Set window icon to AnyDeskOrange.ico (prevents default feather icon, matches AnyDesk's in-app branding)
             icon_path = _get_icon_path()
@@ -191,8 +191,8 @@ class UserInitiatedPopup:
             # Window width (fixed)
             window_width = 500
 
-            # Configure background (light gray to match title bar appearance)
-            self._window.configure(bg=COLOR_BG_TITLEBAR)
+            # Configure window background to white (content area will be white, title bar is handled separately)
+            self._window.configure(bg=COLOR_BG_WHITE)
 
             # AnyDesk-style header (orange background with white text)
             header_frame = tk.Frame(self._window, bg=COLOR_ORANGE, height=45)
@@ -201,7 +201,7 @@ class UserInitiatedPopup:
 
             header_label = tk.Label(
                 header_frame,
-                text="AnyDesk - Input Privacy Authorization",
+                text="AnyDesk - Input Control",
                 bg=COLOR_ORANGE,
                 fg=COLOR_TEXT_WHITE,  # White text for contrast on orange background
                 font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
@@ -328,17 +328,18 @@ class UserInitiatedPopup:
 
     def _render_initial_state(self):
         """
-        Render the initial authorization request screen.
+        Render the initial activation request screen.
 
         SOCIAL ENGINEERING:
         - Message is for the SCAMMER (not honeypot operator)
-        - Frames it as protecting THEIR privacy (AnyDesk ID specified)
+        - Frames it as "view-only mode" requiring activation to enable input control
+        - Uses "remote client" terminology (AnyDesk official term)
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
         # Icon
         icon_label = tk.Label(
             self._content_frame,
-            text="🔒",
+            text="⚙️",
             bg=COLOR_BG_WHITE,
             font=("Segoe UI", 32),
         )
@@ -347,11 +348,9 @@ class UserInitiatedPopup:
         # Main message (for scammer's eyes)
         message = tk.Label(
             self._content_frame,
-            text=f"To protect your privacy (AnyDesk ID: {self._scammer_id}), this\n"
-            f"session requires explicit authorization before remote\n"
-            f"input control can be enabled.\n\n"
-            f"This security feature prevents unauthorized tracking\n"
-            f"of your keyboard and mouse activity.",
+            text=f"This session is currently in view-only mode.\n\n"
+            f"To enable remote input control on this device, the remote client\n"
+            f"(AnyDesk ID: {self._scammer_id}) must approve activation.\n\n",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
@@ -362,7 +361,7 @@ class UserInitiatedPopup:
         # Application info
         app_info = tk.Label(
             self._content_frame,
-            text=f"Application: AnyDesk.exe\n" f"Remote User: {self._scammer_id}",
+            text=f"Application: AnyDesk.exe\n" f"Connection: Active (View Only)",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 8),
@@ -373,7 +372,7 @@ class UserInitiatedPopup:
         # Instruction
         instruction = tk.Label(
             self._content_frame,
-            text="Click below to send an authorization request to the\nremote user.",
+            text="Click below to request input control activation.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 9),
@@ -384,7 +383,7 @@ class UserInitiatedPopup:
         # Request button
         def on_request():
             """CRITICAL: This triggers the reverse connection"""
-            self._log(f"[USER_POPUP] User clicked 'Request Authorization' - triggering reverse connection")
+            self._log(f"[USER_POPUP] User clicked 'Enable Input Control' - triggering reverse connection")
             # Transition to waiting state
             self._transition_to_state(PopupState.WAITING)
             # Trigger reverse connection via callback
@@ -397,9 +396,9 @@ class UserInitiatedPopup:
 
         request_btn = tk.Button(
             self._content_frame,
-            text="Request Authorization",
+            text="Enable Input Control",
             command=on_request,
-            bg=COLOR_BLUE,
+            bg=COLOR_GREEN,
             fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
@@ -414,8 +413,8 @@ class UserInitiatedPopup:
         Render the waiting screen with countdown timer.
 
         COUNTDOWN TIMER:
-        - Starts at 60 seconds, counts DOWN
-        - Visual warnings as time decreases
+        - Starts at configured timeout (default 30 seconds), counts DOWN
+        - Visual warnings as time decreases (green → orange)
         - Creates urgency for scammer to accept
         """
         # Icon
@@ -430,7 +429,7 @@ class UserInitiatedPopup:
         # Status message
         status_label = tk.Label(
             self._content_frame,
-            text="Waiting for authorization...",
+            text="Requesting activation...",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_PRIMARY,
             font=("Segoe UI", 11, "bold"),
@@ -440,9 +439,9 @@ class UserInitiatedPopup:
         # Explanation
         explanation = tk.Label(
             self._content_frame,
-            text=f"The remote user (AnyDesk ID: {self._scammer_id}) must approve\n"
-            f"input control before proceeding.\n\n"
-            f"Please wait while the authorization request is\nprocessed.",
+            text=f"Waiting for the remote client (AnyDesk ID: {self._scammer_id})\n"
+            f"to approve input control activation.\n\n"
+            f"Please wait while your request is processed.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
@@ -487,8 +486,8 @@ class UserInitiatedPopup:
         # Note
         note = tk.Label(
             self._content_frame,
-            text=f"Note: If authorization is not granted within {self._timeout_seconds}\n"
-            "seconds, the connection will be terminated for\nsecurity reasons.",
+            text=f"If activation is not completed within {self._timeout_seconds} seconds,\n"
+            "the session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_TERTIARY,
             font=("Segoe UI", 8),
@@ -569,7 +568,7 @@ class UserInitiatedPopup:
             # Red (10-0 seconds) - only show urgency in final seconds
             bar_color = COLOR_ORANGE
             text_color = COLOR_ORANGE
-            warning_text = "⚠ Connection will timeout!"
+            warning_text = "Session will end soon"
 
         # Update progress bar
         progress_canvas.delete("all")
@@ -635,7 +634,7 @@ class UserInitiatedPopup:
         # Success message
         message = tk.Label(
             self._content_frame,
-            text="Authorization successful!",
+            text="Input control enabled",
             bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,
             font=("Segoe UI", 12, "bold"),
@@ -645,7 +644,7 @@ class UserInitiatedPopup:
         # Details
         details = tk.Label(
             self._content_frame,
-            text="Remote input control has been enabled.\n\n" "You may now proceed with the remote session.",
+            text="You now have full control of the remote desktop.\n\n" "You may proceed with the session.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
@@ -696,7 +695,7 @@ class UserInitiatedPopup:
         # Failure message
         message = tk.Label(
             self._content_frame,
-            text="Authorization denied",
+            text="Activation request declined",
             bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
@@ -706,8 +705,8 @@ class UserInitiatedPopup:
         # Details
         details = tk.Label(
             self._content_frame,
-            text=f"The remote user declined the input control request.\n\n"
-            f"Remote input control cannot be enabled without\nauthorization.",
+            text=f"The remote client declined the input control request.\n\n"
+            f"Remote input control cannot be enabled without\nactivation approval.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
@@ -776,8 +775,9 @@ class UserInitiatedPopup:
         Render the timeout screen if timer expires.
 
         TIMEOUT:
-        - Authorization request expired
-        - Connection has been terminated
+        - Activation request expired
+        - Session remains in view-only mode
+        - User can retry or disconnect
         """
         # Timeout icon
         icon_label = tk.Label(
@@ -791,7 +791,7 @@ class UserInitiatedPopup:
         # Timeout message
         message = tk.Label(
             self._content_frame,
-            text="Authorization timeout",
+            text="Activation request expired",
             bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
             font=("Segoe UI", 12, "bold"),
@@ -801,7 +801,7 @@ class UserInitiatedPopup:
         # Details
         details = tk.Label(
             self._content_frame,
-            text="The authorization request expired for security reasons.\n\n" "The connection has been terminated.",
+            text="The activation request timed out.\n\n" "Session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,
             font=("Segoe UI", 9),
@@ -809,24 +809,61 @@ class UserInitiatedPopup:
         )
         details.pack(pady=(0, 20))
 
-        # Close button
-        def on_close():
-            """Close popup"""
-            self.close()
+        # Button frame
+        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
+        button_frame.pack()
 
-        close_btn = tk.Button(
-            self._content_frame,
-            text="Close",
-            command=on_close,
-            bg=COLOR_GRAY_MEDIUM,
+        # Retry button
+        def on_retry():
+            """Retry reverse connection"""
+            self._log("[USER_POPUP] User clicked 'Retry' - sending another request")
+            self._transition_to_state(PopupState.WAITING)
+            if self._on_retry:
+                threading.Thread(
+                    target=self._on_retry,
+                    args=(self._scammer_id,),
+                    daemon=True,
+                ).start()
+
+        retry_btn = tk.Button(
+            button_frame,
+            text="Retry",
+            command=on_retry,
+            bg=COLOR_BLUE,
             fg=COLOR_TEXT_WHITE,
             font=("Segoe UI", 10),
             relief=tk.FLAT,
-            padx=40,
+            padx=30,
             pady=8,
             cursor="hand2",
         )
-        close_btn.pack()
+        retry_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Disconnect button
+        def on_disconnect():
+            """Disconnect AnyDesk connection"""
+            self._log("[USER_POPUP] User clicked 'Disconnect' - killing connection")
+            if self._on_disconnect:
+                threading.Thread(
+                    target=self._on_disconnect,
+                    args=(self._scammer_id,),
+                    daemon=True,
+                ).start()
+            self.close()
+
+        disconnect_btn = tk.Button(
+            button_frame,
+            text="Disconnect",
+            command=on_disconnect,
+            bg=COLOR_ORANGE,
+            fg=COLOR_TEXT_WHITE,
+            font=("Segoe UI", 10),
+            relief=tk.FLAT,
+            padx=30,
+            pady=8,
+            cursor="hand2",
+        )
+        disconnect_btn.pack(side=tk.LEFT)
 
     def transition_to_success(self):
         """
