@@ -108,7 +108,7 @@ class LogFileHandler(FileSystemEventHandler):
             if size < last_pos:
                 # Rotation/truncate detected
                 self._log(f"[LOG_MONITOR] Rotation/truncate detected: {filepath}")
-                last_pos = 0
+                last_pos = size  # Start from end of new file, not beginning
                 # Clear remainder for this file
                 self._file_remainders.pop(filepath, None)
             f.seek(last_pos)
