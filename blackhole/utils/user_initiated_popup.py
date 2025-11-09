@@ -10,6 +10,36 @@ import threading
 import time
 import tkinter as tk
 from enum import Enum
+import os
+import sys
+
+
+def _get_icon_path():
+    """
+    Get path to AnyDeskOrange.ico, handling both frozen and unfrozen modes.
+    Uses orange logo ICO (converted from PNG) to match AnyDesk's in-app branding.
+    
+    When running as PyInstaller bundle, uses sys._MEIPASS (temp extraction dir).
+    When running as .py script, uses relative path from project.
+    
+    Returns:
+        str: Absolute path to AnyDeskOrange.ico, or None if not found
+    """
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle - use temp extraction directory
+        icon_path = os.path.join(sys._MEIPASS, "assets", "AnyDeskOrange.ico")
+    else:
+        # Running as .py script - use relative path from blackhole directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(script_dir, "..", "assets", "AnyDeskOrange.ico")
+    
+    # Resolve to absolute path
+    icon_path = os.path.abspath(icon_path)
+    
+    # Verify file exists
+    if os.path.exists(icon_path):
+        return icon_path
+    return None
 
 
 class PopupState(Enum):
@@ -103,6 +133,17 @@ class UserInitiatedPopup:
             self._window = tk.Tk()
             self._window.title("AnyDesk - Input Privacy Authorization")
 
+            # Set window icon to AnyDeskOrange.ico (prevents default feather icon, matches AnyDesk's in-app branding)
+            icon_path = _get_icon_path()
+            if icon_path:
+                try:
+                    self._window.iconbitmap(icon_path)
+                    self._log(f"[USER_POPUP] Set window icon: {icon_path}")
+                except Exception as e:
+                    self._log(f"[USER_POPUP] WARNING: Could not set window icon: {e}")
+            else:
+                self._log(f"[USER_POPUP] WARNING: Icon not found (expected at: {icon_path if 'icon_path' in locals() else 'unknown'})")
+
             # Window width (fixed)
             window_width = 500
 
@@ -110,14 +151,14 @@ class UserInitiatedPopup:
             self._window.configure(bg="#f5f5f5")
 
             # AnyDesk-style red header
-            header_frame = tk.Frame(self._window, bg="#d51317", height=45)
+            header_frame = tk.Frame(self._window, bg="#e75142", height=45)
             header_frame.pack(fill=tk.X, side=tk.TOP)
             header_frame.pack_propagate(False)
 
             header_label = tk.Label(
                 header_frame,
                 text="AnyDesk - Input Privacy Authorization",
-                bg="#d51317",
+                bg="#e75142",
                 fg="white",
                 font=("Segoe UI", 11, "bold"),
                 anchor="w",
@@ -277,7 +318,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Request Authorization",
             command=on_request,
-            bg="#d51317",
+            bg="#6887ca",
             fg="white",
             font=("Segoe UI", 10),
             relief=tk.FLAT,
@@ -337,7 +378,7 @@ class UserInitiatedPopup:
             progress_frame,
             width=420,
             height=30,
-            bg="#e0e0e0",
+            bg="#7f7f7f",
             highlightthickness=0,
         )
         progress_canvas.pack()
@@ -347,7 +388,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text=f"{self._timeout_seconds} seconds",
             bg="#f5f5f5",
-            fg="#2e7d32",  # Green
+            fg="#4f9549",  # Green
             font=("Segoe UI", 10, "bold"),
         )
         timer_label.pack(pady=(5, 10))
@@ -440,8 +481,8 @@ class UserInitiatedPopup:
         # Determine color based on remaining time
         if self._remaining_seconds > 30:
             # Green (60-31 seconds)
-            bar_color = "#4caf50"
-            text_color = "#2e7d32"
+            bar_color = "#4f9549"
+            text_color = "#4f9549"
             warning_text = ""
         elif self._remaining_seconds > 10:
             # Yellow (30-11 seconds)
@@ -450,8 +491,8 @@ class UserInitiatedPopup:
             warning_text = "Please respond soon"
         else:
             # Red (10-0 seconds)
-            bar_color = "#f44336"
-            text_color = "#c62828"
+            bar_color = "#e75142"
+            text_color = "#e75142"
             warning_text = "⚠ Connection will timeout!"
 
         # Update progress bar
@@ -510,7 +551,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="✓",
             bg="#f5f5f5",
-            fg="#4caf50",
+            fg="#4f9549",
             font=("Segoe UI", 48, "bold"),
         )
         icon_label.pack(pady=(20, 15))
@@ -520,7 +561,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Authorization successful!",
             bg="#f5f5f5",
-            fg="#2e7d32",
+            fg="#4f9549",
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -545,7 +586,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Continue",
             command=on_continue,
-            bg="#4caf50",
+            bg="#4f9549",
             fg="white",
             font=("Segoe UI", 10),
             relief=tk.FLAT,
@@ -571,7 +612,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="✗",
             bg="#f5f5f5",
-            fg="#f44336",
+            fg="#e75142",
             font=("Segoe UI", 48, "bold"),
         )
         icon_label.pack(pady=(20, 15))
@@ -581,7 +622,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Authorization denied",
             bg="#f5f5f5",
-            fg="#c62828",
+            fg="#e75142",
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -618,7 +659,7 @@ class UserInitiatedPopup:
             button_frame,
             text="Retry",
             command=on_retry,
-            bg="#2196f3",
+            bg="#6887ca",
             fg="white",
             font=("Segoe UI", 10),
             relief=tk.FLAT,
@@ -644,7 +685,7 @@ class UserInitiatedPopup:
             button_frame,
             text="Disconnect",
             command=on_disconnect,
-            bg="#f44336",
+            bg="#e75142",
             fg="white",
             font=("Segoe UI", 10),
             relief=tk.FLAT,
@@ -676,7 +717,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Authorization timeout",
             bg="#f5f5f5",
-            fg="#f57c00",
+            fg="#e75142",
             font=("Segoe UI", 12, "bold"),
         )
         message.pack(pady=(0, 10))
@@ -701,7 +742,7 @@ class UserInitiatedPopup:
             self._content_frame,
             text="Close",
             command=on_close,
-            bg="#666666",
+            bg="#7f7f7f",
             fg="white",
             font=("Segoe UI", 10),
             relief=tk.FLAT,
