@@ -724,6 +724,13 @@ class BlackholeService:
 
                 if killed_count > 0:
                     self.log(f"[SERVICE] Terminated {killed_count} AnyDesk process(es) due to timeout")
+
+                    # CLEANUP: Clear popup reference after timeout
+                    # close() now blocks until window is destroyed, preventing threading errors
+                    if self.active_user_popup:
+                        self.active_user_popup.close()
+                        self.active_user_popup = None
+                        self.log("[SERVICE] Cleared old popup reference after timeout")
                 else:
                     self.log("[SERVICE] No AnyDesk processes found to terminate")
 
@@ -897,10 +904,18 @@ class BlackholeService:
                 self.log("[SERVICE] Reverse connection unavailable (AnyDesk not found)")
                 return
 
-            # Failsafe: Block if we already have an active popup
-            if self.active_user_popup and not self.active_user_popup.is_closed():
-                self.log("[SERVICE] WARNING: User-initiated popup already active - ignoring request")
-                return
+            # Failsafe: Block if we already have an active popup that's not fully destroyed
+            if self.active_user_popup:
+                if not self.active_user_popup.is_closed():
+                    self.log("[SERVICE] WARNING: User-initiated popup already active - ignoring request")
+                    return
+                elif self.active_user_popup.is_window_alive():
+                    # Popup is "closed" but window still exists - wait for it to finish
+                    self.log("[SERVICE] WARNING: Old popup window still alive - waiting for destruction...")
+                    time.sleep(0.2)  # Brief wait for destruction to complete
+                    if self.active_user_popup.is_window_alive():
+                        self.log("[SERVICE] ERROR: Old popup won't die - aborting new popup creation")
+                        return
 
             self.log(f"[SERVICE] User-initiated mode: Will show popup after {USER_INITIATED_POPUP_DELAY}s delay...")
 

@@ -78,6 +78,9 @@ class UserInitiatedPopup:
         self._timer_stop_event = threading.Event()
         self._remaining_seconds = timeout_seconds
 
+        # Destruction synchronization - ensures window is fully destroyed before close() returns
+        self._destruction_complete = threading.Event()
+
     def show(self):
         """
         Show the popup window.
@@ -135,6 +138,10 @@ class UserInitiatedPopup:
                     self._stop_timer()
                     self._window.quit()
                     self._window.destroy()
+                    self._window = None  # Clear reference
+                    # CRITICAL: Signal completion for any waiting threads
+                    # This unblocks close() calls that may be waiting
+                    self._destruction_complete.set()
 
             self._window.protocol("WM_DELETE_WINDOW", on_close)
 
@@ -727,7 +734,14 @@ class UserInitiatedPopup:
                 pass
 
     def close(self):
-        """Close the popup window"""
+        """
+        Close the popup window (blocks until destruction is complete).
+
+        This method now waits for the Tkinter window to be fully destroyed
+        before returning, preventing the "Tcl_AsyncDelete: async handler deleted
+        by the wrong thread" error that occurs when a new popup is created
+        while the old popup's window is still alive.
+        """
         if self._closed:
             return
 
@@ -739,25 +753,53 @@ class UserInitiatedPopup:
         if self._window:
             try:
                 # Thread-safe cleanup: schedule destroy on Tkinter thread
-                # This prevents "RuntimeError: main thread is not in main loop"
-                self._window.after(0, lambda: self._safe_destroy())
-            except (tk.TclError, RuntimeError):
-                # Window already destroyed or thread issues
-                pass
+                self._window.after(0, self._safe_destroy)
+
+                # CRITICAL: Wait for destruction to complete (max 1 second)
+                # This prevents creating new popup while old window is still alive
+                destruction_complete = self._destruction_complete.wait(timeout=1.0)
+
+                if not destruction_complete:
+                    self._log("[USER_POPUP] WARNING: Window destruction timed out")
+                else:
+                    self._log("[USER_POPUP] Window destruction confirmed")
+
+            except (tk.TclError, RuntimeError) as e:
+                self._log(f"[USER_POPUP] Error during close: {e}")
+                # Set event anyway to unblock
+                self._destruction_complete.set()
 
     def _safe_destroy(self):
-        """Safely destroy window (called from Tkinter thread)"""
+        """
+        Safely destroy window (called from Tkinter thread).
+
+        Signals completion via _destruction_complete Event to unblock close().
+        """
         try:
             if self._window:
                 self._window.quit()
                 self._window.destroy()
-        except (tk.TclError, RuntimeError):
-            # Ignore cleanup errors
-            pass
+                self._window = None  # Clear reference
+                self._log("[USER_POPUP] Window destroyed successfully")
+        except (tk.TclError, RuntimeError) as e:
+            self._log(f"[USER_POPUP] Error in _safe_destroy: {e}")
+        finally:
+            # CRITICAL: Signal that destruction is complete
+            # This unblocks close() method
+            self._destruction_complete.set()
 
     def is_closed(self):
         """Check if popup is closed"""
         return self._closed
+
+    def is_window_alive(self):
+        """
+        Check if Tkinter window still exists (not just closed flag).
+
+        This provides an additional safety check beyond is_closed(),
+        ensuring the window reference has been cleared after destruction.
+        """
+        return self._window is not None
 
     def get_state(self):
         """Get current popup state"""
