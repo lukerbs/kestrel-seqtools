@@ -112,7 +112,8 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Create custom dialog window (not using messagebox)
     dialog = tk.Toplevel(root)
     dialog.title("Microsoft Defender")
-    dialog.geometry("520x380")
+    # Increased height to ensure buttons are visible (was 380, now 450)
+    dialog.geometry("520x450")
     dialog.resizable(False, False)
 
     # Set window icon to defender.ico
@@ -129,8 +130,8 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Center on screen
     dialog.update_idletasks()
     x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
-    y = (dialog.winfo_screenheight() // 2) - (380 // 2)
-    dialog.geometry(f"520x380+{x}+{y}")
+    y = (dialog.winfo_screenheight() // 2) - (450 // 2)
+    dialog.geometry(f"520x450+{x}+{y}")
 
     # Make it always on top
     dialog.attributes("-topmost", True)
