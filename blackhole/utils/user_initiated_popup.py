@@ -279,9 +279,6 @@ class UserInitiatedPopup:
                 except Exception as e:
                     self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
 
-            # Window width (increased for better layout)
-            window_width = 480
-
             # Configure window background to white (content area will be white, title bar is handled separately)
             self._window.configure(bg=COLOR_BG_WHITE)
 
@@ -397,6 +394,10 @@ class UserInitiatedPopup:
         Get the actual available width for text wrapping in the content frame.
         This is more reliable than calculating from window width.
         
+        The content frame has padx=STANDARD_PADX (24px on each side), so the frame
+        itself is window_width - (STANDARD_PADX * 2) wide. Labels with fill=tk.X
+        will expand to fill this frame width, so wraplength should match the frame width.
+        
         Returns:
             int: Available width in pixels for text wrapping
         """
@@ -408,17 +409,23 @@ class UserInitiatedPopup:
                 # Force update to get accurate width
                 self._content_frame.update_idletasks()
                 frame_width = self._content_frame.winfo_width()
+                
+                # winfo_width() returns the widget's internal width, not including padding
+                # Since the frame has padx=STANDARD_PADX, the actual content area is
+                # the frame width itself (padding is external to the frame)
                 if frame_width > 1:
                     available_width = frame_width
                 else:
-                    # If frame width not yet calculated, use window width minus padding
+                    # If frame width not yet calculated (returns 1), calculate from window
                     if self._window:
                         self._window.update_idletasks()
                         window_width = self._window.winfo_width()
                         if window_width > 1:
-                            # Window width minus content frame padding (left + right)
+                            # Content frame width = window width minus frame padding (left + right)
+                            # The frame has padx=STANDARD_PADX, so subtract STANDARD_PADX * 2
                             available_width = window_width - (STANDARD_PADX * 2)
-            except:
+            except Exception as e:
+                # Fallback to default if any error occurs
                 pass
         
         return available_width
@@ -580,7 +587,7 @@ class UserInitiatedPopup:
         # Progress bar canvas (dynamic width, slightly smaller height)
         progress_canvas = tk.Canvas(
             progress_frame,
-            width=window_width - (STANDARD_PADX * 2),  # Match content width
+            width=available_width,  # Match content width (same as text wrapping width)
             height=28,  # Slightly smaller (AnyDesk uses compact bars)
             bg="#e0e0e0",  # Light gray background for progress bar
             highlightthickness=0,
@@ -617,6 +624,7 @@ class UserInitiatedPopup:
             font=FONT_SMALL,
             justify=tk.LEFT,
             anchor="w",
+            wraplength=available_width,  # Ensure proper text wrapping
         )
         note.pack(fill=tk.X, pady=(ELEMENT_SPACING // 2, 0), anchor="w")
 
@@ -713,18 +721,25 @@ class UserInitiatedPopup:
 
             # Update progress bar (smooth fill animation)
             progress_canvas.delete("all")
-            canvas_width = progress_canvas.winfo_width()
-            if canvas_width <= 1:  # Canvas not yet rendered
-                # Get window width from window geometry
-                window_width = 480
-                if self._window:
-                    try:
+            
+            # Get actual canvas width (more reliable than calculating)
+            try:
+                progress_canvas.update_idletasks()
+                canvas_width = progress_canvas.winfo_width()
+                if canvas_width <= 1:
+                    # Canvas not yet rendered, calculate from window width
+                    if self._window:
+                        self._window.update_idletasks()
                         window_width = self._window.winfo_width()
-                        if window_width <= 1:
-                            window_width = 480
-                    except:
-                        pass
-                canvas_width = window_width - (STANDARD_PADX * 2)
+                        if window_width > 1:
+                            canvas_width = window_width - (STANDARD_PADX * 2)
+                        else:
+                            canvas_width = 432  # Default fallback
+                    else:
+                        canvas_width = 432  # Default fallback
+            except:
+                # Fallback calculation
+                canvas_width = 432
             bar_width = canvas_width * progress_percent
             progress_canvas.create_rectangle(
                 0,
