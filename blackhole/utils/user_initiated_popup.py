@@ -42,6 +42,11 @@ COLOR_ORANGE = "#EF443B"  # AnyDesk orange/red (branding, critical actions)
 COLOR_BLUE = "#6887ca"  # AnyDesk blue (interactive buttons)
 COLOR_GREEN = "#4f9549"  # AnyDesk green (success states)
 
+# Button hover border colors (slightly darker shades for border on hover)
+COLOR_ORANGE_BORDER = "#d03830"  # Darker orange for button border
+COLOR_BLUE_BORDER = "#5670a0"  # Darker blue for button border
+COLOR_GREEN_BORDER = "#3a6f35"  # Darker green for button border
+
 # Warning colors
 COLOR_YELLOW = "#ffc107"  # Yellow (warning progress bar)
 COLOR_ORANGE_WARNING = "#f57c00"  # Orange (warning text)
@@ -217,6 +222,22 @@ class UserInitiatedPopup:
                     pywinstyles.change_header_color(self._window, color=COLOR_BG_TITLEBAR)
                     pywinstyles.change_title_color(self._window, color="black")
                     self._log(f"[USER_POPUP] Set title bar color to {COLOR_BG_TITLEBAR} with black text")
+                    
+                    # Attempt to make title bar text appear larger using Windows API
+                    # Note: Windows title bar font size is system-controlled, but we can try to influence it
+                    try:
+                        # Get window handle
+                        hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
+                        if hwnd == 0:
+                            hwnd = self._window.winfo_id()
+                        
+                        # Try to use WM_SETTINGCHANGE or other methods to influence title bar
+                        # This is experimental - Windows title bar font is typically system-controlled
+                        # The font size is determined by Windows DPI settings and theme
+                        # We can't directly change it, but the black color is set above
+                        pass
+                    except Exception:
+                        pass  # Font size customization not available - system-controlled
                 except Exception as e:
                     self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
 
@@ -433,9 +454,11 @@ class UserInitiatedPopup:
             command=on_request,
             fg_color=COLOR_GREEN,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_GREEN_BORDER,
+            hover_color=COLOR_GREEN,  # Same color on hover (no color change)
         )
         request_btn.grid(row=3, column=0, sticky="ew")
 
@@ -481,7 +504,7 @@ class UserInitiatedPopup:
             progress_frame,
             width=420,
             height=30,
-            corner_radius=1000,  # Fully rounded
+            corner_radius=0,  # Square corners (AnyDesk style)
             fg_color="#e0e0e0",  # Light gray background
             progress_color=COLOR_GREEN,  # Initial green color
             mode="determinate",
@@ -694,9 +717,11 @@ class UserInitiatedPopup:
             command=on_continue,
             fg_color=COLOR_GREEN,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_GREEN_BORDER,
+            hover_color=COLOR_GREEN,  # Same color on hover (no color change)
         )
         continue_btn.grid(row=2, column=0, sticky="ew")
 
@@ -755,9 +780,11 @@ class UserInitiatedPopup:
             command=on_retry,
             fg_color=COLOR_BLUE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_BLUE_BORDER,
+            hover_color=COLOR_BLUE,  # Same color on hover (no color change)
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
@@ -779,9 +806,11 @@ class UserInitiatedPopup:
             command=on_disconnect,
             fg_color=COLOR_ORANGE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_ORANGE_BORDER,
+            hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
         )
         disconnect_btn.grid(row=0, column=1)
 
@@ -837,9 +866,11 @@ class UserInitiatedPopup:
             command=on_retry,
             fg_color=COLOR_BLUE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_BLUE_BORDER,
+            hover_color=COLOR_BLUE,  # Same color on hover (no color change)
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
@@ -861,9 +892,11 @@ class UserInitiatedPopup:
             command=on_disconnect,
             fg_color=COLOR_ORANGE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10),
-            corner_radius=6,
-            border_width=0,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            corner_radius=0,  # Square corners (AnyDesk style)
+            border_width=1,
+            border_color=COLOR_ORANGE_BORDER,
+            hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
         )
         disconnect_btn.grid(row=0, column=1)
 

@@ -94,8 +94,8 @@ class FakePopup:
                 title_frame,
                 text="AnyDesk",
                 fg_color="#d51317",
-                text_color="white",
-                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#000000",  # Black text (AnyDesk style)
+                font=ctk.CTkFont(size=14, weight="bold"),  # Larger and bold
                 anchor="w",
                 padx=15,
             )
