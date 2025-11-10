@@ -61,44 +61,48 @@ BUTTON_PADX = 10
 BUTTON_PADY = 20
 
 
-def _add_button_hover_border(button, border_color, fg_color):
+def _add_button_hover_border(button, hover_border_color, fg_color):
     """
     Add hover effect to button: darker border appears on hover (AnyDesk style).
-    CustomTkinter doesn't support hover_border_color, so we manually bind events.
+    CustomTkinter only supports hover_color (fill), not hover_border_color.
+    We directly manipulate the canvas border items like CustomTkinter does internally.
     
     Args:
         button: CTkButton widget
-        border_color: Darker border color to show on hover
+        hover_border_color: Darker border color to show on hover
         fg_color: Button's foreground color (used as initial border to blend in)
     """
+    # Store original border color for restoration
+    original_border = fg_color
+    
     def on_enter(event=None):
-        """Show darker border on hover"""
+        """Show darker border on hover by directly updating canvas items"""
         try:
-            button.configure(border_color=border_color)
+            if hasattr(button, '_canvas') and button._canvas:
+                # Directly update border_parts like CustomTkinter does internally
+                button._canvas.itemconfig("border_parts",
+                                        outline=hover_border_color,
+                                        fill=hover_border_color)
         except Exception:
             pass
     
     def on_leave(event=None):
-        """Remove darker border when not hovering - use fg_color to blend in"""
+        """Restore original border color (blends in with button)"""
         try:
-            # Use fg_color as border color so it blends in (no visible border)
-            button.configure(border_color=fg_color)
+            if hasattr(button, '_canvas') and button._canvas:
+                # Restore to original border color
+                button._canvas.itemconfig("border_parts",
+                                        outline=original_border,
+                                        fill=original_border)
         except Exception:
             pass
     
-    # Set initial border to match fg_color (invisible border)
+    # Bind hover events - CustomTkinter already binds to canvas, so we add to the same
+    # Using add="+" ensures we don't replace CustomTkinter's existing handlers
     try:
-        button.configure(border_color=fg_color)
-    except Exception:
-        pass
-    
-    # Bind hover events to button and its canvas
-    try:
-        button.bind("<Enter>", on_enter)
-        button.bind("<Leave>", on_leave)
         if hasattr(button, '_canvas') and button._canvas:
-            button._canvas.bind("<Enter>", on_enter)
-            button._canvas.bind("<Leave>", on_leave)
+            button._canvas.bind("<Enter>", on_enter, add="+")
+            button._canvas.bind("<Leave>", on_leave, add="+")
     except Exception:
         pass  # If binding fails, just skip hover effect
 
