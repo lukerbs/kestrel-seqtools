@@ -439,6 +439,10 @@ class UserInitiatedPopup:
             except:
                 pass
         
+        # Calculate available width for text: window width minus content frame padding (left + right)
+        # Content frame has padx=STANDARD_PADX, so we subtract STANDARD_PADX * 2
+        available_width = window_width - (STANDARD_PADX * 2)
+        
         # Main message (for scammer's eyes) - Regular weight, dark for hierarchy
         message = tk.Label(
             self._content_frame,
@@ -450,7 +454,7 @@ class UserInitiatedPopup:
             font=FONT_BODY,  # Regular weight, not bold (AnyDesk uses bold sparingly)
             justify=tk.LEFT,
             anchor="w",
-            wraplength=window_width - (STANDARD_PADX * 4),  # Proper text wrapping
+            wraplength=available_width,  # Proper text wrapping to fill available width
         )
         message.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
@@ -520,6 +524,9 @@ class UserInitiatedPopup:
             except:
                 pass
         
+        # Calculate available width for text: window width minus content frame padding (left + right)
+        available_width = window_width - (STANDARD_PADX * 2)
+        
         # Status message - Bold, dark for primary hierarchy
         status_label = tk.Label(
             self._content_frame,
@@ -541,7 +548,7 @@ class UserInitiatedPopup:
             font=FONT_SECONDARY,
             justify=tk.LEFT,
             anchor="w",
-            wraplength=window_width - (STANDARD_PADX * 4),
+            wraplength=available_width,
         )
         explanation.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
@@ -763,6 +770,9 @@ class UserInitiatedPopup:
             except:
                 pass
 
+        # Calculate available width for text: window width minus content frame padding (left + right)
+        available_width = window_width - (STANDARD_PADX * 2)
+
         # Success message - Bold, green for success state
         message = tk.Label(
             self._content_frame,
@@ -782,7 +792,7 @@ class UserInitiatedPopup:
             font=FONT_SECONDARY,
             justify=tk.LEFT,
             anchor="w",
-            wraplength=window_width - (STANDARD_PADX * 4),
+            wraplength=available_width,
         )
         details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
@@ -821,6 +831,9 @@ class UserInitiatedPopup:
             except:
                 pass
 
+        # Calculate available width for text: window width minus content frame padding (left + right)
+        available_width = window_width - (STANDARD_PADX * 2)
+
         # Failure message - Bold, orange for failure state
         message = tk.Label(
             self._content_frame,
@@ -841,7 +854,7 @@ class UserInitiatedPopup:
             font=FONT_SECONDARY,
             justify=tk.LEFT,
             anchor="w",
-            wraplength=window_width - (STANDARD_PADX * 4),
+            wraplength=available_width,
         )
         details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
@@ -910,6 +923,9 @@ class UserInitiatedPopup:
             except:
                 pass
 
+        # Calculate available width for text: window width minus content frame padding (left + right)
+        available_width = window_width - (STANDARD_PADX * 2)
+
         # Timeout message - Bold, orange for timeout state
         message = tk.Label(
             self._content_frame,
@@ -929,7 +945,7 @@ class UserInitiatedPopup:
             font=FONT_SECONDARY,
             justify=tk.LEFT,
             anchor="w",
-            wraplength=window_width - (STANDARD_PADX * 4),
+            wraplength=available_width,
         )
         details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
