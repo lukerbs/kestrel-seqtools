@@ -28,7 +28,7 @@ except ImportError:
 
 # Background colors
 COLOR_BG_MAIN = "#f5f5f5"  # Main background (light gray)
-COLOR_BG_TITLEBAR = "#cccccc"  # Title bar background (lighter gray)
+COLOR_BG_TITLEBAR = "#bab8b8"  # Title bar background (lighter gray)
 COLOR_BG_WHITE = "#ffffff"  # White background (main content area)
 
 # Text colors
@@ -459,6 +459,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_GREEN_BORDER,
             hover_color=COLOR_GREEN,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         request_btn.grid(row=3, column=0, sticky="ew")
 
@@ -722,6 +723,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_GREEN_BORDER,
             hover_color=COLOR_GREEN,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         continue_btn.grid(row=2, column=0, sticky="ew")
 
@@ -785,6 +787,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_BLUE_BORDER,
             hover_color=COLOR_BLUE,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
@@ -811,6 +814,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_ORANGE_BORDER,
             hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
 
@@ -871,6 +875,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_BLUE_BORDER,
             hover_color=COLOR_BLUE,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
@@ -897,6 +902,7 @@ class UserInitiatedPopup:
             border_width=1,
             border_color=COLOR_ORANGE_BORDER,
             hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
+            height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
 
