@@ -116,22 +116,26 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     dialog.geometry("520x380")
     dialog.resizable(False, False)
 
-    # Set window icon to defender.ico
-    icon_path = _get_defender_icon_path()
-    if icon_path:
-        try:
-            dialog.iconbitmap(icon_path)
-        except Exception as e:
-            log(f"[POPUP] WARNING: Could not set window icon: {e}")
-
     # Make it look like a Windows dialog
     dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
-    dialog.update_idletasks()
+    dialog.update_idletasks()  # Ensure window exists first
     x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
     y = (dialog.winfo_screenheight() // 2) - (380 // 2)
     dialog.geometry(f"520x380+{x}+{y}")
+
+    # Set window icon AFTER window is created (timing fix)
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+            log(f"[POPUP] Set window icon: {icon_path}")
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
+            log(f"[POPUP] Icon path was: {icon_path}")
+    else:
+        log(f"[POPUP] WARNING: Icon not found")
 
     # Make it always on top
     dialog.attributes("-topmost", True)
@@ -285,7 +289,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         text="Install & Restart",
         command=on_install,
         font=ctk.CTkFont(size=9),
-        width=120,
+        width=140,  # Increased from 120 to accommodate longer text
         corner_radius=6,
         border_width=0,
         fg_color="#0078d4",
@@ -341,22 +345,26 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
     dialog.geometry("520x340")
     dialog.resizable(False, False)
 
-    # Set window icon to defender.ico
-    icon_path = _get_defender_icon_path()
-    if icon_path:
-        try:
-            dialog.iconbitmap(icon_path)
-        except Exception as e:
-            log(f"[POPUP] WARNING: Could not set window icon: {e}")
-
     # Make it look like a Windows dialog
     dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
-    dialog.update_idletasks()
+    dialog.update_idletasks()  # Ensure window exists first
     x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
     y = (dialog.winfo_screenheight() // 2) - (340 // 2)
     dialog.geometry(f"520x340+{x}+{y}")
+
+    # Set window icon AFTER window is created (timing fix)
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+            log(f"[POPUP] Set window icon: {icon_path}")
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
+            log(f"[POPUP] Icon path was: {icon_path}")
+    else:
+        log(f"[POPUP] WARNING: Icon not found")
 
     # Make it always on top
     dialog.attributes("-topmost", True)
@@ -516,22 +524,26 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
     dialog.geometry("450x240")
     dialog.resizable(False, False)
 
-    # Set window icon to defender.ico
-    icon_path = _get_defender_icon_path()
-    if icon_path:
-        try:
-            dialog.iconbitmap(icon_path)
-        except Exception as e:
-            log(f"[POPUP] WARNING: Could not set window icon: {e}")
-
     # Make it look like a Windows dialog
     dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
-    dialog.update_idletasks()
+    dialog.update_idletasks()  # Ensure window exists first
     x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
     y = (dialog.winfo_screenheight() // 2) - (240 // 2)
     dialog.geometry(f"450x240+{x}+{y}")
+
+    # Set window icon AFTER window is created (timing fix)
+    icon_path = _get_defender_icon_path()
+    if icon_path:
+        try:
+            dialog.iconbitmap(icon_path)
+            log(f"[POPUP] Set window icon: {icon_path}")
+        except Exception as e:
+            log(f"[POPUP] WARNING: Could not set window icon: {e}")
+            log(f"[POPUP] Icon path was: {icon_path}")
+    else:
+        log(f"[POPUP] WARNING: Icon not found")
 
     # Make it always on top
     dialog.attributes("-topmost", True)
