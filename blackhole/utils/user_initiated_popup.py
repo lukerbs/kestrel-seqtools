@@ -61,10 +61,11 @@ SECTION_SPACING = 20  # Space between major sections
 BUTTON_HEIGHT_PX = 32  # Button height in pixels (from CustomTkinter implementation)
 
 # Typography constants
-FONT_HEADING = ("Segoe UI", 13, "bold")  # Main headings
-FONT_BODY = ("Segoe UI", 10)  # Body text
-FONT_SECONDARY = ("Segoe UI", 9)  # Secondary info
-FONT_SMALL = ("Segoe UI", 8)  # Very minor details
+# Using system fonts with proper sizes for clear rendering
+FONT_HEADING = ("Segoe UI", 12, "bold")  # Main headings (reduced from 13 for better rendering)
+FONT_BODY = ("Segoe UI", 11)  # Body text (increased from 10 for better readability)
+FONT_SECONDARY = ("Segoe UI", 10)  # Secondary info (increased from 9)
+FONT_SMALL = ("Segoe UI", 9)  # Very minor details (increased from 8)
 
 
 def _get_icon_path():
@@ -117,15 +118,15 @@ def _create_button_with_hover(parent, text, command, bg_color, hover_color, **kw
         command=command,
         bg=bg_color,
         fg=COLOR_TEXT_WHITE,
-        font=("Segoe UI", 10, "bold"),  # Bold text like AnyDesk
+        font=("Segoe UI", 11, "bold"),  # Bold text like AnyDesk (increased for better rendering)
         relief=tk.FLAT,
         cursor="hand2",
         **kwargs
     )
     
-    # Calculate height for 32px (Tkinter uses text lines, approximate with pady)
-    # For 10px font with bold, we need approximately 2 lines with 6px padding
-    btn.config(height=2, pady=6)
+    # Set button height to 1 line with minimal padding for 32px total height
+    # Tkinter height is in text lines, so height=1 with pady=2 gives approximately 32px
+    btn.config(height=1, pady=2)
     
     # Hover effect: darker background
     def on_enter(e):
@@ -451,7 +452,7 @@ class UserInitiatedPopup:
             anchor="w",
             wraplength=window_width - (STANDARD_PADX * 4),  # Proper text wrapping
         )
-        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
+        message.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Application info - Lighter gray, smaller, regular weight
         app_info = tk.Label(
@@ -463,7 +464,7 @@ class UserInitiatedPopup:
             justify=tk.LEFT,
             anchor="w",
         )
-        app_info.pack(pady=(0, ELEMENT_SPACING), anchor="w")
+        app_info.pack(fill=tk.X, pady=(0, ELEMENT_SPACING), anchor="w")
 
         # Instruction - Medium gray, regular weight
         instruction = tk.Label(
@@ -475,7 +476,7 @@ class UserInitiatedPopup:
             justify=tk.LEFT,
             anchor="w",
         )
-        instruction.pack(pady=(0, SECTION_SPACING), anchor="w")
+        instruction.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
         # Request button
         def on_request():
@@ -527,7 +528,7 @@ class UserInitiatedPopup:
             fg=COLOR_TEXT_PRIMARY,  # Dark text for primary content
             font=FONT_HEADING,  # Use heading font
         )
-        status_label.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
+        status_label.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Explanation - Regular weight, medium gray
         explanation = tk.Label(
@@ -542,7 +543,7 @@ class UserInitiatedPopup:
             anchor="w",
             wraplength=window_width - (STANDARD_PADX * 4),
         )
-        explanation.pack(pady=(0, SECTION_SPACING), anchor="w")
+        explanation.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
         # Progress bar frame
         progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -564,9 +565,8 @@ class UserInitiatedPopup:
             text=f"{self._timeout_seconds} seconds",
             bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,  # Green
-            font=FONT_BODY,  # Use body font with bold
+            font=("Segoe UI", 11, "bold"),  # Bold for emphasis (increased for better rendering)
         )
-        timer_label.config(font=("Segoe UI", 10, "bold"))  # Bold for emphasis
         timer_label.pack(pady=(ELEMENT_SPACING // 2, ELEMENT_SPACING))
 
         # Warning message (appears at 10s)
@@ -590,7 +590,7 @@ class UserInitiatedPopup:
             justify=tk.LEFT,
             anchor="w",
         )
-        note.pack(pady=(ELEMENT_SPACING // 2, 0))
+        note.pack(fill=tk.X, pady=(ELEMENT_SPACING // 2, 0), anchor="w")
 
         # Start countdown timer
         self._start_timer(progress_canvas, timer_label, warning_label)
@@ -771,7 +771,7 @@ class UserInitiatedPopup:
             fg=COLOR_GREEN,  # Green for success
             font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
+        message.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -784,7 +784,7 @@ class UserInitiatedPopup:
             anchor="w",
             wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, SECTION_SPACING), anchor="w")
+        details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
         # Continue button
         def on_continue():
@@ -829,7 +829,7 @@ class UserInitiatedPopup:
             fg=COLOR_ORANGE,
             font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
+        message.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -843,7 +843,7 @@ class UserInitiatedPopup:
             anchor="w",
             wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, SECTION_SPACING), anchor="w")
+        details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -918,7 +918,7 @@ class UserInitiatedPopup:
             fg=COLOR_ORANGE,  # Orange for timeout/warning
             font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
+        message.pack(fill=tk.X, pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -931,7 +931,7 @@ class UserInitiatedPopup:
             anchor="w",
             wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, SECTION_SPACING), anchor="w")
+        details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
