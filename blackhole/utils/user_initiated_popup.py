@@ -392,6 +392,37 @@ class UserInitiatedPopup:
         except Exception as e:
             self._log(f"[USER_POPUP] Error showing popup: {e}")
 
+    def _get_available_width(self):
+        """
+        Get the actual available width for text wrapping in the content frame.
+        This is more reliable than calculating from window width.
+        
+        Returns:
+            int: Available width in pixels for text wrapping
+        """
+        # Default fallback (480 window - 48 padding = 432)
+        available_width = 432
+        
+        if self._content_frame:
+            try:
+                # Force update to get accurate width
+                self._content_frame.update_idletasks()
+                frame_width = self._content_frame.winfo_width()
+                if frame_width > 1:
+                    available_width = frame_width
+                else:
+                    # If frame width not yet calculated, use window width minus padding
+                    if self._window:
+                        self._window.update_idletasks()
+                        window_width = self._window.winfo_width()
+                        if window_width > 1:
+                            # Window width minus content frame padding (left + right)
+                            available_width = window_width - (STANDARD_PADX * 2)
+            except:
+                pass
+        
+        return available_width
+
     def _transition_to_state(self, new_state):
         """
         Transition to a new state and update UI accordingly.
@@ -429,19 +460,8 @@ class UserInitiatedPopup:
         - Uses "remote client" terminology (AnyDesk official term)
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
-        # Get window width from window geometry
-        window_width = 480  # Default, will be updated if window exists
-        if self._window:
-            try:
-                window_width = self._window.winfo_width()
-                if window_width <= 1:
-                    window_width = 480
-            except:
-                pass
-        
-        # Calculate available width for text: window width minus content frame padding (left + right)
-        # Content frame has padx=STANDARD_PADX, so we subtract STANDARD_PADX * 2
-        available_width = window_width - (STANDARD_PADX * 2)
+        # Get available width for text wrapping
+        available_width = self._get_available_width()
         
         # Main message (for scammer's eyes) - Regular weight, dark for hierarchy
         message = tk.Label(
@@ -514,18 +534,19 @@ class UserInitiatedPopup:
         - Visual warnings as time decreases (green → orange)
         - Creates urgency for scammer to accept
         """
-        # Get window width from window geometry
-        window_width = 480  # Default, will be updated if window exists
+        # Get available width for text wrapping
+        available_width = self._get_available_width()
+        
+        # Get window width for progress bar (needs full window width calculation)
+        window_width = 480  # Default
         if self._window:
             try:
+                self._window.update_idletasks()
                 window_width = self._window.winfo_width()
                 if window_width <= 1:
                     window_width = 480
             except:
                 pass
-        
-        # Calculate available width for text: window width minus content frame padding (left + right)
-        available_width = window_width - (STANDARD_PADX * 2)
         
         # Status message - Bold, dark for primary hierarchy
         status_label = tk.Label(
@@ -760,18 +781,8 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
-        # Get window width from window geometry
-        window_width = 480  # Default, will be updated if window exists
-        if self._window:
-            try:
-                window_width = self._window.winfo_width()
-                if window_width <= 1:
-                    window_width = 480
-            except:
-                pass
-
-        # Calculate available width for text: window width minus content frame padding (left + right)
-        available_width = window_width - (STANDARD_PADX * 2)
+        # Get available width for text wrapping
+        available_width = self._get_available_width()
 
         # Success message - Bold, green for success state
         message = tk.Label(
@@ -821,18 +832,8 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
-        # Get window width from window geometry
-        window_width = 480  # Default, will be updated if window exists
-        if self._window:
-            try:
-                window_width = self._window.winfo_width()
-                if window_width <= 1:
-                    window_width = 480
-            except:
-                pass
-
-        # Calculate available width for text: window width minus content frame padding (left + right)
-        available_width = window_width - (STANDARD_PADX * 2)
+        # Get available width for text wrapping
+        available_width = self._get_available_width()
 
         # Failure message - Bold, orange for failure state
         message = tk.Label(
@@ -913,18 +914,8 @@ class UserInitiatedPopup:
         - Session remains in view-only mode
         - User can retry or disconnect
         """
-        # Get window width from window geometry
-        window_width = 480  # Default, will be updated if window exists
-        if self._window:
-            try:
-                window_width = self._window.winfo_width()
-                if window_width <= 1:
-                    window_width = 480
-            except:
-                pass
-
-        # Calculate available width for text: window width minus content frame padding (left + right)
-        available_width = window_width - (STANDARD_PADX * 2)
+        # Get available width for text wrapping
+        available_width = self._get_available_width()
 
         # Timeout message - Bold, orange for timeout state
         message = tk.Label(
