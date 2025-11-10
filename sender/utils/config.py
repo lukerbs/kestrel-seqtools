@@ -3,18 +3,11 @@ Configuration constants for Kestrel Seqtools
 """
 
 # ============================================================================
-# TCP SERVER CONFIGURATION
+# HTTP C2 CLIENT CONFIGURATION
 # ============================================================================
 
-# Network Configuration
-DEFAULT_HOST = "0.0.0.0"
-DEFAULT_PORT = 5555
-BUFFER_SIZE = 4096
+# Retry Configuration
 RETRY_DELAY = 5  # Seconds between connection retries
-
-# Protocol Markers
-END_MARKER = b"<<<END_OF_OUTPUT>>>"
-BINARY_START_MARKER = b"<BINARY>"
 
 # Deployment Configuration (Windows)
 PAYLOAD_NAME = "taskhostw.exe"

