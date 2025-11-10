@@ -217,7 +217,7 @@ class UserInitiatedPopup:
                 self._log(f"[USER_POPUP] WARNING: Icon not found (expected at: {icon_path if 'icon_path' in locals() else 'unknown'})")
 
             # Set title bar background color and text styling (Windows 10/11 only)
-            # Note: Must be called after window is fully created and visible
+            # Note: Called after window is shown and mainloop is running
             def set_title_bar_style():
                 if PYWINSTYLES_AVAILABLE and sys.platform == "win32":
                     try:
@@ -229,8 +229,8 @@ class UserInitiatedPopup:
                     except Exception as e:
                         self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
             
-            # Call after window is fully rendered (CustomTkinter may need a delay)
-            self._window.after(100, set_title_bar_style)
+            # Call after window is shown and mainloop starts (CustomTkinter handles deiconify internally)
+            self._window.after(200, set_title_bar_style)
 
             # Window width (fixed)
             window_width = 420
@@ -337,6 +337,8 @@ class UserInitiatedPopup:
                     
                     # Show window again (now with taskbar-hidden style applied)
                     self._window.deiconify()
+                    self._window.focus_force()
+                    self._window.lift()
                     
                     self._log("[USER_POPUP] Applied WS_EX_TOOLWINDOW - window hidden from taskbar")
                 except Exception as e:
