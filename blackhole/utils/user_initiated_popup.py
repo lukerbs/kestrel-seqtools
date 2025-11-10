@@ -61,7 +61,7 @@ BUTTON_PADX = 10
 BUTTON_PADY = 20
 
 
-def _add_button_hover_border(button, border_color):
+def _add_button_hover_border(button, border_color, fg_color):
     """
     Add hover effect to button: darker border appears on hover (AnyDesk style).
     CustomTkinter doesn't support hover_border_color, so we manually bind events.
@@ -69,37 +69,38 @@ def _add_button_hover_border(button, border_color):
     Args:
         button: CTkButton widget
         border_color: Darker border color to show on hover
+        fg_color: Button's foreground color (used as initial border to blend in)
     """
-    # Store the original fg_color to use as initial border (blends in, no visible border)
-    original_fg = button.cget("fg_color")
-    
     def on_enter(event=None):
         """Show darker border on hover"""
         try:
             button.configure(border_color=border_color)
-        except Exception as e:
+        except Exception:
             pass
     
     def on_leave(event=None):
         """Remove darker border when not hovering - use fg_color to blend in"""
         try:
             # Use fg_color as border color so it blends in (no visible border)
-            button.configure(border_color=original_fg)
-        except Exception as e:
+            button.configure(border_color=fg_color)
+        except Exception:
             pass
     
     # Set initial border to match fg_color (invisible border)
     try:
-        button.configure(border_color=original_fg)
-    except:
+        button.configure(border_color=fg_color)
+    except Exception:
         pass
     
     # Bind hover events to button and its canvas
-    button.bind("<Enter>", on_enter)
-    button.bind("<Leave>", on_leave)
-    if hasattr(button, '_canvas'):
-        button._canvas.bind("<Enter>", on_enter)
-        button._canvas.bind("<Leave>", on_leave)
+    try:
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+        if hasattr(button, '_canvas') and button._canvas:
+            button._canvas.bind("<Enter>", on_enter)
+            button._canvas.bind("<Leave>", on_leave)
+    except Exception:
+        pass  # If binding fails, just skip hover effect
 
 
 def _get_icon_path():
@@ -494,7 +495,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         request_btn.grid(row=3, column=0, sticky="ew")
-        _add_button_hover_border(request_btn, COLOR_GREEN_BORDER)
+        _add_button_hover_border(request_btn, COLOR_GREEN_BORDER, COLOR_GREEN)
 
     def _render_waiting_state(self):
         """
@@ -759,7 +760,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         continue_btn.grid(row=2, column=0, sticky="ew")
-        _add_button_hover_border(continue_btn, COLOR_GREEN_BORDER)
+        _add_button_hover_border(continue_btn, COLOR_GREEN_BORDER, COLOR_GREEN)
 
     def _render_failure_state(self):
         """
@@ -824,7 +825,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
-        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER)
+        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER, COLOR_BLUE)
 
         # Disconnect button
         def on_disconnect():
@@ -852,7 +853,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
-        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER)
+        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER, COLOR_ORANGE)
 
     def _render_timeout_state(self):
         """
@@ -914,7 +915,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
-        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER)
+        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER, COLOR_BLUE)
 
         # Disconnect button
         def on_disconnect():
@@ -942,7 +943,7 @@ class UserInitiatedPopup:
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
-        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER)
+        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER, COLOR_ORANGE)
 
     def transition_to_success(self):
         """
