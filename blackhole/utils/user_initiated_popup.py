@@ -61,52 +61,6 @@ BUTTON_PADX = 10
 BUTTON_PADY = 20
 
 
-def _add_button_hover_border(button, hover_border_color, fg_color):
-    """
-    Add hover effect to button: darker border appears on hover (AnyDesk style).
-    CustomTkinter only supports hover_color (fill), not hover_border_color.
-    We directly manipulate the canvas border items like CustomTkinter does internally.
-    
-    Args:
-        button: CTkButton widget
-        hover_border_color: Darker border color to show on hover
-        fg_color: Button's foreground color (used as initial border to blend in)
-    """
-    # Store original border color for restoration
-    original_border = fg_color
-    
-    def on_enter(event=None):
-        """Show darker border on hover by directly updating canvas items"""
-        try:
-            if hasattr(button, '_canvas') and button._canvas:
-                # Directly update border_parts like CustomTkinter does internally
-                button._canvas.itemconfig("border_parts",
-                                        outline=hover_border_color,
-                                        fill=hover_border_color)
-        except Exception:
-            pass
-    
-    def on_leave(event=None):
-        """Restore original border color (blends in with button)"""
-        try:
-            if hasattr(button, '_canvas') and button._canvas:
-                # Restore to original border color
-                button._canvas.itemconfig("border_parts",
-                                        outline=original_border,
-                                        fill=original_border)
-        except Exception:
-            pass
-    
-    # Bind hover events - CustomTkinter already binds to canvas, so we add to the same
-    # Using add="+" ensures we don't replace CustomTkinter's existing handlers
-    try:
-        if hasattr(button, '_canvas') and button._canvas:
-            button._canvas.bind("<Enter>", on_enter, add="+")
-            button._canvas.bind("<Leave>", on_leave, add="+")
-    except Exception:
-        pass  # If binding fails, just skip hover effect
-
-
 def _get_icon_path():
     """
     Get path to AnyDeskOrange.ico, handling both frozen and unfrozen modes.
@@ -493,13 +447,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_GREEN,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_GREEN,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_GREEN_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         request_btn.grid(row=3, column=0, sticky="ew")
-        _add_button_hover_border(request_btn, COLOR_GREEN_BORDER, COLOR_GREEN)
 
     def _render_waiting_state(self):
         """
@@ -758,13 +710,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_GREEN,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_GREEN,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_GREEN_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         continue_btn.grid(row=2, column=0, sticky="ew")
-        _add_button_hover_border(continue_btn, COLOR_GREEN_BORDER, COLOR_GREEN)
 
     def _render_failure_state(self):
         """
@@ -823,13 +773,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_BLUE,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_BLUE,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_BLUE_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
-        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER, COLOR_BLUE)
 
         # Disconnect button
         def on_disconnect():
@@ -851,13 +799,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_ORANGE,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_ORANGE_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
-        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER, COLOR_ORANGE)
 
     def _render_timeout_state(self):
         """
@@ -913,13 +859,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_BLUE,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_BLUE,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_BLUE_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
-        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER, COLOR_BLUE)
 
         # Disconnect button
         def on_disconnect():
@@ -941,13 +885,11 @@ class UserInitiatedPopup:
             text_color=COLOR_TEXT_WHITE,
             font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=2,  # Thicker border for visibility
-            border_color=COLOR_ORANGE,  # Same as fg_color initially (invisible border)
-            hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
+            border_width=0,  # No border
+            hover_color=COLOR_ORANGE_BORDER,  # Darker shade on hover (entire button background)
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
-        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER, COLOR_ORANGE)
 
     def transition_to_success(self):
         """
