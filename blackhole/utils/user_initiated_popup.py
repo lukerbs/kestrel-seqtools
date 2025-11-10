@@ -124,9 +124,9 @@ def _create_button_with_hover(parent, text, command, bg_color, hover_color, **kw
         **kwargs
     )
     
-    # Set button height to 1 line with minimal padding for 32px total height
-    # Tkinter height is in text lines, so height=1 with pady=2 gives approximately 32px
-    btn.config(height=1, pady=2)
+    # Set button height - Tkinter uses text lines, so height=1 with minimal pady
+    # For 11pt bold font, this should be approximately 28-30px total height
+    btn.config(height=1, pady=1)
     
     # Hover effect: darker background
     def on_enter(e):
@@ -341,6 +341,11 @@ class UserInitiatedPopup:
 
             # Set geometry AFTER calculating required size
             self._window.geometry(f"{required_width}x{window_height}+{x}+{y}")
+            
+            # CRITICAL: Update wraplength for all labels after geometry is set
+            # This ensures text wraps correctly to fill the available width
+            self._window.update_idletasks()
+            self._update_all_wraplengths()
 
             # Window properties
             self._window.attributes("-topmost", True)  # Always on top
@@ -398,11 +403,15 @@ class UserInitiatedPopup:
         itself is window_width - (STANDARD_PADX * 2) wide. Labels with fill=tk.X
         will expand to fill this frame width, so wraplength should match the frame width.
         
+        CRITICAL: Use a generous default to prevent premature wrapping. Tkinter's
+        wraplength is approximate and may wrap slightly before the specified value.
+        
         Returns:
             int: Available width in pixels for text wrapping
         """
-        # Default fallback (480 window - 48 padding = 432)
-        available_width = 432
+        # Use a generous default (480 window - 48 padding = 432, but use 400 to be safe)
+        # Tkinter's wraplength is approximate and may wrap slightly early
+        available_width = 400
         
         if self._content_frame:
             try:
@@ -413,22 +422,43 @@ class UserInitiatedPopup:
                 # winfo_width() returns the widget's internal width, not including padding
                 # Since the frame has padx=STANDARD_PADX, the actual content area is
                 # the frame width itself (padding is external to the frame)
-                if frame_width > 1:
-                    available_width = frame_width
+                if frame_width > 10:  # More lenient check (was > 1)
+                    # Use frame width, but add a small buffer to prevent premature wrapping
+                    available_width = max(400, frame_width - 20)
                 else:
-                    # If frame width not yet calculated (returns 1), calculate from window
+                    # If frame width not yet calculated, use window-based calculation
                     if self._window:
                         self._window.update_idletasks()
                         window_width = self._window.winfo_width()
-                        if window_width > 1:
+                        if window_width > 10:
                             # Content frame width = window width minus frame padding (left + right)
                             # The frame has padx=STANDARD_PADX, so subtract STANDARD_PADX * 2
-                            available_width = window_width - (STANDARD_PADX * 2)
+                            # Add buffer to prevent premature wrapping
+                            calculated = window_width - (STANDARD_PADX * 2)
+                            available_width = max(400, calculated - 20)
             except Exception as e:
                 # Fallback to default if any error occurs
                 pass
         
         return available_width
+
+    def _update_all_wraplengths(self):
+        """
+        Update wraplength for all labels in the content frame after window geometry is set.
+        This ensures text wraps correctly to fill the available width.
+        """
+        if not self._content_frame:
+            return
+        
+        available_width = self._get_available_width()
+        
+        # Update all labels in the content frame
+        for widget in self._content_frame.winfo_children():
+            if isinstance(widget, tk.Label):
+                # Only update if label has wraplength set (text labels)
+                current_wraplength = widget.cget("wraplength")
+                if current_wraplength and current_wraplength > 0:
+                    widget.config(wraplength=available_width)
 
     def _transition_to_state(self, new_state):
         """
@@ -456,6 +486,14 @@ class UserInitiatedPopup:
             self._render_failure_state()
         elif new_state == PopupState.TIMEOUT:
             self._render_timeout_state()
+        
+        # Update wraplengths after rendering new state (if window exists)
+        if self._window and self._content_frame:
+            try:
+                self._window.update_idletasks()
+                self._update_all_wraplengths()
+            except:
+                pass
 
     def _render_initial_state(self):
         """
