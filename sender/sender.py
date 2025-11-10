@@ -888,7 +888,9 @@ async def internal_recording_stream_websocket(websocket: WebSocket, receiver_id:
 
 def start_fastapi_server():
     """Start FastAPI server with uvicorn"""
-    uvicorn.run(app, host="0.0.0.0", port=FASTAPI_PORT, log_level="error", access_log=False)
+    print(f"[FastAPI] Server running on http://0.0.0.0:{FASTAPI_PORT}")
+    print("[FastAPI] Waiting for connections...\n")
+    uvicorn.run(app, host="0.0.0.0", port=FASTAPI_PORT, log_level="info")
 
 
 if __name__ == "__main__":
@@ -900,8 +902,5 @@ if __name__ == "__main__":
     print("  • POST /anydesk_event - Blackhole AnyDesk events")
     print("  • API Key authentication (X-API-Key header)")
     print()
-    print(f"[FastAPI] Starting on port {FASTAPI_PORT}...")
-    print()
-    
     # Start FastAPI server (blocking)
     start_fastapi_server()
