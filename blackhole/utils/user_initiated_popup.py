@@ -28,7 +28,7 @@ except ImportError:
 
 # Background colors
 COLOR_BG_MAIN = "#f5f5f5"  # Main background (light gray)
-COLOR_BG_TITLEBAR = "#ebebeb"  # Title bar background (lighter gray)
+COLOR_BG_TITLEBAR = "#cccccc"  # Title bar background (lighter gray)
 COLOR_BG_WHITE = "#ffffff"  # White background (main content area)
 
 # Text colors
