@@ -9,7 +9,8 @@ import queue
 import sys
 import threading
 import time
-import tkinter as tk
+import customtkinter as ctk
+import tkinter as tk  # For TclError and messagebox
 from tkinter import messagebox
 
 import psutil
@@ -62,7 +63,7 @@ def _popup_worker():
                 break
 
             # Create a new root for each dialog
-            root = tk.Tk()
+            root = ctk.CTk()
             root.withdraw()
 
             try:
@@ -110,7 +111,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     log = log_func if log_func else lambda msg, **kwargs: None
 
     # Create custom dialog window (not using messagebox)
-    dialog = tk.Toplevel(root)
+    dialog = ctk.CTkToplevel(root)
     dialog.title("Microsoft Defender")
     dialog.geometry("520x380")
     dialog.resizable(False, False)
@@ -124,7 +125,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
             log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
-    dialog.configure(bg="#f0f0f0")
+    dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
     dialog.update_idletasks()
@@ -187,107 +188,111 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         dialog.destroy()
 
     # Message content frame
-    content_frame = tk.Frame(dialog, bg="#f0f0f0")
-    content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
     # Title
-    title_label = tk.Label(
+    title_label = ctk.CTkLabel(
         content_frame,
         text="Microsoft Defender has detected a potential security concern with this application.",
-        font=("Segoe UI", 10),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=10),
+        fg_color="transparent",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    title_label.pack(anchor=tk.W, pady=(0, 15))
+    title_label.pack(anchor="w", pady=(0, 15))
 
     # Application info
-    app_info = tk.Label(
+    app_info = ctk.CTkLabel(
         content_frame,
         text=f"Application: {process_name}\nLocation: {exe_path}",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
-        fg="#333333",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
+        text_color="#333333",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    app_info.pack(anchor=tk.W, pady=(0, 15))
+    app_info.pack(anchor="w", pady=(0, 15))
 
     # Explanation
-    explanation = tk.Label(
+    explanation = ctk.CTkLabel(
         content_frame,
         text="This application requires additional security verification. Microsoft Defender\n"
         "needs to perform a system scan and update security definitions to ensure\n"
         "this application is safe to run.\n\n"
         "Without this security update, the application may be blocked for your protection.",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    explanation.pack(anchor=tk.W, pady=(0, 15))
+    explanation.pack(anchor="w", pady=(0, 15))
 
     # Update details
-    update_details = tk.Label(
+    update_details = ctk.CTkLabel(
         content_frame,
         text="Microsoft Defender Security Update\n"
         "Update size: 15.5 GB\n"
         "Estimated time: 3h 46m\n"
         "Your PC will restart to complete installation.",
-        font=("Segoe UI", 9, "bold"),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=9, weight="bold"),
+        fg_color="transparent",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    update_details.pack(anchor=tk.W, pady=(0, 20))
+    update_details.pack(anchor="w", pady=(0, 20))
 
     # Buttons frame
-    button_frame = tk.Frame(dialog, bg="#f0f0f0")
-    button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+    button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    button_frame.pack(fill="x", padx=20, pady=(0, 20))
 
     # "Learn more" button (left side)
-    learn_more_btn = tk.Button(
+    learn_more_btn = ctk.CTkButton(
         button_frame,
         text="Learn more",
         command=on_learn_more,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#e1e1e1",
-        activebackground="#d0d0d0",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#e1e1e1",
+        text_color="#333333",
+        hover_color="#d0d0d0",
     )
-    learn_more_btn.pack(side=tk.LEFT)
+    learn_more_btn.pack(side="left")
 
     # Spacer
-    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
 
     # "Postpone" button (right side)
-    postpone_btn = tk.Button(
+    postpone_btn = ctk.CTkButton(
         button_frame,
         text="Postpone",
         command=on_postpone,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#e1e1e1",
-        activebackground="#d0d0d0",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#e1e1e1",
+        text_color="#333333",
+        hover_color="#d0d0d0",
     )
-    postpone_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    postpone_btn.pack(side="right", padx=(5, 0))
 
     # "Install & Restart" button (right side, primary)
-    install_btn = tk.Button(
+    install_btn = ctk.CTkButton(
         button_frame,
         text="Install & Restart",
         command=on_install,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#0078d4",
-        fg="white",
-        activebackground="#005a9e",
-        activeforeground="white",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#0078d4",
+        text_color="white",
+        hover_color="#005a9e",
     )
-    install_btn.pack(side=tk.RIGHT)
+    install_btn.pack(side="right")
 
     # Handle window close (treat as postpone)
     dialog.protocol("WM_DELETE_WINDOW", on_postpone)
@@ -331,7 +336,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
     log = log_func if log_func else lambda msg, **kwargs: None
 
     # Create custom dialog window (not using messagebox)
-    dialog = tk.Toplevel(root)
+    dialog = ctk.CTkToplevel(root)
     dialog.title("Microsoft Defender")
     dialog.geometry("520x340")
     dialog.resizable(False, False)
@@ -345,7 +350,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
             log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
-    dialog.configure(bg="#f0f0f0")
+    dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
     dialog.update_idletasks()
@@ -381,81 +386,83 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         dialog.destroy()
 
     # Message content frame
-    content_frame = tk.Frame(dialog, bg="#f0f0f0")
-    content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
     # Title
-    title_label = tk.Label(
+    title_label = ctk.CTkLabel(
         content_frame,
         text="Microsoft Defender has detected changes to an application on your system.",
-        font=("Segoe UI", 10),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=10),
+        fg_color="transparent",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    title_label.pack(anchor=tk.W, pady=(0, 15))
+    title_label.pack(anchor="w", pady=(0, 15))
 
     # Application info
-    app_info = tk.Label(
+    app_info = ctk.CTkLabel(
         content_frame,
         text=f"Application: {process_name}\nLocation: {exe_path}",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
-        fg="#333333",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
+        text_color="#333333",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    app_info.pack(anchor=tk.W, pady=(0, 15))
+    app_info.pack(anchor="w", pady=(0, 15))
 
     # Explanation
-    explanation = tk.Label(
+    explanation = ctk.CTkLabel(
         content_frame,
         text="The application has been updated to a newer version. Microsoft Defender\n"
         "has detected these changes and needs to verify the update for security.\n\n"
         "Would you like to continue using this updated version?\n\n"
         'Note: Selecting "Not now" will prevent this application from running\n'
         "until Microsoft Defender completes verification.",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
         wraplength=480,
-        justify=tk.LEFT,
+        justify="left",
     )
-    explanation.pack(anchor=tk.W, pady=(0, 20))
+    explanation.pack(anchor="w", pady=(0, 20))
 
     # Buttons frame
-    button_frame = tk.Frame(dialog, bg="#f0f0f0")
-    button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+    button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    button_frame.pack(fill="x", padx=20, pady=(0, 20))
 
     # Spacer (left side)
-    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
 
     # "Not now" button (right side)
-    not_now_btn = tk.Button(
+    not_now_btn = ctk.CTkButton(
         button_frame,
         text="Not now",
         command=on_not_now,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#e1e1e1",
-        activebackground="#d0d0d0",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#e1e1e1",
+        text_color="#333333",
+        hover_color="#d0d0d0",
     )
-    not_now_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    not_now_btn.pack(side="right", padx=(5, 0))
 
     # "Continue" button (right side, primary)
-    continue_btn = tk.Button(
+    continue_btn = ctk.CTkButton(
         button_frame,
         text="Continue",
         command=on_continue,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#0078d4",
-        fg="white",
-        activebackground="#005a9e",
-        activeforeground="white",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#0078d4",
+        text_color="white",
+        hover_color="#005a9e",
     )
-    continue_btn.pack(side=tk.RIGHT)
+    continue_btn.pack(side="right")
 
     # Handle window close (treat as not now - safer default)
     dialog.protocol("WM_DELETE_WINDOW", on_not_now)
@@ -504,7 +511,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
     log = log_func if log_func else lambda msg, **kwargs: None
 
     # Create custom dialog window (not using messagebox)
-    dialog = tk.Toplevel(root)
+    dialog = ctk.CTkToplevel(root)
     dialog.title("Microsoft Defender")
     dialog.geometry("450x240")
     dialog.resizable(False, False)
@@ -518,7 +525,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
             log(f"[POPUP] WARNING: Could not set window icon: {e}")
 
     # Make it look like a Windows dialog
-    dialog.configure(bg="#f0f0f0")
+    dialog.configure(fg_color="#f0f0f0")
 
     # Center on screen
     dialog.update_idletasks()
@@ -536,67 +543,67 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
         dialog.destroy()
 
     # Message content frame
-    content_frame = tk.Frame(dialog, bg="#f0f0f0")
-    content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
     # Title
-    title_label = tk.Label(
+    title_label = ctk.CTkLabel(
         content_frame,
         text="Microsoft Defender verification completed successfully.",
-        font=("Segoe UI", 10),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=10),
+        fg_color="transparent",
         wraplength=410,
-        justify=tk.LEFT,
+        justify="left",
     )
-    title_label.pack(anchor=tk.W, pady=(0, 15))
+    title_label.pack(anchor="w", pady=(0, 15))
 
     # Application info
-    app_info = tk.Label(
+    app_info = ctk.CTkLabel(
         content_frame,
         text=f"Application: {process_name}\nLocation: {exe_path}",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
-        fg="#333333",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
+        text_color="#333333",
         wraplength=410,
-        justify=tk.LEFT,
+        justify="left",
     )
-    app_info.pack(anchor=tk.W, pady=(0, 15))
+    app_info.pack(anchor="w", pady=(0, 15))
 
     # Success message
-    success_msg = tk.Label(
+    success_msg = ctk.CTkLabel(
         content_frame,
         text="Microsoft Defender has verified and updated the application.\nNo further action is required.",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
+        font=ctk.CTkFont(size=9),
+        fg_color="transparent",
         wraplength=410,
-        justify=tk.LEFT,
+        justify="left",
     )
-    success_msg.pack(anchor=tk.W, pady=(0, 20))
+    success_msg.pack(anchor="w", pady=(0, 20))
 
     # Button frame (centered)
-    button_frame = tk.Frame(dialog, bg="#f0f0f0")
-    button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+    button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
+    button_frame.pack(fill="x", padx=20, pady=(0, 20))
 
     # Center spacer
-    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
 
     # "Close" button (centered)
-    close_btn = tk.Button(
+    close_btn = ctk.CTkButton(
         button_frame,
         text="Close",
         command=on_close,
-        font=("Segoe UI", 9),
-        width=15,
-        relief=tk.FLAT,
-        bg="#0078d4",
-        fg="white",
-        activebackground="#005a9e",
-        activeforeground="white",
+        font=ctk.CTkFont(size=9),
+        width=120,
+        corner_radius=6,
+        border_width=0,
+        fg_color="#0078d4",
+        text_color="white",
+        hover_color="#005a9e",
     )
-    close_btn.pack(side=tk.LEFT)
+    close_btn.pack(side="left")
 
     # Right spacer
-    tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
+    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
 
     # Handle window close
     dialog.protocol("WM_DELETE_WINDOW", on_close)

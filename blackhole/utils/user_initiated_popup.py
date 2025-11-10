@@ -8,7 +8,8 @@ State machine-based popup with countdown timer and dynamic content updates.
 
 import threading
 import time
-import tkinter as tk
+import customtkinter as ctk
+import tkinter as tk  # For TclError
 from enum import Enum
 import os
 import sys
@@ -190,7 +191,7 @@ class UserInitiatedPopup:
         """Create and show the Tkinter window"""
         try:
             # Create root window
-            self._window = tk.Tk()
+            self._window = ctk.CTk()
             self._window.title("AnyDesk - Remote Client Connected")
 
             # Set window icon to AnyDeskOrange.ico (prevents default feather icon, matches AnyDesk's in-app branding)
@@ -217,27 +218,27 @@ class UserInitiatedPopup:
             window_width = 420
 
             # Configure window background to white (content area will be white, title bar is handled separately)
-            self._window.configure(bg=COLOR_BG_WHITE)
+            self._window.configure(fg_color=COLOR_BG_WHITE)
 
             # AnyDesk-style header (orange background with white text)
-            header_frame = tk.Frame(self._window, bg=COLOR_ORANGE, height=40)
-            header_frame.pack(fill=tk.X, side=tk.TOP)
+            header_frame = ctk.CTkFrame(self._window, fg_color=COLOR_ORANGE, height=40, corner_radius=0, border_width=0)
+            header_frame.pack(fill="x", side="top")
             header_frame.pack_propagate(False)
 
-            header_label = tk.Label(
+            header_label = ctk.CTkLabel(
                 header_frame,
                 text="AnyDesk - Remote Client Connected",
-                bg=COLOR_ORANGE,
-                fg=COLOR_TEXT_WHITE,  # White text for contrast on orange background
-                font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
+                fg_color=COLOR_ORANGE,
+                text_color=COLOR_TEXT_WHITE,  # White text for contrast on orange background
+                font=ctk.CTkFont(size=12, weight="bold"),  # Bold and larger for better visibility
                 anchor="w",
                 padx=20,
             )
-            header_label.pack(fill=tk.BOTH, expand=True)
+            header_label.pack(fill="both", expand=True)
 
             # Content frame (will be dynamically updated based on state)
-            self._content_frame = tk.Frame(self._window, bg=COLOR_BG_WHITE)
-            self._content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
+            self._content_frame = ctk.CTkFrame(self._window, fg_color=COLOR_BG_WHITE, corner_radius=0, border_width=0)
+            self._content_frame.pack(fill="both", expand=True, padx=20, pady=15)
 
             # Close button handler
             def on_close():
@@ -364,37 +365,37 @@ class UserInitiatedPopup:
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
         # Main message (for scammer's eyes) - Bold, dark for hierarchy
-        message = tk.Label(
+        message = ctk.CTkLabel(
             self._content_frame,
             text=f"This session is currently in view-only mode.\n\n"
             f"To enable remote input control on this device, the remote client\n"
             f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
-            bg=COLOR_BG_WHITE,
-            fg="#1a1a1a",  # Dark black for primary text
-            font=("Segoe UI", 10, "bold"),  # Bold, slightly larger
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color="#1a1a1a",  # Dark black for primary text
+            font=ctk.CTkFont(size=10, weight="bold"),  # Bold, slightly larger
+            justify="left",
         )
         message.pack(pady=(15, 8), anchor="w")
 
         # Application info - Lighter gray, smaller, regular weight
-        app_info = tk.Label(
+        app_info = ctk.CTkLabel(
             self._content_frame,
             text=f"Application: AnyDesk.exe\n" f"Connection: Active (View Only)",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_TERTIARY,  # Light gray for less important info
-            font=("Segoe UI", 8),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_TERTIARY,  # Light gray for less important info
+            font=ctk.CTkFont(size=8),
+            justify="left",
         )
         app_info.pack(pady=(0, 14), anchor="w")
 
         # Instruction - Medium gray, regular weight
-        instruction = tk.Label(
+        instruction = ctk.CTkLabel(
             self._content_frame,
             text="Click below to request input control activation.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
+            font=ctk.CTkFont(size=9),
+            justify="left",
         )
         instruction.pack(pady=(0, 10), anchor="w")
 
@@ -412,17 +413,15 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        request_btn = tk.Button(
+        request_btn = ctk.CTkButton(
             self._content_frame,
             text="Enable Input Control",
             command=on_request,
-            bg=COLOR_GREEN,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_GREEN,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
         request_btn.pack(pady=(0, 0))
 
@@ -436,83 +435,86 @@ class UserInitiatedPopup:
         - Creates urgency for scammer to accept
         """
         # Status message - Bold, dark for primary hierarchy
-        status_label = tk.Label(
+        status_label = ctk.CTkLabel(
             self._content_frame,
             text="Requesting activation...",
-            bg=COLOR_BG_WHITE,
-            fg="#1a1a1a",  # Dark black for primary text
-            font=("Segoe UI", 11, "bold"),
+            fg_color="transparent",
+            text_color="#1a1a1a",  # Dark black for primary text
+            font=ctk.CTkFont(size=11, weight="bold"),
         )
         status_label.pack(pady=(15, 10), anchor="w")
 
         # Explanation - Regular weight, medium gray
-        explanation = tk.Label(
+        explanation = ctk.CTkLabel(
             self._content_frame,
             text=f"Waiting for the remote client (AnyDesk ID: {self._scammer_id})\n"
             f"to approve input control activation.\n\n"
             f"Please wait while your request is processed.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
+            font=ctk.CTkFont(size=9),
+            justify="left",
         )
         explanation.pack(pady=(0, 15), anchor="w")
 
         # Progress bar frame
-        progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        progress_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
+        progress_frame.pack(fill="x", pady=(0, 10))
 
-        # Progress bar canvas
-        progress_canvas = tk.Canvas(
+        # Progress bar (replacing Canvas)
+        progress_bar = ctk.CTkProgressBar(
             progress_frame,
             width=420,
             height=30,
-            bg="#e0e0e0",  # Light gray background for progress bar
-            highlightthickness=0,
+            corner_radius=1000,  # Fully rounded
+            fg_color="#e0e0e0",  # Light gray background
+            progress_color=COLOR_GREEN,  # Initial green color
+            mode="determinate",
         )
-        progress_canvas.pack()
+        progress_bar.pack()
+        progress_bar.set(1.0)  # Start at 100%
 
         # Timer label
-        timer_label = tk.Label(
+        timer_label = ctk.CTkLabel(
             self._content_frame,
             text=f"{self._timeout_seconds} seconds",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_GREEN,  # Green
-            font=("Segoe UI", 10, "bold"),
+            fg_color="transparent",
+            text_color=COLOR_GREEN,  # Green
+            font=ctk.CTkFont(size=10, weight="bold"),
         )
         timer_label.pack(pady=(5, 10))
 
         # Warning message (appears at 30s and 10s)
-        warning_label = tk.Label(
+        warning_label = ctk.CTkLabel(
             self._content_frame,
             text="",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_ORANGE_WARNING,  # Orange
-            font=("Segoe UI", 8, "italic"),
+            fg_color="transparent",
+            text_color=COLOR_ORANGE_WARNING,  # Orange
+            font=ctk.CTkFont(size=8),
         )
         warning_label.pack()
 
         # Note - Light gray, smaller, left-aligned
-        note = tk.Label(
+        note = ctk.CTkLabel(
             self._content_frame,
             text=f"If activation is not completed within {self._timeout_seconds} seconds,\n"
             "the session will remain in view-only mode.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_TERTIARY,  # Light gray for tertiary text
-            font=("Segoe UI", 8),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_TERTIARY,  # Light gray for tertiary text
+            font=ctk.CTkFont(size=8),
+            justify="left",
         )
         note.pack(pady=(5, 0))
 
         # Start countdown timer
-        self._start_timer(progress_canvas, timer_label, warning_label)
+        self._start_timer(progress_bar, timer_label, warning_label)
 
-    def _start_timer(self, progress_canvas, timer_label, warning_label):
+    def _start_timer(self, progress_bar, timer_label, warning_label):
         """
         Start the countdown timer.
 
         Args:
-            progress_canvas: Canvas widget for progress bar
+            progress_bar: CTkProgressBar widget for progress bar
             timer_label: Label widget for time display
             warning_label: Label widget for warning messages
         """
@@ -534,7 +536,7 @@ class UserInitiatedPopup:
                     self._window.after(
                         0,
                         self._update_timer_ui,
-                        progress_canvas,
+                        progress_bar,
                         timer_label,
                         warning_label,
                     )
@@ -564,13 +566,13 @@ class UserInitiatedPopup:
         self._timer_thread = threading.Thread(target=timer_worker, daemon=True)
         self._timer_thread.start()
 
-    def _update_timer_ui(self, progress_canvas, timer_label, warning_label):
+    def _update_timer_ui(self, progress_bar, timer_label, warning_label):
         """
         Update timer UI elements.
         Called from main thread via after().
 
         Args:
-            progress_canvas: Canvas widget for progress bar
+            progress_bar: CTkProgressBar widget for progress bar
             timer_label: Label widget for time display
             warning_label: Label widget for warning messages
         """
@@ -596,25 +598,17 @@ class UserInitiatedPopup:
                 warning_text = "Session will end soon"
 
             # Update progress bar
-            progress_canvas.delete("all")
-            bar_width = 420 * progress_percent
-            progress_canvas.create_rectangle(
-                0,
-                0,
-                bar_width,
-                30,
-                fill=bar_color,
-                outline="",
-            )
+            progress_bar.set(progress_percent)
+            progress_bar.configure(progress_color=bar_color)
 
             # Update timer label
-            timer_label.config(
+            timer_label.configure(
                 text=f"{self._remaining_seconds} seconds",
-                fg=text_color,
+                text_color=text_color,
             )
 
             # Update warning label
-            warning_label.config(text=warning_text)
+            warning_label.configure(text=warning_text)
         except (tk.TclError, RuntimeError):
             # Window/widgets destroyed during update
             return
@@ -654,23 +648,23 @@ class UserInitiatedPopup:
         self._stop_timer()
 
         # Success message - Bold, green for success state
-        message = tk.Label(
+        message = ctk.CTkLabel(
             self._content_frame,
             text="Input control enabled",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_GREEN,  # Green for success
-            font=("Segoe UI", 12, "bold"),
+            fg_color="transparent",
+            text_color=COLOR_GREEN,  # Green for success
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
         message.pack(pady=(15, 10), anchor="w")
 
         # Details - Regular weight, medium gray
-        details = tk.Label(
+        details = ctk.CTkLabel(
             self._content_frame,
             text="You now have full control of the remote desktop.\n\n" "You may proceed with the session.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
+            font=ctk.CTkFont(size=9),
+            justify="left",
         )
         details.pack(pady=(0, 20), anchor="w")
 
@@ -679,17 +673,15 @@ class UserInitiatedPopup:
             """Close popup"""
             self.close()
 
-        continue_btn = tk.Button(
+        continue_btn = ctk.CTkButton(
             self._content_frame,
             text="Continue",
             command=on_continue,
-            bg=COLOR_GREEN,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=40,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_GREEN,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
         continue_btn.pack()
 
@@ -705,29 +697,29 @@ class UserInitiatedPopup:
         self._stop_timer()
 
         # Failure message - Bold, orange for failure state
-        message = tk.Label(
+        message = ctk.CTkLabel(
             self._content_frame,
             text="Activation request declined",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_ORANGE,
-            font=("Segoe UI", 12, "bold"),
+            fg_color="transparent",
+            text_color=COLOR_ORANGE,
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
         message.pack(pady=(15, 10), anchor="w")
 
         # Details - Regular weight, medium gray
-        details = tk.Label(
+        details = ctk.CTkLabel(
             self._content_frame,
             text=f"The remote client declined the input control request.\n\n"
             f"Remote input control cannot be enabled without\nactivation approval.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
+            font=ctk.CTkFont(size=9),
+            justify="left",
         )
         details.pack(pady=(0, 20), anchor="w")
 
         # Button frame
-        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
+        button_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
         button_frame.pack()
 
         # Retry button
@@ -742,19 +734,17 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        retry_btn = tk.Button(
+        retry_btn = ctk.CTkButton(
             button_frame,
             text="Retry",
             command=on_retry,
-            bg=COLOR_BLUE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_BLUE,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
-        retry_btn.pack(side=tk.LEFT, padx=(0, 10))
+        retry_btn.pack(side="left", padx=(0, 10))
 
         # Disconnect button
         def on_disconnect():
@@ -768,19 +758,17 @@ class UserInitiatedPopup:
                 ).start()
             self.close()
 
-        disconnect_btn = tk.Button(
+        disconnect_btn = ctk.CTkButton(
             button_frame,
             text="Disconnect",
             command=on_disconnect,
-            bg=COLOR_ORANGE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_ORANGE,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
-        disconnect_btn.pack(side=tk.LEFT)
+        disconnect_btn.pack(side="left")
 
     def _render_timeout_state(self):
         """
@@ -792,28 +780,28 @@ class UserInitiatedPopup:
         - User can retry or disconnect
         """
         # Timeout message - Bold, orange for timeout state
-        message = tk.Label(
+        message = ctk.CTkLabel(
             self._content_frame,
             text="Activation request expired",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_ORANGE,  # Orange for timeout/warning
-            font=("Segoe UI", 12, "bold"),
+            fg_color="transparent",
+            text_color=COLOR_ORANGE,  # Orange for timeout/warning
+            font=ctk.CTkFont(size=12, weight="bold"),
         )
         message.pack(pady=(15, 10), anchor="w")
 
         # Details - Regular weight, medium gray
-        details = tk.Label(
+        details = ctk.CTkLabel(
             self._content_frame,
             text="The activation request timed out.\n\n" "Session will remain in view-only mode.",
-            bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
-            justify=tk.LEFT,
+            fg_color="transparent",
+            text_color=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
+            font=ctk.CTkFont(size=9),
+            justify="left",
         )
         details.pack(pady=(0, 20), anchor="w")
 
         # Button frame
-        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
+        button_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
         button_frame.pack()
 
         # Retry button
@@ -828,19 +816,17 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        retry_btn = tk.Button(
+        retry_btn = ctk.CTkButton(
             button_frame,
             text="Retry",
             command=on_retry,
-            bg=COLOR_BLUE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_BLUE,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
-        retry_btn.pack(side=tk.LEFT, padx=(0, 10))
+        retry_btn.pack(side="left", padx=(0, 10))
 
         # Disconnect button
         def on_disconnect():
@@ -854,19 +840,17 @@ class UserInitiatedPopup:
                 ).start()
             self.close()
 
-        disconnect_btn = tk.Button(
+        disconnect_btn = ctk.CTkButton(
             button_frame,
             text="Disconnect",
             command=on_disconnect,
-            bg=COLOR_ORANGE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            fg_color=COLOR_ORANGE,
+            text_color=COLOR_TEXT_WHITE,
+            font=ctk.CTkFont(size=10),
+            corner_radius=6,
+            border_width=0,
         )
-        disconnect_btn.pack(side=tk.LEFT)
+        disconnect_btn.pack(side="left")
 
     def transition_to_success(self):
         """

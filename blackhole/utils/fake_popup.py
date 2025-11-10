@@ -4,8 +4,8 @@ Used to trick scammers into accepting reverse connections
 """
 
 import threading
-import tkinter as tk
-from tkinter import font as tkfont
+import customtkinter as ctk
+import tkinter as tk  # For TclError
 
 
 class FakePopup:
@@ -49,7 +49,7 @@ class FakePopup:
         """Create and show the Tkinter window"""
         try:
             # Create root window
-            self._window = tk.Tk()
+            self._window = ctk.CTk()
             self._window.title("AnyDesk")
 
             # Window size
@@ -72,40 +72,40 @@ class FakePopup:
             # TODO: Add AnyDesk icon in future phase
 
             # Configure background
-            self._window.configure(bg="#f5f5f5")
+            self._window.configure(fg_color="#f5f5f5")
 
             # Title bar with AnyDesk branding
-            title_frame = tk.Frame(self._window, bg="#d51317", height=40)
-            title_frame.pack(fill=tk.X, side=tk.TOP)
+            title_frame = ctk.CTkFrame(self._window, fg_color="#d51317", height=40, corner_radius=0, border_width=0)
+            title_frame.pack(fill="x", side="top")
             title_frame.pack_propagate(False)
 
-            title_label = tk.Label(
+            title_label = ctk.CTkLabel(
                 title_frame,
                 text="AnyDesk",
-                bg="#d51317",
-                fg="white",
-                font=("Segoe UI", 12, "bold"),
+                fg_color="#d51317",
+                text_color="white",
+                font=ctk.CTkFont(size=12, weight="bold"),
                 anchor="w",
                 padx=15,
             )
-            title_label.pack(fill=tk.BOTH, expand=True)
+            title_label.pack(fill="both", expand=True)
 
             # Message frame
-            message_frame = tk.Frame(self._window, bg="#f5f5f5")
-            message_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+            message_frame = ctk.CTkFrame(self._window, fg_color="#f5f5f5", corner_radius=0, border_width=0)
+            message_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
             # Hourglass icon (simple text representation)
-            icon_label = tk.Label(message_frame, text="⏳", bg="#f5f5f5", font=("Segoe UI", 32))
+            icon_label = ctk.CTkLabel(message_frame, text="⏳", fg_color="transparent", font=ctk.CTkFont(size=32))
             icon_label.pack(pady=(0, 10))
 
             # Message text
-            message_label = tk.Label(
+            message_label = ctk.CTkLabel(
                 message_frame,
                 text=self._message,
-                bg="#f5f5f5",
-                fg="#333333",
-                font=("Segoe UI", 9),
-                justify=tk.CENTER,
+                fg_color="transparent",
+                text_color="#333333",
+                font=ctk.CTkFont(size=9),
+                justify="center",
                 wraplength=400,
             )
             message_label.pack()
@@ -142,7 +142,7 @@ class FakePopup:
             try:
                 self._window.quit()
                 self._window.destroy()
-            except tk.TclError:
+            except (tk.TclError, RuntimeError):
                 # Window already destroyed
                 pass
 
