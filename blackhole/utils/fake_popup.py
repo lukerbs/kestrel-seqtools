@@ -87,6 +87,7 @@ class FakePopup:
             title_frame = ctk.CTkFrame(self._window, fg_color="#d51317", height=40, corner_radius=0, border_width=0)
             title_frame.grid(row=0, column=0, sticky="ew")
             title_frame.grid_propagate(False)
+            title_frame.grid_rowconfigure(0, weight=1)  # Center vertically
             title_frame.grid_columnconfigure(0, weight=1)
 
             title_label = ctk.CTkLabel(
@@ -98,7 +99,7 @@ class FakePopup:
                 anchor="w",
                 padx=15,
             )
-            title_label.grid(row=0, column=0, sticky="ew")
+            title_label.grid(row=0, column=0, sticky="nsew")  # Fill and center vertically
 
             # Message frame
             message_frame = ctk.CTkFrame(self._window, fg_color="#f5f5f5", corner_radius=0, border_width=0)

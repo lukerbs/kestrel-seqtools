@@ -235,6 +235,8 @@ class UserInitiatedPopup:
             header_frame = ctk.CTkFrame(self._window, fg_color=COLOR_ORANGE, height=40, corner_radius=0, border_width=0)
             header_frame.grid(row=0, column=0, sticky="ew")
             header_frame.grid_propagate(False)
+            header_frame.grid_rowconfigure(0, weight=1)  # Center vertically
+            header_frame.grid_columnconfigure(0, weight=1)
 
             header_label = ctk.CTkLabel(
                 header_frame,
@@ -245,8 +247,7 @@ class UserInitiatedPopup:
                 anchor="w",
                 padx=20,
             )
-            header_label.grid(row=0, column=0, sticky="ew")
-            header_frame.grid_columnconfigure(0, weight=1)
+            header_label.grid(row=0, column=0, sticky="nsew")  # Fill and center vertically
 
             # Content frame (will be dynamically updated based on state)
             self._content_frame = ctk.CTkFrame(self._window, fg_color=COLOR_BG_WHITE, corner_radius=0, border_width=0)
