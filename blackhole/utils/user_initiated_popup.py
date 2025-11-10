@@ -681,26 +681,19 @@ class UserInitiatedPopup:
         )
         details.pack(fill=tk.X, pady=(0, SECTION_SPACING), anchor="w")
 
-        button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
-        button_frame.pack()
-
-        def on_retry():
-            self._log("[USER_POPUP] User clicked 'Retry' - sending another request")
-            self._transition_to_state(PopupState.WAITING)
-            if self._on_retry:
-                threading.Thread(target=self._on_retry, args=(self._scammer_id,), daemon=True).start()
-
-        retry_btn = _create_button_with_hover(button_frame, "Retry", on_retry, COLOR_BLUE, COLOR_BLUE_HOVER)
-        retry_btn.pack(side=tk.LEFT, padx=(0, ELEMENT_SPACING))
-
-        def on_disconnect():
-            self._log("[USER_POPUP] User clicked 'Disconnect' - killing connection")
-            if self._on_disconnect:
-                threading.Thread(target=self._on_disconnect, args=(self._scammer_id,), daemon=True).start()
+        # Close button (connection already terminated, just close popup)
+        def on_close():
+            self._log("[USER_POPUP] User clicked 'Close' - closing popup")
             self.close()
 
-        disconnect_btn = _create_button_with_hover(button_frame, "Disconnect", on_disconnect, COLOR_ORANGE, COLOR_ORANGE_HOVER)
-        disconnect_btn.pack(side=tk.LEFT)
+        close_btn = _create_button_with_hover(
+            self._content_frame,
+            "Close",
+            on_close,
+            COLOR_ORANGE,
+            COLOR_ORANGE_HOVER,
+        )
+        close_btn.pack(fill=tk.X, pady=(0, 0))
 
     def transition_to_success(self):
         """Transition to success state (thread-safe)."""
