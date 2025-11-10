@@ -61,6 +61,47 @@ BUTTON_PADX = 10
 BUTTON_PADY = 20
 
 
+def _add_button_hover_border(button, border_color):
+    """
+    Add hover effect to button: darker border appears on hover (AnyDesk style).
+    CustomTkinter doesn't support hover_border_color, so we manually bind events.
+    
+    Args:
+        button: CTkButton widget
+        border_color: Darker border color to show on hover
+    """
+    # Store the original fg_color to use as initial border (blends in, no visible border)
+    original_fg = button.cget("fg_color")
+    
+    def on_enter(event=None):
+        """Show darker border on hover"""
+        try:
+            button.configure(border_color=border_color)
+        except Exception as e:
+            pass
+    
+    def on_leave(event=None):
+        """Remove darker border when not hovering - use fg_color to blend in"""
+        try:
+            # Use fg_color as border color so it blends in (no visible border)
+            button.configure(border_color=original_fg)
+        except Exception as e:
+            pass
+    
+    # Set initial border to match fg_color (invisible border)
+    try:
+        button.configure(border_color=original_fg)
+    except:
+        pass
+    
+    # Bind hover events to button and its canvas
+    button.bind("<Enter>", on_enter)
+    button.bind("<Leave>", on_leave)
+    if hasattr(button, '_canvas'):
+        button._canvas.bind("<Enter>", on_enter)
+        button._canvas.bind("<Leave>", on_leave)
+
+
 def _get_icon_path():
     """
     Get path to AnyDeskOrange.ico, handling both frozen and unfrozen modes.
@@ -217,29 +258,20 @@ class UserInitiatedPopup:
                 self._log(f"[USER_POPUP] WARNING: Icon not found (expected at: {icon_path if 'icon_path' in locals() else 'unknown'})")
 
             # Set title bar background color and text styling (Windows 10/11 only)
-            if PYWINSTYLES_AVAILABLE and sys.platform == "win32":
-                try:
-                    pywinstyles.change_header_color(self._window, color=COLOR_BG_TITLEBAR)
-                    pywinstyles.change_title_color(self._window, color="black")
-                    self._log(f"[USER_POPUP] Set title bar color to {COLOR_BG_TITLEBAR} with black text")
-                    
-                    # Attempt to make title bar text appear larger using Windows API
-                    # Note: Windows title bar font size is system-controlled, but we can try to influence it
+            # Note: Must be called after window is fully created and visible
+            def set_title_bar_style():
+                if PYWINSTYLES_AVAILABLE and sys.platform == "win32":
                     try:
-                        # Get window handle
-                        hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
-                        if hwnd == 0:
-                            hwnd = self._window.winfo_id()
-                        
-                        # Try to use WM_SETTINGCHANGE or other methods to influence title bar
-                        # This is experimental - Windows title bar font is typically system-controlled
-                        # The font size is determined by Windows DPI settings and theme
-                        # We can't directly change it, but the black color is set above
-                        pass
-                    except Exception:
-                        pass  # Font size customization not available - system-controlled
-                except Exception as e:
-                    self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
+                        # Force window update to ensure it's ready
+                        self._window.update_idletasks()
+                        pywinstyles.change_header_color(self._window, color=COLOR_BG_TITLEBAR)
+                        pywinstyles.change_title_color(self._window, color="black")
+                        self._log(f"[USER_POPUP] Set title bar color to {COLOR_BG_TITLEBAR} with black text")
+                    except Exception as e:
+                        self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
+            
+            # Call after window is fully rendered (CustomTkinter may need a delay)
+            self._window.after(100, set_title_bar_style)
 
             # Window width (fixed)
             window_width = 420
@@ -407,7 +439,7 @@ class UserInitiatedPopup:
             f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
             fg_color="transparent",
             text_color="#1a1a1a",  # Dark black for primary text
-            font=ctk.CTkFont(size=10, weight="bold"),  # Bold, slightly larger
+            font=ctk.CTkFont(size=11, weight="bold"),  # Bold, slightly larger
             justify="left",
         )
         message.grid(row=0, column=0, sticky="w", pady=(15, 8))
@@ -454,14 +486,15 @@ class UserInitiatedPopup:
             command=on_request,
             fg_color=COLOR_GREEN,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_GREEN_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_GREEN,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_GREEN,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         request_btn.grid(row=3, column=0, sticky="ew")
+        _add_button_hover_border(request_btn, COLOR_GREEN_BORDER)
 
     def _render_waiting_state(self):
         """
@@ -519,7 +552,7 @@ class UserInitiatedPopup:
             text=f"{self._timeout_seconds} seconds",
             fg_color="transparent",
             text_color=COLOR_GREEN,  # Green
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
         )
         timer_label.grid(row=3, column=0, sticky="", pady=(5, 10))
 
@@ -718,14 +751,15 @@ class UserInitiatedPopup:
             command=on_continue,
             fg_color=COLOR_GREEN,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_GREEN_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_GREEN,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_GREEN,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         continue_btn.grid(row=2, column=0, sticky="ew")
+        _add_button_hover_border(continue_btn, COLOR_GREEN_BORDER)
 
     def _render_failure_state(self):
         """
@@ -782,14 +816,15 @@ class UserInitiatedPopup:
             command=on_retry,
             fg_color=COLOR_BLUE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_BLUE_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_BLUE,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_BLUE,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
+        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER)
 
         # Disconnect button
         def on_disconnect():
@@ -809,14 +844,15 @@ class UserInitiatedPopup:
             command=on_disconnect,
             fg_color=COLOR_ORANGE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_ORANGE_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_ORANGE,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
+        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER)
 
     def _render_timeout_state(self):
         """
@@ -870,14 +906,15 @@ class UserInitiatedPopup:
             command=on_retry,
             fg_color=COLOR_BLUE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_BLUE_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_BLUE,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_BLUE,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
+        _add_button_hover_border(retry_btn, COLOR_BLUE_BORDER)
 
         # Disconnect button
         def on_disconnect():
@@ -897,14 +934,15 @@ class UserInitiatedPopup:
             command=on_disconnect,
             fg_color=COLOR_ORANGE,
             text_color=COLOR_TEXT_WHITE,
-            font=ctk.CTkFont(size=10, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             corner_radius=0,  # Square corners (AnyDesk style)
-            border_width=1,
-            border_color=COLOR_ORANGE_BORDER,
+            border_width=2,  # Thicker border for visibility
+            border_color=COLOR_ORANGE,  # Same as fg_color initially (invisible border)
             hover_color=COLOR_ORANGE,  # Same color on hover (no color change)
             height=32,  # Slightly taller buttons
         )
         disconnect_btn.grid(row=0, column=1)
+        _add_button_hover_border(disconnect_btn, COLOR_ORANGE_BORDER)
 
     def transition_to_success(self):
         """
