@@ -43,7 +43,7 @@ resource "aws_lightsail_static_ip_attachment" "ip_attachment" {
 # 4. Open the Firewall Ports
 # This opens the necessary ports:
 # - Port 22 (SSH) for remote management
-# - Port 5555 (C2) for receiver connections
+# - Port 8080 (HTTP/WebSocket) for C2 API, receiver polling, reports, and streaming
 resource "aws_lightsail_instance_public_ports" "server_firewall" {
   instance_name = aws_lightsail_instance.scambait_server.name
 
