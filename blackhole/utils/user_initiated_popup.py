@@ -48,6 +48,24 @@ COLOR_ORANGE_WARNING = "#f57c00"  # Orange (warning text)
 # Neutral colors
 COLOR_GRAY_MEDIUM = "#7f7f7f"  # Medium gray (progress bar background, close button)
 
+# Button hover colors (slightly darker shades)
+COLOR_GREEN_HOVER = "#3a6f35"  # Darker green for button hover
+COLOR_BLUE_HOVER = "#5670a0"  # Darker blue for button hover
+COLOR_ORANGE_HOVER = "#d03830"  # Darker orange for button hover
+
+# Layout constants
+STANDARD_PADX = 24  # Horizontal padding (increased from 20)
+STANDARD_PADY = 20  # Vertical padding (increased from 15)
+ELEMENT_SPACING = 12  # Space between elements
+SECTION_SPACING = 20  # Space between major sections
+BUTTON_HEIGHT_PX = 32  # Button height in pixels (from CustomTkinter implementation)
+
+# Typography constants
+FONT_HEADING = ("Segoe UI", 13, "bold")  # Main headings
+FONT_BODY = ("Segoe UI", 10)  # Body text
+FONT_SECONDARY = ("Segoe UI", 9)  # Secondary info
+FONT_SMALL = ("Segoe UI", 8)  # Very minor details
+
 
 def _get_icon_path():
     """
@@ -75,6 +93,50 @@ def _get_icon_path():
     if os.path.exists(icon_path):
         return icon_path
     return None
+
+
+def _create_button_with_hover(parent, text, command, bg_color, hover_color, **kwargs):
+    """
+    Create a button with hover effect (darker background on hover).
+    Matches AnyDesk's simple flat design with consistent 32px height.
+    
+    Args:
+        parent: Parent widget
+        text: Button text
+        command: Button command callback
+        bg_color: Normal background color
+        hover_color: Hover background color (darker shade)
+        **kwargs: Additional button options
+    
+    Returns:
+        tk.Button: Configured button with hover effect
+    """
+    btn = tk.Button(
+        parent,
+        text=text,
+        command=command,
+        bg=bg_color,
+        fg=COLOR_TEXT_WHITE,
+        font=("Segoe UI", 10, "bold"),  # Bold text like AnyDesk
+        relief=tk.FLAT,
+        cursor="hand2",
+        **kwargs
+    )
+    
+    # Calculate height for 32px (Tkinter uses text lines, approximate with pady)
+    # For 10px font with bold, we need approximately 2 lines with 6px padding
+    btn.config(height=2, pady=6)
+    
+    # Hover effect: darker background
+    def on_enter(e):
+        btn.config(bg=hover_color)
+    def on_leave(e):
+        btn.config(bg=bg_color)
+    
+    btn.bind("<Enter>", on_enter)
+    btn.bind("<Leave>", on_leave)
+    
+    return btn
 
 
 def _get_anydesk_image_path():
@@ -192,6 +254,9 @@ class UserInitiatedPopup:
             # Create root window
             self._window = tk.Tk()
             self._window.title("AnyDesk - Remote Client Connected")
+            
+            # Window width (increased for better layout)
+            window_width = 480
 
             # Set window icon to AnyDeskOrange.ico (prevents default feather icon, matches AnyDesk's in-app branding)
             icon_path = _get_icon_path()
@@ -213,8 +278,8 @@ class UserInitiatedPopup:
                 except Exception as e:
                     self._log(f"[USER_POPUP] WARNING: Could not set title bar styling: {e}")
 
-            # Window width (fixed)
-            window_width = 420
+            # Window width (increased for better layout)
+            window_width = 480
 
             # Configure window background to white (content area will be white, title bar is handled separately)
             self._window.configure(bg=COLOR_BG_WHITE)
@@ -229,15 +294,15 @@ class UserInitiatedPopup:
                 text="AnyDesk - Remote Client Connected",
                 bg=COLOR_ORANGE,
                 fg=COLOR_TEXT_WHITE,  # White text for contrast on orange background
-                font=("Segoe UI", 12, "bold"),  # Bold and larger for better visibility
+                font=FONT_HEADING,  # Use font constant
                 anchor="w",
-                padx=20,
+                padx=STANDARD_PADX,  # Match content padding
             )
             header_label.pack(fill=tk.BOTH, expand=True)
 
             # Content frame (will be dynamically updated based on state)
             self._content_frame = tk.Frame(self._window, bg=COLOR_BG_WHITE)
-            self._content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
+            self._content_frame.pack(fill=tk.BOTH, expand=True, padx=STANDARD_PADX, pady=STANDARD_PADY)
 
             # Close button handler
             def on_close():
@@ -363,29 +428,42 @@ class UserInitiatedPopup:
         - Uses "remote client" terminology (AnyDesk official term)
         - Makes it clear this is why they don't have mouse/keyboard control yet
         """
-        # Main message (for scammer's eyes) - Bold, dark for hierarchy
+        # Get window width from window geometry
+        window_width = 480  # Default, will be updated if window exists
+        if self._window:
+            try:
+                window_width = self._window.winfo_width()
+                if window_width <= 1:
+                    window_width = 480
+            except:
+                pass
+        
+        # Main message (for scammer's eyes) - Regular weight, dark for hierarchy
         message = tk.Label(
             self._content_frame,
             text=f"This session is currently in view-only mode.\n\n"
             f"To enable remote input control on this device, the remote client\n"
             f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
             bg=COLOR_BG_WHITE,
-            fg="#1a1a1a",  # Dark black for primary text
-            font=("Segoe UI", 10, "bold"),  # Bold, slightly larger
+            fg=COLOR_TEXT_PRIMARY,  # Dark text for primary content
+            font=FONT_BODY,  # Regular weight, not bold (AnyDesk uses bold sparingly)
             justify=tk.LEFT,
+            anchor="w",
+            wraplength=window_width - (STANDARD_PADX * 4),  # Proper text wrapping
         )
-        message.pack(pady=(15, 8), anchor="w")
+        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Application info - Lighter gray, smaller, regular weight
         app_info = tk.Label(
             self._content_frame,
             text=f"Application: AnyDesk.exe\n" f"Connection: Active (View Only)",
             bg=COLOR_BG_WHITE,
-            fg=COLOR_TEXT_TERTIARY,  # Light gray for less important info
-            font=("Segoe UI", 8),
+            fg=COLOR_TEXT_SECONDARY,  # Medium gray (increased from tertiary)
+            font=FONT_SECONDARY,  # 9px instead of 8px
             justify=tk.LEFT,
+            anchor="w",
         )
-        app_info.pack(pady=(0, 14), anchor="w")
+        app_info.pack(pady=(0, ELEMENT_SPACING), anchor="w")
 
         # Instruction - Medium gray, regular weight
         instruction = tk.Label(
@@ -393,10 +471,11 @@ class UserInitiatedPopup:
             text="Click below to request input control activation.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
+            font=FONT_SECONDARY,
             justify=tk.LEFT,
+            anchor="w",
         )
-        instruction.pack(pady=(0, 10), anchor="w")
+        instruction.pack(pady=(0, SECTION_SPACING), anchor="w")
 
         # Request button
         def on_request():
@@ -412,19 +491,14 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        request_btn = tk.Button(
+        request_btn = _create_button_with_hover(
             self._content_frame,
-            text="Enable Input Control",
-            command=on_request,
-            bg=COLOR_GREEN,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            "Enable Input Control",
+            on_request,
+            COLOR_GREEN,
+            COLOR_GREEN_HOVER,
         )
-        request_btn.pack(pady=(0, 0))
+        request_btn.pack(fill=tk.X, pady=(0, 0))  # Full width button
 
     def _render_waiting_state(self):
         """
@@ -435,15 +509,25 @@ class UserInitiatedPopup:
         - Visual warnings as time decreases (green → orange)
         - Creates urgency for scammer to accept
         """
+        # Get window width from window geometry
+        window_width = 480  # Default, will be updated if window exists
+        if self._window:
+            try:
+                window_width = self._window.winfo_width()
+                if window_width <= 1:
+                    window_width = 480
+            except:
+                pass
+        
         # Status message - Bold, dark for primary hierarchy
         status_label = tk.Label(
             self._content_frame,
             text="Requesting activation...",
             bg=COLOR_BG_WHITE,
-            fg="#1a1a1a",  # Dark black for primary text
-            font=("Segoe UI", 11, "bold"),
+            fg=COLOR_TEXT_PRIMARY,  # Dark text for primary content
+            font=FONT_HEADING,  # Use heading font
         )
-        status_label.pack(pady=(15, 10), anchor="w")
+        status_label.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Explanation - Regular weight, medium gray
         explanation = tk.Label(
@@ -453,20 +537,22 @@ class UserInitiatedPopup:
             f"Please wait while your request is processed.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
+            font=FONT_SECONDARY,
             justify=tk.LEFT,
+            anchor="w",
+            wraplength=window_width - (STANDARD_PADX * 4),
         )
-        explanation.pack(pady=(0, 15), anchor="w")
+        explanation.pack(pady=(0, SECTION_SPACING), anchor="w")
 
         # Progress bar frame
         progress_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        progress_frame.pack(fill=tk.X, pady=(0, ELEMENT_SPACING))
 
-        # Progress bar canvas
+        # Progress bar canvas (dynamic width, slightly smaller height)
         progress_canvas = tk.Canvas(
             progress_frame,
-            width=420,
-            height=30,
+            width=window_width - (STANDARD_PADX * 2),  # Match content width
+            height=28,  # Slightly smaller (AnyDesk uses compact bars)
             bg="#e0e0e0",  # Light gray background for progress bar
             highlightthickness=0,
         )
@@ -478,17 +564,18 @@ class UserInitiatedPopup:
             text=f"{self._timeout_seconds} seconds",
             bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,  # Green
-            font=("Segoe UI", 10, "bold"),
+            font=FONT_BODY,  # Use body font with bold
         )
-        timer_label.pack(pady=(5, 10))
+        timer_label.config(font=("Segoe UI", 10, "bold"))  # Bold for emphasis
+        timer_label.pack(pady=(ELEMENT_SPACING // 2, ELEMENT_SPACING))
 
-        # Warning message (appears at 30s and 10s)
+        # Warning message (appears at 10s)
         warning_label = tk.Label(
             self._content_frame,
             text="",
             bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE_WARNING,  # Orange
-            font=("Segoe UI", 8, "italic"),
+            font=FONT_SMALL,  # Small font
         )
         warning_label.pack()
 
@@ -499,10 +586,11 @@ class UserInitiatedPopup:
             "the session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_TERTIARY,  # Light gray for tertiary text
-            font=("Segoe UI", 8),
+            font=FONT_SMALL,
             justify=tk.LEFT,
+            anchor="w",
         )
-        note.pack(pady=(5, 0))
+        note.pack(pady=(ELEMENT_SPACING // 2, 0))
 
         # Start countdown timer
         self._start_timer(progress_canvas, timer_label, warning_label)
@@ -595,14 +683,26 @@ class UserInitiatedPopup:
                 text_color = COLOR_ORANGE
                 warning_text = "Session will end soon"
 
-            # Update progress bar
+            # Update progress bar (smooth fill animation)
             progress_canvas.delete("all")
-            bar_width = 420 * progress_percent
+            canvas_width = progress_canvas.winfo_width()
+            if canvas_width <= 1:  # Canvas not yet rendered
+                # Get window width from window geometry
+                window_width = 480
+                if self._window:
+                    try:
+                        window_width = self._window.winfo_width()
+                        if window_width <= 1:
+                            window_width = 480
+                    except:
+                        pass
+                canvas_width = window_width - (STANDARD_PADX * 2)
+            bar_width = canvas_width * progress_percent
             progress_canvas.create_rectangle(
                 0,
                 0,
                 bar_width,
-                30,
+                28,  # Match height
                 fill=bar_color,
                 outline="",
             )
@@ -653,15 +753,25 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
+        # Get window width from window geometry
+        window_width = 480  # Default, will be updated if window exists
+        if self._window:
+            try:
+                window_width = self._window.winfo_width()
+                if window_width <= 1:
+                    window_width = 480
+            except:
+                pass
+
         # Success message - Bold, green for success state
         message = tk.Label(
             self._content_frame,
             text="Input control enabled",
             bg=COLOR_BG_WHITE,
             fg=COLOR_GREEN,  # Green for success
-            font=("Segoe UI", 12, "bold"),
+            font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -669,29 +779,26 @@ class UserInitiatedPopup:
             text="You now have full control of the remote desktop.\n\n" "You may proceed with the session.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
+            font=FONT_SECONDARY,
             justify=tk.LEFT,
+            anchor="w",
+            wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.pack(pady=(0, SECTION_SPACING), anchor="w")
 
         # Continue button
         def on_continue():
             """Close popup"""
             self.close()
 
-        continue_btn = tk.Button(
+        continue_btn = _create_button_with_hover(
             self._content_frame,
-            text="Continue",
-            command=on_continue,
-            bg=COLOR_GREEN,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=40,
-            pady=8,
-            cursor="hand2",
+            "Continue",
+            on_continue,
+            COLOR_GREEN,
+            COLOR_GREEN_HOVER,
         )
-        continue_btn.pack()
+        continue_btn.pack(fill=tk.X, pady=(0, 0))  # Full width button
 
     def _render_failure_state(self):
         """
@@ -704,15 +811,25 @@ class UserInitiatedPopup:
         # Stop timer
         self._stop_timer()
 
+        # Get window width from window geometry
+        window_width = 480  # Default, will be updated if window exists
+        if self._window:
+            try:
+                window_width = self._window.winfo_width()
+                if window_width <= 1:
+                    window_width = 480
+            except:
+                pass
+
         # Failure message - Bold, orange for failure state
         message = tk.Label(
             self._content_frame,
             text="Activation request declined",
             bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,
-            font=("Segoe UI", 12, "bold"),
+            font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -721,10 +838,12 @@ class UserInitiatedPopup:
             f"Remote input control cannot be enabled without\nactivation approval.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
+            font=FONT_SECONDARY,
             justify=tk.LEFT,
+            anchor="w",
+            wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.pack(pady=(0, SECTION_SPACING), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -742,19 +861,14 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        retry_btn = tk.Button(
+        retry_btn = _create_button_with_hover(
             button_frame,
-            text="Retry",
-            command=on_retry,
-            bg=COLOR_BLUE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            "Retry",
+            on_retry,
+            COLOR_BLUE,
+            COLOR_BLUE_HOVER,
         )
-        retry_btn.pack(side=tk.LEFT, padx=(0, 10))
+        retry_btn.pack(side=tk.LEFT, padx=(0, ELEMENT_SPACING))
 
         # Disconnect button
         def on_disconnect():
@@ -768,17 +882,12 @@ class UserInitiatedPopup:
                 ).start()
             self.close()
 
-        disconnect_btn = tk.Button(
+        disconnect_btn = _create_button_with_hover(
             button_frame,
-            text="Disconnect",
-            command=on_disconnect,
-            bg=COLOR_ORANGE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            "Disconnect",
+            on_disconnect,
+            COLOR_ORANGE,
+            COLOR_ORANGE_HOVER,
         )
         disconnect_btn.pack(side=tk.LEFT)
 
@@ -791,15 +900,25 @@ class UserInitiatedPopup:
         - Session remains in view-only mode
         - User can retry or disconnect
         """
+        # Get window width from window geometry
+        window_width = 480  # Default, will be updated if window exists
+        if self._window:
+            try:
+                window_width = self._window.winfo_width()
+                if window_width <= 1:
+                    window_width = 480
+            except:
+                pass
+
         # Timeout message - Bold, orange for timeout state
         message = tk.Label(
             self._content_frame,
             text="Activation request expired",
             bg=COLOR_BG_WHITE,
             fg=COLOR_ORANGE,  # Orange for timeout/warning
-            font=("Segoe UI", 12, "bold"),
+            font=FONT_HEADING,  # Use heading font
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.pack(pady=(STANDARD_PADY, ELEMENT_SPACING), anchor="w")
 
         # Details - Regular weight, medium gray
         details = tk.Label(
@@ -807,10 +926,12 @@ class UserInitiatedPopup:
             text="The activation request timed out.\n\n" "Session will remain in view-only mode.",
             bg=COLOR_BG_WHITE,
             fg=COLOR_TEXT_SECONDARY,  # Medium gray for secondary text
-            font=("Segoe UI", 9),
+            font=FONT_SECONDARY,
             justify=tk.LEFT,
+            anchor="w",
+            wraplength=window_width - (STANDARD_PADX * 4),
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.pack(pady=(0, SECTION_SPACING), anchor="w")
 
         # Button frame
         button_frame = tk.Frame(self._content_frame, bg=COLOR_BG_WHITE)
@@ -828,19 +949,14 @@ class UserInitiatedPopup:
                     daemon=True,
                 ).start()
 
-        retry_btn = tk.Button(
+        retry_btn = _create_button_with_hover(
             button_frame,
-            text="Retry",
-            command=on_retry,
-            bg=COLOR_BLUE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            "Retry",
+            on_retry,
+            COLOR_BLUE,
+            COLOR_BLUE_HOVER,
         )
-        retry_btn.pack(side=tk.LEFT, padx=(0, 10))
+        retry_btn.pack(side=tk.LEFT, padx=(0, ELEMENT_SPACING))
 
         # Disconnect button
         def on_disconnect():
@@ -854,17 +970,12 @@ class UserInitiatedPopup:
                 ).start()
             self.close()
 
-        disconnect_btn = tk.Button(
+        disconnect_btn = _create_button_with_hover(
             button_frame,
-            text="Disconnect",
-            command=on_disconnect,
-            bg=COLOR_ORANGE,
-            fg=COLOR_TEXT_WHITE,
-            font=("Segoe UI", 10),
-            relief=tk.FLAT,
-            padx=30,
-            pady=8,
-            cursor="hand2",
+            "Disconnect",
+            on_disconnect,
+            COLOR_ORANGE,
+            COLOR_ORANGE_HOVER,
         )
         disconnect_btn.pack(side=tk.LEFT)
 
