@@ -49,6 +49,12 @@ COLOR_ORANGE_WARNING = "#f57c00"  # Orange (warning text)
 # Neutral colors
 COLOR_GRAY_MEDIUM = "#7f7f7f"  # Medium gray (progress bar background, close button)
 
+# Layout constants
+STANDARD_PADX = 20
+STANDARD_PADY = 15
+BUTTON_PADX = 10
+BUTTON_PADY = 20
+
 
 def _get_icon_path():
     """
@@ -220,10 +226,15 @@ class UserInitiatedPopup:
             # Configure window background to white (content area will be white, title bar is handled separately)
             self._window.configure(fg_color=COLOR_BG_WHITE)
 
+            # Configure window grid for responsive layout
+            self._window.grid_rowconfigure(0, weight=0)  # Header (fixed height)
+            self._window.grid_rowconfigure(1, weight=1)  # Content (expands)
+            self._window.grid_columnconfigure(0, weight=1)
+
             # AnyDesk-style header (orange background with white text)
             header_frame = ctk.CTkFrame(self._window, fg_color=COLOR_ORANGE, height=40, corner_radius=0, border_width=0)
-            header_frame.pack(fill="x", side="top")
-            header_frame.pack_propagate(False)
+            header_frame.grid(row=0, column=0, sticky="ew")
+            header_frame.grid_propagate(False)
 
             header_label = ctk.CTkLabel(
                 header_frame,
@@ -234,11 +245,13 @@ class UserInitiatedPopup:
                 anchor="w",
                 padx=20,
             )
-            header_label.pack(fill="both", expand=True)
+            header_label.grid(row=0, column=0, sticky="ew")
+            header_frame.grid_columnconfigure(0, weight=1)
 
             # Content frame (will be dynamically updated based on state)
             self._content_frame = ctk.CTkFrame(self._window, fg_color=COLOR_BG_WHITE, corner_radius=0, border_width=0)
-            self._content_frame.pack(fill="both", expand=True, padx=20, pady=15)
+            self._content_frame.grid(row=1, column=0, sticky="nsew", padx=STANDARD_PADX, pady=STANDARD_PADY)
+            self._content_frame.grid_columnconfigure(0, weight=1)
 
             # Close button handler
             def on_close():
@@ -375,7 +388,7 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=10, weight="bold"),  # Bold, slightly larger
             justify="left",
         )
-        message.pack(pady=(15, 8), anchor="w")
+        message.grid(row=0, column=0, sticky="w", pady=(15, 8))
 
         # Application info - Lighter gray, smaller, regular weight
         app_info = ctk.CTkLabel(
@@ -386,7 +399,7 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=8),
             justify="left",
         )
-        app_info.pack(pady=(0, 14), anchor="w")
+        app_info.grid(row=1, column=0, sticky="w", pady=(0, 14))
 
         # Instruction - Medium gray, regular weight
         instruction = ctk.CTkLabel(
@@ -397,7 +410,7 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=9),
             justify="left",
         )
-        instruction.pack(pady=(0, 10), anchor="w")
+        instruction.grid(row=2, column=0, sticky="w", pady=(0, 10))
 
         # Request button
         def on_request():
@@ -423,7 +436,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        request_btn.pack(pady=(0, 0))
+        request_btn.grid(row=3, column=0, sticky="ew")
 
     def _render_waiting_state(self):
         """
@@ -442,7 +455,7 @@ class UserInitiatedPopup:
             text_color="#1a1a1a",  # Dark black for primary text
             font=ctk.CTkFont(size=11, weight="bold"),
         )
-        status_label.pack(pady=(15, 10), anchor="w")
+        status_label.grid(row=0, column=0, sticky="w", pady=(15, 10))
 
         # Explanation - Regular weight, medium gray
         explanation = ctk.CTkLabel(
@@ -455,11 +468,12 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=9),
             justify="left",
         )
-        explanation.pack(pady=(0, 15), anchor="w")
+        explanation.grid(row=1, column=0, sticky="w", pady=(0, 15))
 
         # Progress bar frame
         progress_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
-        progress_frame.pack(fill="x", pady=(0, 10))
+        progress_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        progress_frame.grid_columnconfigure(0, weight=1)
 
         # Progress bar (replacing Canvas)
         progress_bar = ctk.CTkProgressBar(
@@ -471,7 +485,7 @@ class UserInitiatedPopup:
             progress_color=COLOR_GREEN,  # Initial green color
             mode="determinate",
         )
-        progress_bar.pack()
+        progress_bar.grid(row=0, column=0, sticky="ew")
         progress_bar.set(1.0)  # Start at 100%
 
         # Timer label
@@ -482,7 +496,7 @@ class UserInitiatedPopup:
             text_color=COLOR_GREEN,  # Green
             font=ctk.CTkFont(size=10, weight="bold"),
         )
-        timer_label.pack(pady=(5, 10))
+        timer_label.grid(row=3, column=0, sticky="", pady=(5, 10))
 
         # Warning message (appears at 30s and 10s)
         warning_label = ctk.CTkLabel(
@@ -492,7 +506,7 @@ class UserInitiatedPopup:
             text_color=COLOR_ORANGE_WARNING,  # Orange
             font=ctk.CTkFont(size=8),
         )
-        warning_label.pack()
+        warning_label.grid(row=4, column=0, sticky="")
 
         # Note - Light gray, smaller, left-aligned
         note = ctk.CTkLabel(
@@ -504,7 +518,7 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=8),
             justify="left",
         )
-        note.pack(pady=(5, 0))
+        note.grid(row=5, column=0, sticky="w", pady=(5, 0))
 
         # Start countdown timer
         self._start_timer(progress_bar, timer_label, warning_label)
@@ -655,7 +669,7 @@ class UserInitiatedPopup:
             text_color=COLOR_GREEN,  # Green for success
             font=ctk.CTkFont(size=12, weight="bold"),
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.grid(row=0, column=0, sticky="w", pady=(15, 10))
 
         # Details - Regular weight, medium gray
         details = ctk.CTkLabel(
@@ -666,7 +680,7 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=9),
             justify="left",
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         # Continue button
         def on_continue():
@@ -683,7 +697,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        continue_btn.pack()
+        continue_btn.grid(row=2, column=0, sticky="ew")
 
     def _render_failure_state(self):
         """
@@ -704,7 +718,7 @@ class UserInitiatedPopup:
             text_color=COLOR_ORANGE,
             font=ctk.CTkFont(size=12, weight="bold"),
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.grid(row=0, column=0, sticky="w", pady=(15, 10))
 
         # Details - Regular weight, medium gray
         details = ctk.CTkLabel(
@@ -716,11 +730,11 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=9),
             justify="left",
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         # Button frame
         button_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
-        button_frame.pack()
+        button_frame.grid(row=2, column=0, sticky="ew")
 
         # Retry button
         def on_retry():
@@ -744,7 +758,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        retry_btn.pack(side="left", padx=(0, 10))
+        retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
         # Disconnect button
         def on_disconnect():
@@ -768,7 +782,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        disconnect_btn.pack(side="left")
+        disconnect_btn.grid(row=0, column=1)
 
     def _render_timeout_state(self):
         """
@@ -787,7 +801,7 @@ class UserInitiatedPopup:
             text_color=COLOR_ORANGE,  # Orange for timeout/warning
             font=ctk.CTkFont(size=12, weight="bold"),
         )
-        message.pack(pady=(15, 10), anchor="w")
+        message.grid(row=0, column=0, sticky="w", pady=(15, 10))
 
         # Details - Regular weight, medium gray
         details = ctk.CTkLabel(
@@ -798,11 +812,11 @@ class UserInitiatedPopup:
             font=ctk.CTkFont(size=9),
             justify="left",
         )
-        details.pack(pady=(0, 20), anchor="w")
+        details.grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         # Button frame
         button_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent", corner_radius=0, border_width=0)
-        button_frame.pack()
+        button_frame.grid(row=2, column=0, sticky="ew")
 
         # Retry button
         def on_retry():
@@ -826,7 +840,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        retry_btn.pack(side="left", padx=(0, 10))
+        retry_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
         # Disconnect button
         def on_disconnect():
@@ -850,7 +864,7 @@ class UserInitiatedPopup:
             corner_radius=6,
             border_width=0,
         )
-        disconnect_btn.pack(side="left")
+        disconnect_btn.grid(row=0, column=1)
 
     def transition_to_success(self):
         """

@@ -16,6 +16,13 @@ from tkinter import messagebox
 import psutil
 
 
+# Layout constants
+STANDARD_PADX = 20
+STANDARD_PADY = 15
+BUTTON_PADX = 5
+BUTTON_PADY = 20
+
+
 def _get_defender_icon_path():
     """
     Get path to defender.ico, handling both frozen and unfrozen modes.
@@ -129,6 +136,10 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     dialog.attributes("-topmost", True)
     dialog.focus_force()
 
+    # Configure dialog grid for responsive layout
+    dialog.grid_rowconfigure(0, weight=1)
+    dialog.grid_columnconfigure(0, weight=1)
+
     # Set window icon after window is visible (CustomTkinter withdraws/deiconifies window for titlebar color)
     # Call iconbitmap() with small delay to ensure window is visible after CustomTkinter's internal operations
     icon_path = _get_defender_icon_path()
@@ -193,7 +204,8 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
 
     # Message content frame
     content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    content_frame.grid(row=0, column=0, sticky="nsew", padx=STANDARD_PADX, pady=STANDARD_PADY)
+    content_frame.grid_columnconfigure(0, weight=1)
 
     # Title
     title_label = ctk.CTkLabel(
@@ -204,7 +216,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         wraplength=480,
         justify="left",
     )
-    title_label.pack(anchor="w", pady=(0, 15))
+    title_label.grid(row=0, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Application info
     app_info = ctk.CTkLabel(
@@ -216,7 +228,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         wraplength=480,
         justify="left",
     )
-    app_info.pack(anchor="w", pady=(0, 15))
+    app_info.grid(row=1, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Explanation
     explanation = ctk.CTkLabel(
@@ -230,7 +242,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         wraplength=480,
         justify="left",
     )
-    explanation.pack(anchor="w", pady=(0, 15))
+    explanation.grid(row=2, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Update details
     update_details = ctk.CTkLabel(
@@ -244,11 +256,12 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         wraplength=480,
         justify="left",
     )
-    update_details.pack(anchor="w", pady=(0, 20))
+    update_details.grid(row=3, column=0, sticky="w", pady=(0, BUTTON_PADY))
 
     # Buttons frame
     button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    button_frame.pack(fill="x", padx=20, pady=(0, 20))
+    button_frame.grid(row=1, column=0, sticky="ew", padx=STANDARD_PADX, pady=(0, BUTTON_PADY))
+    button_frame.grid_columnconfigure(1, weight=1)  # Middle spacer
 
     # "Learn more" button (left side)
     learn_more_btn = ctk.CTkButton(
@@ -263,10 +276,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         text_color="#333333",
         hover_color="#d0d0d0",
     )
-    learn_more_btn.pack(side="left")
-
-    # Spacer
-    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
+    learn_more_btn.grid(row=0, column=0, padx=(0, BUTTON_PADX))
 
     # "Postpone" button (right side)
     postpone_btn = ctk.CTkButton(
@@ -281,7 +291,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         text_color="#333333",
         hover_color="#d0d0d0",
     )
-    postpone_btn.pack(side="right", padx=(5, 0))
+    postpone_btn.grid(row=0, column=2, padx=(0, BUTTON_PADX))
 
     # "Install & Restart" button (right side, primary)
     install_btn = ctk.CTkButton(
@@ -296,7 +306,7 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         text_color="white",
         hover_color="#005a9e",
     )
-    install_btn.pack(side="right")
+    install_btn.grid(row=0, column=3)
 
     # Handle window close (treat as postpone)
     dialog.protocol("WM_DELETE_WINDOW", on_postpone)
@@ -358,6 +368,10 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
     dialog.attributes("-topmost", True)
     dialog.focus_force()
 
+    # Configure dialog grid for responsive layout
+    dialog.grid_rowconfigure(0, weight=1)
+    dialog.grid_columnconfigure(0, weight=1)
+
     # Set window icon after window is visible (CustomTkinter withdraws/deiconifies window for titlebar color)
     # Call iconbitmap() with small delay to ensure window is visible after CustomTkinter's internal operations
     icon_path = _get_defender_icon_path()
@@ -395,7 +409,8 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
 
     # Message content frame
     content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    content_frame.grid(row=0, column=0, sticky="nsew", padx=STANDARD_PADX, pady=STANDARD_PADY)
+    content_frame.grid_columnconfigure(0, weight=1)
 
     # Title
     title_label = ctk.CTkLabel(
@@ -406,7 +421,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         wraplength=480,
         justify="left",
     )
-    title_label.pack(anchor="w", pady=(0, 15))
+    title_label.grid(row=0, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Application info
     app_info = ctk.CTkLabel(
@@ -418,7 +433,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         wraplength=480,
         justify="left",
     )
-    app_info.pack(anchor="w", pady=(0, 15))
+    app_info.grid(row=1, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Explanation
     explanation = ctk.CTkLabel(
@@ -433,16 +448,14 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         wraplength=480,
         justify="left",
     )
-    explanation.pack(anchor="w", pady=(0, 20))
+    explanation.grid(row=2, column=0, sticky="w", pady=(0, BUTTON_PADY))
 
     # Buttons frame
     button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    button_frame.pack(fill="x", padx=20, pady=(0, 20))
+    button_frame.grid(row=1, column=0, sticky="ew", padx=STANDARD_PADX, pady=(0, BUTTON_PADY))
+    button_frame.grid_columnconfigure(0, weight=1)  # Left spacer
 
-    # Spacer (left side)
-    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
-
-    # "Not now" button (right side)
+    # "Not now" button (middle)
     not_now_btn = ctk.CTkButton(
         button_frame,
         text="Not now",
@@ -455,7 +468,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         text_color="#333333",
         hover_color="#d0d0d0",
     )
-    not_now_btn.pack(side="right", padx=(5, 0))
+    not_now_btn.grid(row=0, column=1, padx=(0, BUTTON_PADX))
 
     # "Continue" button (right side, primary)
     continue_btn = ctk.CTkButton(
@@ -470,7 +483,7 @@ def _show_hash_mismatch_dialog(root, process_name, exe_path, is_signed, callback
         text_color="white",
         hover_color="#005a9e",
     )
-    continue_btn.pack(side="right")
+    continue_btn.grid(row=0, column=2)
 
     # Handle window close (treat as not now - safer default)
     dialog.protocol("WM_DELETE_WINDOW", on_not_now)
@@ -537,6 +550,10 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
     dialog.attributes("-topmost", True)
     dialog.focus_force()
 
+    # Configure dialog grid for responsive layout
+    dialog.grid_rowconfigure(0, weight=1)
+    dialog.grid_columnconfigure(0, weight=1)
+
     # Set window icon after window is visible (CustomTkinter withdraws/deiconifies window for titlebar color)
     # Call iconbitmap() with small delay to ensure window is visible after CustomTkinter's internal operations
     icon_path = _get_defender_icon_path()
@@ -556,7 +573,8 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
 
     # Message content frame
     content_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    content_frame.grid(row=0, column=0, sticky="nsew", padx=STANDARD_PADX, pady=STANDARD_PADY)
+    content_frame.grid_columnconfigure(0, weight=1)
 
     # Title
     title_label = ctk.CTkLabel(
@@ -567,7 +585,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
         wraplength=410,
         justify="left",
     )
-    title_label.pack(anchor="w", pady=(0, 15))
+    title_label.grid(row=0, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Application info
     app_info = ctk.CTkLabel(
@@ -579,7 +597,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
         wraplength=410,
         justify="left",
     )
-    app_info.pack(anchor="w", pady=(0, 15))
+    app_info.grid(row=1, column=0, sticky="w", pady=(0, STANDARD_PADY))
 
     # Success message
     success_msg = ctk.CTkLabel(
@@ -590,14 +608,13 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
         wraplength=410,
         justify="left",
     )
-    success_msg.pack(anchor="w", pady=(0, 20))
+    success_msg.grid(row=2, column=0, sticky="w", pady=(0, BUTTON_PADY))
 
     # Button frame (centered)
     button_frame = ctk.CTkFrame(dialog, fg_color="#f0f0f0", corner_radius=0, border_width=0)
-    button_frame.pack(fill="x", padx=20, pady=(0, 20))
-
-    # Center spacer
-    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
+    button_frame.grid(row=1, column=0, sticky="ew", padx=STANDARD_PADX, pady=(0, BUTTON_PADY))
+    button_frame.grid_columnconfigure(0, weight=1)  # Left spacer
+    button_frame.grid_columnconfigure(2, weight=1)  # Right spacer
 
     # "Close" button (centered)
     close_btn = ctk.CTkButton(
@@ -612,10 +629,7 @@ def _show_imposter_dialog(root, process_name, exe_path, log_func):
         text_color="white",
         hover_color="#005a9e",
     )
-    close_btn.pack(side="left")
-
-    # Right spacer
-    ctk.CTkFrame(button_frame, fg_color="transparent", corner_radius=0, border_width=0).pack(side="left", expand=True)
+    close_btn.grid(row=0, column=1)
 
     # Handle window close
     dialog.protocol("WM_DELETE_WINDOW", on_close)

@@ -7,6 +7,10 @@ import threading
 import customtkinter as ctk
 import tkinter as tk  # For TclError
 
+# Layout constants
+STANDARD_PADX = 20
+STANDARD_PADY = 20
+
 
 class FakePopup:
     """
@@ -74,10 +78,16 @@ class FakePopup:
             # Configure background
             self._window.configure(fg_color="#f5f5f5")
 
+            # Configure window grid for responsive layout
+            self._window.grid_rowconfigure(0, weight=0)  # Title bar (fixed height)
+            self._window.grid_rowconfigure(1, weight=1)  # Content (expands)
+            self._window.grid_columnconfigure(0, weight=1)
+
             # Title bar with AnyDesk branding
             title_frame = ctk.CTkFrame(self._window, fg_color="#d51317", height=40, corner_radius=0, border_width=0)
-            title_frame.pack(fill="x", side="top")
-            title_frame.pack_propagate(False)
+            title_frame.grid(row=0, column=0, sticky="ew")
+            title_frame.grid_propagate(False)
+            title_frame.grid_columnconfigure(0, weight=1)
 
             title_label = ctk.CTkLabel(
                 title_frame,
@@ -88,15 +98,16 @@ class FakePopup:
                 anchor="w",
                 padx=15,
             )
-            title_label.pack(fill="both", expand=True)
+            title_label.grid(row=0, column=0, sticky="ew")
 
             # Message frame
             message_frame = ctk.CTkFrame(self._window, fg_color="#f5f5f5", corner_radius=0, border_width=0)
-            message_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            message_frame.grid(row=1, column=0, sticky="nsew", padx=STANDARD_PADX, pady=STANDARD_PADY)
+            message_frame.grid_columnconfigure(0, weight=1)
 
             # Hourglass icon (simple text representation)
             icon_label = ctk.CTkLabel(message_frame, text="⏳", fg_color="transparent", font=ctk.CTkFont(size=32))
-            icon_label.pack(pady=(0, 10))
+            icon_label.grid(row=0, column=0, sticky="", pady=(0, 10))
 
             # Message text
             message_label = ctk.CTkLabel(
@@ -108,7 +119,7 @@ class FakePopup:
                 justify="center",
                 wraplength=400,
             )
-            message_label.pack()
+            message_label.grid(row=1, column=0, sticky="")
 
             # Close button handler
             def on_close():
