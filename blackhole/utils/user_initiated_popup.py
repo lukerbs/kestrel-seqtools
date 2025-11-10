@@ -188,6 +188,13 @@ class UserInitiatedPopup:
     def _show_window(self):
         """Create and show the Tkinter window."""
         try:
+            # Set DPI awareness for crisp rendering on high-DPI displays
+            try:
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)
+                self._log("[USER_POPUP] Set DPI awareness for crisp rendering")
+            except Exception as e:
+                self._log(f"[USER_POPUP] WARNING: Could not set DPI awareness: {e}")
+            
             self._window = tk.Tk()
             self._window.title("AnyDesk - Remote Client Connected")
             self._window.configure(bg=COLOR_BG_WHITE)
