@@ -452,13 +452,26 @@ class UserInitiatedPopup:
         
         available_width = self._get_available_width()
         
-        # Update all labels in the content frame
+        # Update all labels in the content frame that have wraplength set
         for widget in self._content_frame.winfo_children():
             if isinstance(widget, tk.Label):
-                # Only update if label has wraplength set (text labels)
-                current_wraplength = widget.cget("wraplength")
-                if current_wraplength and current_wraplength > 0:
-                    widget.config(wraplength=available_width)
+                try:
+                    # Check if label has wraplength configured
+                    current_wraplength = widget.cget("wraplength")
+                    # Convert Tcl_Obj to string then int for comparison
+                    # If wraplength is set (not empty/default), update it
+                    if current_wraplength:
+                        try:
+                            # Convert to int - handles both int and Tcl_Obj
+                            wraplength_value = int(str(current_wraplength))
+                            if wraplength_value > 0:
+                                widget.config(wraplength=available_width)
+                        except (ValueError, TypeError, AttributeError):
+                            # If conversion fails, update anyway (wraplength is set)
+                            widget.config(wraplength=available_width)
+                except (tk.TclError, AttributeError):
+                    # If cget fails or attribute doesn't exist, skip this widget
+                    pass
 
     def _transition_to_state(self, new_state):
         """
