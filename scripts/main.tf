@@ -43,7 +43,7 @@ resource "aws_lightsail_static_ip_attachment" "ip_attachment" {
 # 4. Open the Firewall Ports
 # This opens the necessary ports:
 # - Port 22 (SSH) for remote management
-# - Port 8080 (HTTP/WebSocket) for C2 API, receiver polling, reports, and streaming
+# - Port 8443 (HTTP/WebSocket) for C2 API, receiver polling, reports, and streaming
 resource "aws_lightsail_instance_public_ports" "server_firewall" {
   instance_name = aws_lightsail_instance.scambait_server.name
 
@@ -55,11 +55,11 @@ resource "aws_lightsail_instance_public_ports" "server_firewall" {
     cidrs     = ["0.0.0.0/0"] # Allows SSH from any IP
   }
 
-  # HTTP C2 API, receiver polling, reports, AnyDesk events, and WebSocket streaming (port 8080)
+  # HTTP C2 API, receiver polling, reports, AnyDesk events, and WebSocket streaming (port 8443)
   port_info {
     protocol  = "tcp"
-    from_port = 8080
-    to_port   = 8080
+    from_port = 8443
+    to_port   = 8443
     cidrs     = ["0.0.0.0/0"] # Allows HTTP/WebSocket C2 operations from any IP
   }
 }

