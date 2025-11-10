@@ -380,7 +380,7 @@ class UserInitiatedPopup:
         message = _create_label(
             self._content_frame,
             f"This session is currently in view-only mode.\n\n"
-            f"To enable remote input control on this device, the remote client\n"
+            f"To enable remote input control on this device, the remote client "
             f"(AnyDesk ID: {self._scammer_id}) must approve activation.",
             FONT_BODY,
             COLOR_TEXT_PRIMARY,
