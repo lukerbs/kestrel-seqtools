@@ -135,9 +135,9 @@ gdi32.SetBkColor.restype = wintypes.DWORD
 gdi32.SetBkMode.argtypes = [wintypes.HANDLE, ctypes.c_int]  # HDC, mode
 gdi32.SetBkMode.restype = ctypes.c_int
 
-# TextOutW - Draw text
-user32.TextOutW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.LPCWSTR, ctypes.c_int]
-user32.TextOutW.restype = wintypes.BOOL
+# TextOutW - Draw text (GDI function)
+gdi32.TextOutW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.LPCWSTR, ctypes.c_int]
+gdi32.TextOutW.restype = wintypes.BOOL
 
 # DrawTextW - Draw formatted text
 user32.DrawTextW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(RECT), wintypes.UINT]
