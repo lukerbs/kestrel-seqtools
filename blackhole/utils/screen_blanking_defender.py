@@ -218,50 +218,50 @@ class OverlayDefender:
             class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
             window_class = class_buffer.value if class_length > 0 else ""
             
-            self._log(f"[OVERLAY_DEBUG] EVENT_OBJECT_SHOW: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] EVENT_OBJECT_SHOW: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
 
             # Check if window is topmost
             ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
             if ex_style == 0:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: GetWindowLongPtrW failed (ex_style=0)")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: GetWindowLongPtrW failed (ex_style=0)")
                 return  # GetWindowLongPtrW failed
 
             if not (ex_style & WS_EX_TOPMOST):
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Not topmost (ex_style=0x{ex_style:x})")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Not topmost (ex_style=0x{ex_style:x})")
                 return  # Not a topmost window
 
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Is topmost (ex_style=0x{ex_style:x})")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Is topmost (ex_style=0x{ex_style:x})")
 
             # Check if window is full-screen
             if not self._is_fullscreen_topmost(hwnd):
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Not full-screen")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Not full-screen")
                 return
 
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Is full-screen topmost")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Is full-screen topmost")
 
             # Additional filtering: Check if this is likely a screen blanking overlay
             # vs. a legitimate maximized window (e.g., PowerShell, browser, etc.)
             if not self._is_screen_blanking_overlay(hwnd):
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Filtered out by _is_screen_blanking_overlay")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Filtered out by _is_screen_blanking_overlay")
                 return  # Not a screen blanking overlay, skip
 
             # Overlay detected - neutralize it
             self.stats["overlays_detected"] += 1
-            self._log(f"[OVERLAY] Full-screen topmost overlay detected (HWND: {hwnd})")
+            self._log(f"[SCREEN BLANK MONITOR] Full-screen topmost overlay detected (HWND: {hwnd})")
 
             if self._neutralize_overlay(hwnd):
                 self.stats["overlays_neutralized"] += 1
-                self._log(f"[OVERLAY] Overlay neutralized successfully")
+                self._log(f"[SCREEN BLANK MONITOR] Overlay neutralized successfully")
 
                 # Notify operator
                 if SCREEN_BLANKING_NOTIFICATION_ENABLED:
                     self._notify_operator()
             else:
-                self._log(f"[OVERLAY] WARNING: Failed to neutralize overlay")
+                self._log(f"[SCREEN BLANK MONITOR] WARNING: Failed to neutralize overlay")
         except Exception as e:
             # Log full traceback for callback errors
-            self._log(f"[OVERLAY] ERROR in _win_event_callback: {e}")
-            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            self._log(f"[SCREEN BLANK MONITOR] ERROR in _win_event_callback: {e}")
+            self._log(f"[SCREEN BLANK MONITOR] Full traceback:\n{traceback.format_exc()}")
 
     def _is_fullscreen_topmost(self, hwnd):
         """
@@ -277,7 +277,7 @@ class OverlayDefender:
             # Get window rectangle
             wnd_rect = RECT()
             if not user32.GetWindowRect(hwnd, ctypes.byref(wnd_rect)):
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: GetWindowRect failed")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: GetWindowRect failed")
                 return False
 
             # Get monitor information
@@ -286,7 +286,7 @@ class OverlayDefender:
             mon_info.cbSize = ctypes.sizeof(MONITORINFO)
 
             if not user32.GetMonitorInfoW(h_monitor, ctypes.byref(mon_info)):
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: GetMonitorInfoW failed")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: GetMonitorInfoW failed")
                 return False
 
             # Compare window rect to monitor rect
@@ -298,13 +298,13 @@ class OverlayDefender:
             )
 
             if not is_fullscreen:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Not full-screen - Window: ({wnd_rect.left},{wnd_rect.top})-({wnd_rect.right},{wnd_rect.bottom}), Monitor: ({mon_info.rcMonitor.left},{mon_info.rcMonitor.top})-({mon_info.rcMonitor.right},{mon_info.rcMonitor.bottom})")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Not full-screen - Window: ({wnd_rect.left},{wnd_rect.top})-({wnd_rect.right},{wnd_rect.bottom}), Monitor: ({mon_info.rcMonitor.left},{mon_info.rcMonitor.top})-({mon_info.rcMonitor.right},{mon_info.rcMonitor.bottom})")
 
             return is_fullscreen
 
         except Exception as e:
-            self._log(f"[OVERLAY] Error checking full-screen: {e}")
-            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            self._log(f"[SCREEN BLANK MONITOR] Error checking full-screen: {e}")
+            self._log(f"[SCREEN BLANK MONITOR] Full traceback:\n{traceback.format_exc()}")
             return False
 
     def _is_screen_blanking_overlay(self, hwnd):
@@ -332,7 +332,7 @@ class OverlayDefender:
             # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
             style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
             if style == 0:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: GetWindowLongPtrW(GWL_STYLE) failed (style=0)")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: GetWindowLongPtrW(GWL_STYLE) failed (style=0)")
                 return False  # Failed to get style
             
             # Legitimate windows have WS_CAPTION (title bar)
@@ -340,16 +340,16 @@ class OverlayDefender:
             has_caption = bool(style & WS_CAPTION)
             is_popup = bool(style & WS_POPUP)
             
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Style check - style=0x{style:x}, has_caption={has_caption}, is_popup={is_popup}")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Style check - style=0x{style:x}, has_caption={has_caption}, is_popup={is_popup}")
             
             # If it has a caption bar, it's a legitimate window (PowerShell, browser, etc.)
             if has_caption:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Has caption bar - filtering out")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Has caption bar - filtering out")
                 return False  # Not a screen blanking overlay
             
             # Must be popup style (borderless) to be considered
             if not is_popup:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Not WS_POPUP style - filtering out")
+                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Not WS_POPUP style - filtering out")
                 return False  # Not borderless, likely legitimate
             
             # Check 2: Window title - blank or very generic
@@ -362,7 +362,7 @@ class OverlayDefender:
             class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
             window_class = class_buffer.value if class_length > 0 else ""
             
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Title='{window_title}', Class='{window_class}'")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Title='{window_title}', Class='{window_class}'")
             
             # Check 4: Process name (optional - helps identify RDP tools)
             process_id = wintypes.DWORD()
@@ -378,7 +378,7 @@ class OverlayDefender:
                             size = wintypes.DWORD(260)
                             if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
                                 exe_name = os.path.basename(exe_path.value).lower()
-                                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Process: {exe_name} (PID: {process_id.value})")
+                                self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Process: {exe_name} (PID: {process_id.value})")
                                 # Known RDP tools that might create overlays
                                 rdp_tools = ['anydesk.exe', 'teamviewer.exe', 'teamviewer_service.exe',
                                             'ultraviewer.exe', 'ultraviewer_service.exe',
@@ -386,24 +386,24 @@ class OverlayDefender:
                                             'gotomeeting.exe', 'gotomypc.exe']
                                 if any(tool in exe_name for tool in rdp_tools):
                                     # More likely to be a screen blanking overlay from RDP tool
-                                    self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Matched RDP tool process - returning True")
+                                    self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Matched RDP tool process - returning True")
                                     return True
                         finally:
                             kernel32.CloseHandle(h_process)
                 except Exception as e:
-                    self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Error checking process: {e}")
+                    self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Error checking process: {e}")
                     pass  # If we can't check process, continue with other filters
             
             # If we get here, it's a borderless popup window that is full-screen and topmost
             # This is HIGHLY suspicious - screen blanking overlays can have any title (or no title)
             # The title doesn't matter because the user can't see it anyway when the screen is blanked
             # A borderless + full-screen + topmost window is inherently a screen blanking overlay
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Borderless + full-screen + topmost detected - treating as overlay (title: '{window_title}')")
+            self._log(f"[SCREEN BLANK MONITOR_DEBUG] HWND={hwnd}: Borderless + full-screen + topmost detected - treating as overlay (title: '{window_title}')")
             return True
 
         except Exception as e:
-            self._log(f"[OVERLAY] Error checking if screen blanking overlay: {e}")
-            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            self._log(f"[SCREEN BLANK MONITOR] Error checking if screen blanking overlay: {e}")
+            self._log(f"[SCREEN BLANK MONITOR] Full traceback:\n{traceback.format_exc()}")
             # On error, be conservative - don't neutralize
             return False
 
@@ -432,8 +432,8 @@ class OverlayDefender:
             return bool(result)
 
         except Exception as e:
-            self._log(f"[OVERLAY] Error neutralizing overlay: {e}")
-            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            self._log(f"[SCREEN BLANK MONITOR] Error neutralizing overlay: {e}")
+            self._log(f"[SCREEN BLANK MONITOR] Full traceback:\n{traceback.format_exc()}")
             return False
 
     def _notify_operator(self):
@@ -470,7 +470,7 @@ class OverlayDefender:
         self._hook_thread_id = kernel32.GetCurrentThreadId()
 
         try:
-            self._log("[OVERLAY] Hook thread started")
+            self._log("[SCREEN BLANK MONITOR] Hook thread started")
 
             # Create callback reference (prevent garbage collection)
             self._hook_callback_ref = WINEVENTPROC(self._win_event_callback)
@@ -489,16 +489,16 @@ class OverlayDefender:
             if not self._hook:
                 error_code = kernel32.GetLastError()
                 self._log(
-                    f"[OVERLAY] ERROR: Failed to install hook. Error code: {error_code}"
+                    f"[SCREEN BLANK MONITOR] ERROR: Failed to install hook. Error code: {error_code}"
                 )
                 return
 
-            self._log("[OVERLAY] Hook installed successfully")
+            self._log("[SCREEN BLANK MONITOR] Hook installed successfully")
             self._log(
-                "[OVERLAY] Overlay defender ACTIVE - monitoring for full-screen overlays"
+                "[SCREEN BLANK MONITOR] Overlay defender ACTIVE - monitoring for full-screen overlays"
             )
             self._log(
-                "[OVERLAY_DEBUG] Hook configured: EVENT_OBJECT_SHOW, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
+                "[SCREEN BLANK MONITOR_DEBUG] Hook configured: EVENT_OBJECT_SHOW, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
             )
 
             # Efficient blocking message loop
@@ -510,11 +510,11 @@ class OverlayDefender:
                 user32.DispatchMessageW(ctypes.byref(msg))
 
             # Loop exits when WM_QUIT is received
-            self._log("[OVERLAY] Message loop exited")
+            self._log("[SCREEN BLANK MONITOR] Message loop exited")
 
         except Exception as e:
-            self._log(f"[OVERLAY] Error in hook thread: {e}")
-            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            self._log(f"[SCREEN BLANK MONITOR] Error in hook thread: {e}")
+            self._log(f"[SCREEN BLANK MONITOR] Full traceback:\n{traceback.format_exc()}")
 
         finally:
             # Cleanup hook
@@ -522,15 +522,15 @@ class OverlayDefender:
                 user32.UnhookWinEvent(self._hook)
                 self._hook = None
 
-            self._log("[OVERLAY] Hook uninstalled")
+            self._log("[SCREEN BLANK MONITOR] Hook uninstalled")
 
     def start(self):
         """Start overlay monitoring"""
         if self._active:
-            self._log("[OVERLAY] Already active")
+            self._log("[SCREEN BLANK MONITOR] Already active")
             return
 
-        self._log("[OVERLAY] Starting overlay defender...")
+        self._log("[SCREEN BLANK MONITOR] Starting overlay defender...")
         self._active = True
 
         # Start hook thread
@@ -547,7 +547,7 @@ class OverlayDefender:
         if not self._active:
             return
 
-        self._log("[OVERLAY] Stopping overlay defender...")
+        self._log("[SCREEN BLANK MONITOR] Stopping overlay defender...")
         self._active = False
 
         # Post WM_QUIT to hook thread - GetMessageW will return 0 and exit loop
@@ -558,7 +558,7 @@ class OverlayDefender:
         if self._hook_thread:
             self._hook_thread.join(timeout=2)
 
-        self._log("[OVERLAY] Overlay defender INACTIVE")
+        self._log("[SCREEN BLANK MONITOR] Overlay defender INACTIVE")
 
     def is_active(self):
         """Check if defender is currently active"""
