@@ -24,8 +24,12 @@ from .config import (
 from .win32_api import (
     user32,
     kernel32,
+    ole32,
     WINEVENTPROC,
+    WNDPROC,
+    WNDCLASSEXW,
     EVENT_OBJECT_SHOW,
+    EVENT_OBJECT_LOCATIONCHANGE,
     OBJID_WINDOW,
     CHILDID_SELF,
     WINEVENT_OUTOFCONTEXT,
@@ -35,15 +39,14 @@ from .win32_api import (
     WS_POPUP,
     WS_CAPTION,
     GWL_STYLE,
-    HWND_NOTOPMOST,
-    SWP_NOMOVE,
-    SWP_NOSIZE,
-    SWP_NOACTIVATE,
     MONITOR_DEFAULTTOPRIMARY,
     RECT,
     MONITORINFO,
     MSG,
     WM_QUIT,
+    WM_APP,
+    HWND_MESSAGE,
+    SW_HIDE,
     PROCESS_QUERY_LIMITED_INFORMATION,
 )
 
@@ -186,6 +189,15 @@ class OverlayDefender:
         self._active = False
         self._hook_thread = None
         self._hook_thread_id = None  # Store thread ID for clean shutdown
+        
+        # Message-only helper window for thread-safe neutralization
+        self._helper_hwnd = None
+        self._wnd_proc_ref = None  # Prevent GC of WNDPROC callback
+        self._helper_class_name = "BlackholeHelperWindow"
+        
+        # Custom window messages
+        self.WM_APP_NEUTRALIZE = WM_APP + 0x0001
+        self.WM_APP_VERIFY = WM_APP + 0x0002
 
         # Statistics
         self.stats = {
@@ -193,23 +205,146 @@ class OverlayDefender:
             "overlays_neutralized": 0,
         }
 
+    def _wnd_proc_callback(self, hwnd, msg, wParam, lParam):
+        """
+        Window procedure for the message-only helper window.
+        Handles custom messages for neutralization and verification.
+        """
+        try:
+            if msg == self.WM_APP_NEUTRALIZE:
+                overlay_hwnd = lParam
+                self._log(f"[SCREEN BLANK] WndProc: Received neutralization request for HWND {overlay_hwnd}")
+                if self._neutralize_overlay(overlay_hwnd):
+                    # Notify operator after successful neutralization
+                    if SCREEN_BLANKING_NOTIFICATION_ENABLED:
+                        self._notify_operator()
+                return 0
+
+            if msg == self.WM_APP_VERIFY:
+                overlay_hwnd = lParam
+                # Run verification in a separate thread to avoid blocking message loop
+                threading.Thread(
+                    target=self._verify_neutralization,
+                    args=(overlay_hwnd,),
+                    daemon=True,
+                    name="NeutralizationVerifier"
+                ).start()
+                return 0
+
+            return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] ERROR in _wnd_proc_callback: {e}")
+            self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
+            return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+
+    def _create_helper_window(self):
+        """
+        Create a message-only helper window for thread-safe neutralization.
+        This window provides a message queue for PostMessage communication.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Initialize COM
+            ole32.CoInitialize(0)
+            
+            # Get instance handle
+            h_instance = kernel32.GetModuleHandleW(None)
+            
+            # Create WNDPROC callback and store reference to prevent GC
+            self._wnd_proc_ref = WNDPROC(self._wnd_proc_callback)
+            
+            # Register window class
+            wnd_class = WNDCLASSEXW()
+            wnd_class.cbSize = ctypes.sizeof(WNDCLASSEXW)
+            wnd_class.style = 0
+            wnd_class.lpfnWndProc = self._wnd_proc_ref
+            wnd_class.cbClsExtra = 0
+            wnd_class.cbWndExtra = 0
+            wnd_class.hInstance = h_instance
+            wnd_class.hIcon = None
+            wnd_class.hCursor = None
+            wnd_class.hbrBackground = None
+            wnd_class.lpszMenuName = None
+            wnd_class.lpszClassName = self._helper_class_name
+            wnd_class.hIconSm = None
+            
+            atom = user32.RegisterClassExW(ctypes.byref(wnd_class))
+            if atom == 0:
+                error_code = kernel32.GetLastError()
+                self._log(f"[SCREEN BLANK] ERROR: Failed to register helper window class. Error: {error_code}")
+                ole32.CoUninitialize()
+                return False
+            
+            # Create message-only window
+            self._helper_hwnd = user32.CreateWindowExW(
+                0,  # dwExStyle
+                self._helper_class_name,
+                "Blackhole Helper",
+                0,  # dwStyle
+                0,  # x
+                0,  # y
+                0,  # nWidth
+                0,  # nHeight
+                HWND_MESSAGE,  # hWndParent (message-only window)
+                None,  # hMenu
+                h_instance,
+                None,  # lpParam
+            )
+            
+            if not self._helper_hwnd:
+                error_code = kernel32.GetLastError()
+                self._log(f"[SCREEN BLANK] ERROR: Failed to create helper window. Error: {error_code}")
+                UnregisterClassW(self._helper_class_name, h_instance)
+                ole32.CoUninitialize()
+                return False
+            
+            self._log(f"[SCREEN BLANK] Helper window created successfully (HWND: {self._helper_hwnd})")
+            return True
+            
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] ERROR in _create_helper_window: {e}")
+            self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
+            if self._helper_hwnd:
+                try:
+                    DestroyWindow(self._helper_hwnd)
+                except:
+                    pass
+                self._helper_hwnd = None
+            try:
+                UnregisterClassW(self._helper_class_name, kernel32.GetModuleHandleW(None))
+            except:
+                pass
+            try:
+                ole32.CoUninitialize()
+            except:
+                pass
+            return False
+
     def _win_event_callback(
         self, hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime
     ):
         """
         WinEvent hook callback function.
-        Called by Windows when EVENT_OBJECT_SHOW occurs.
+        Called by Windows when EVENT_OBJECT_SHOW or EVENT_OBJECT_LOCATIONCHANGE occurs.
+        This callback must be fast and non-blocking - it only posts messages.
         """
         try:
-            # Filter for the correct event type
-            if event != EVENT_OBJECT_SHOW or idObject != OBJID_WINDOW or idChild != CHILDID_SELF:
+            # Filter for window-level events (both SHOW and LOCATIONCHANGE)
+            if idObject != OBJID_WINDOW or idChild != CHILDID_SELF:
+                return
+
+            # Only process SHOW and LOCATIONCHANGE events
+            if event != EVENT_OBJECT_SHOW and event != EVENT_OBJECT_LOCATIONCHANGE:
                 return
 
             # Validate HWND
             if not user32.IsWindow(hwnd):
                 return
 
-            # DEBUG: Get window info for logging
+            # DEBUG: Get window info for logging (throttled to avoid spam)
+            event_name = "EVENT_OBJECT_SHOW" if event == EVENT_OBJECT_SHOW else "EVENT_OBJECT_LOCATIONCHANGE"
             title_buffer = ctypes.create_unicode_buffer(256)
             title_length = user32.GetWindowTextW(hwnd, title_buffer, 256)
             window_title = title_buffer.value if title_length > 0 else ""
@@ -218,7 +353,7 @@ class OverlayDefender:
             class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
             window_class = class_buffer.value if class_length > 0 else ""
             
-            self._log(f"[SCREEN BLANK_DEBUG] EVENT_OBJECT_SHOW: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
+            self._log(f"[SCREEN BLANK_DEBUG] {event_name}: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
 
             # Check if window is topmost
             ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
@@ -245,19 +380,19 @@ class OverlayDefender:
                 self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Filtered out by _is_screen_blanking_overlay")
                 return  # Not a screen blanking overlay, skip
 
-            # Overlay detected - neutralize it
+            # Overlay detected - post message for thread-safe neutralization
             self.stats["overlays_detected"] += 1
             self._log(f"[SCREEN BLANK] Full-screen topmost overlay detected (HWND: {hwnd})")
 
-            if self._neutralize_overlay(hwnd):
-                self.stats["overlays_neutralized"] += 1
-                self._log(f"[SCREEN BLANK] Overlay neutralized successfully")
-
-                # Notify operator
-                if SCREEN_BLANKING_NOTIFICATION_ENABLED:
-                    self._notify_operator()
+            # Post message to helper window instead of directly calling neutralization
+            if self._helper_hwnd:
+                if user32.PostMessageW(self._helper_hwnd, self.WM_APP_NEUTRALIZE, 0, hwnd):
+                    self._log(f"[SCREEN BLANK] Overlay detected, neutralization request posted (HWND: {hwnd})")
+                else:
+                    error_code = kernel32.GetLastError()
+                    self._log(f"[SCREEN BLANK] WARNING: Failed to post neutralization message. Error: {error_code}")
             else:
-                self._log(f"[SCREEN BLANK] WARNING: Failed to neutralize overlay")
+                self._log(f"[SCREEN BLANK] WARNING: Helper window not available, cannot neutralize overlay")
         except Exception as e:
             # Log full traceback for callback errors
             self._log(f"[SCREEN BLANK] ERROR in _win_event_callback: {e}")
@@ -409,7 +544,7 @@ class OverlayDefender:
 
     def _neutralize_overlay(self, hwnd):
         """
-        Neutralize overlay by removing WS_EX_TOPMOST style.
+        Neutralize overlay by hiding it using ShowWindow(SW_HIDE).
 
         Args:
             hwnd: Window handle to neutralize
@@ -418,23 +553,84 @@ class OverlayDefender:
             bool: True if successful
         """
         try:
-            # Remove topmost style using SetWindowPos
-            result = user32.SetWindowPos(
-                hwnd,
-                HWND_NOTOPMOST,  # Place behind other topmost windows
-                0,
-                0,
-                0,
-                0,  # No position/size change
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            )
+            self._log(f"[SCREEN BLANK] Hiding overlay window (HWND: {hwnd})")
 
-            return bool(result)
+            # Call ShowWindow with SW_HIDE
+            if not user32.ShowWindow(hwnd, SW_HIDE):
+                error_code = kernel32.GetLastError()
+                self._log(f"[SCREEN BLANK] WARNING: ShowWindow(SW_HIDE) failed. Error: {error_code}")
+                return False
+
+            self._log(f"[SCREEN BLANK] Overlay hidden successfully.")
+            self.stats["overlays_neutralized"] += 1
+
+            # Post a verification message to our own queue
+            if self._helper_hwnd:
+                user32.PostMessageW(self._helper_hwnd, self.WM_APP_VERIFY, 0, hwnd)
+
+            return True
 
         except Exception as e:
             self._log(f"[SCREEN BLANK] Error neutralizing overlay: {e}")
             self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
             return False
+
+    def _verify_neutralization(self, hwnd):
+        """
+        Checks if a window's neutralization (hiding) was successful after a short delay.
+
+        Args:
+            hwnd: Window handle to verify
+        """
+        try:
+            # Give the target process time to handle the async message
+            time.sleep(0.1)
+
+            # Check if window still exists
+            if not user32.IsWindow(hwnd):
+                self._log(f"[SCREEN BLANK] VERIFICATION SUCCEEDED: HWND {hwnd} no longer exists.")
+                return
+
+            # Check if window is visible
+            if not user32.IsWindowVisible(hwnd):
+                self._log(f"[SCREEN BLANK] VERIFICATION SUCCEEDED: HWND {hwnd} is hidden.")
+            else:
+                self._log(f"[SCREEN BLANK] VERIFICATION FAILED: HWND {hwnd} is still visible.")
+                # Optional: Post another neutralization request
+                # if self._helper_hwnd:
+                #     user32.PostMessageW(self._helper_hwnd, self.WM_APP_NEUTRALIZE, 0, hwnd)
+
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] Exception during verification of HWND {hwnd}: {e}")
+            self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
+
+    def _cleanup_helper_window(self):
+        """
+        Cleanup helper window, unregister class, and uninitialize COM.
+        """
+        try:
+            h_instance = kernel32.GetModuleHandleW(None)
+            
+            if self._helper_hwnd:
+                user32.DestroyWindow(self._helper_hwnd)
+                self._helper_hwnd = None
+                self._log("[SCREEN BLANK] Helper window destroyed")
+            
+            try:
+                user32.UnregisterClassW(self._helper_class_name, h_instance)
+                self._log("[SCREEN BLANK] Helper window class unregistered")
+            except Exception as e:
+                self._log(f"[SCREEN BLANK] WARNING: Failed to unregister class: {e}")
+            
+            try:
+                ole32.CoUninitialize()
+                self._log("[SCREEN BLANK] COM uninitialized")
+            except Exception as e:
+                self._log(f"[SCREEN BLANK] WARNING: Failed to uninitialize COM: {e}")
+                
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] ERROR in _cleanup_helper_window: {e}")
+            self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
 
     def _notify_operator(self):
         """
@@ -475,10 +671,15 @@ class OverlayDefender:
             # Create callback reference (prevent garbage collection)
             self._hook_callback_ref = WINEVENTPROC(self._win_event_callback)
 
+            # Create helper window first (required for PostMessage architecture)
+            if not self._create_helper_window():
+                self._log("[SCREEN BLANK] ERROR: Failed to create helper window. Cannot proceed.")
+                return
+
             # Install hook
             self._hook = user32.SetWinEventHook(
                 EVENT_OBJECT_SHOW,  # eventMin
-                EVENT_OBJECT_SHOW,  # eventMax
+                EVENT_OBJECT_LOCATIONCHANGE,  # eventMax (monitor both SHOW and LOCATIONCHANGE for re-promotion defense)
                 None,  # hmodWinEventProc (NULL for out-of-context)
                 self._hook_callback_ref,  # lpfnWinEventProc
                 0,  # idProcess (all processes)
@@ -491,6 +692,8 @@ class OverlayDefender:
                 self._log(
                     f"[SCREEN BLANK] ERROR: Failed to install hook. Error code: {error_code}"
                 )
+                # Cleanup helper window if hook failed
+                self._cleanup_helper_window()
                 return
 
             self._log("[SCREEN BLANK] Hook installed successfully")
@@ -498,7 +701,7 @@ class OverlayDefender:
                 "[SCREEN BLANK] Overlay defender ACTIVE - monitoring for full-screen overlays"
             )
             self._log(
-                "[SCREEN BLANK_DEBUG] Hook configured: EVENT_OBJECT_SHOW, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
+                "[SCREEN BLANK_DEBUG] Hook configured: EVENT_OBJECT_SHOW to EVENT_OBJECT_LOCATIONCHANGE, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
             )
 
             # Efficient blocking message loop
@@ -521,6 +724,9 @@ class OverlayDefender:
             if self._hook:
                 user32.UnhookWinEvent(self._hook)
                 self._hook = None
+
+            # Cleanup helper window and COM
+            self._cleanup_helper_window()
 
             self._log("[SCREEN BLANK] Hook uninstalled")
 

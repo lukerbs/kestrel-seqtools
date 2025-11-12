@@ -52,6 +52,7 @@ WM_DESTROY = 0x0002
 WM_QUIT = 0x0012
 WM_PAINT = 0x000F
 WM_PEEK_MESSAGE = 0x0001  # PM_REMOVE flag for PeekMessageW
+WM_APP = 0x8000
 
 # Raw Input Device Info
 RIDI_DEVICENAME = 0x20000007
@@ -97,8 +98,12 @@ CS_HREDRAW = 0x0002
 CS_VREDRAW = 0x0001
 CW_USEDEFAULT = 0x80000000
 
+# ShowWindow Constants
+SW_HIDE = 0
+
 # WinEvent Hook Constants (for Layer 2 overlay detection)
 EVENT_OBJECT_SHOW = 0x8002
+EVENT_OBJECT_LOCATIONCHANGE = 0x800B
 OBJID_WINDOW = 0x00000000
 CHILDID_SELF = 0
 WINEVENT_OUTOFCONTEXT = 0x0000
@@ -437,8 +442,26 @@ user32.SetWindowPos.argtypes = [
 ]
 user32.SetWindowPos.restype = wintypes.BOOL
 
+user32.ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
+user32.ShowWindow.restype = wintypes.BOOL
+
+user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
+user32.PostMessageW.restype = wintypes.BOOL
+
+user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
+user32.DefWindowProcW.restype = LRESULT
+
+user32.DestroyWindow.argtypes = [wintypes.HWND]
+user32.DestroyWindow.restype = wintypes.BOOL
+
+user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, HINSTANCE]
+user32.UnregisterClassW.restype = wintypes.BOOL
+
 user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
+
+user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.IsWindowVisible.restype = wintypes.BOOL
 
 user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 user32.GetWindowTextW.restype = ctypes.c_int
@@ -488,6 +511,13 @@ kernel32.FormatMessageW.argtypes = [
     wintypes.LPVOID,
 ]
 kernel32.FormatMessageW.restype = wintypes.DWORD
+
+# COM Initialization
+ole32 = ctypes.windll.ole32
+ole32.CoInitialize.argtypes = [ctypes.c_void_p]
+ole32.CoInitialize.restype = wintypes.HRESULT
+ole32.CoUninitialize.argtypes = []
+ole32.CoUninitialize.restype = None
 
 # ============================================================================
 # HELPER FUNCTIONS
