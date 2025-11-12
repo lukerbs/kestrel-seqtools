@@ -394,24 +394,12 @@ class OverlayDefender:
                     self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Error checking process: {e}")
                     pass  # If we can't check process, continue with other filters
             
-            # If we get here, it's a borderless popup window
-            # This could be a screen blanking overlay, but we need to be cautious
-            # Only flag if title is blank or very generic
-            if not window_title or len(window_title.strip()) == 0:
-                # Blank title + borderless + full-screen + topmost = likely overlay
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Blank title - returning True")
-                return True
-            
-            # Generic titles that might indicate overlays
-            generic_titles = ['', 'window', 'overlay', 'blank']
-            if window_title.lower().strip() in generic_titles:
-                self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Generic title '{window_title}' - returning True")
-                return True
-            
-            # If it has a meaningful title, it's probably not a screen blanking overlay
-            # (even if borderless, it might be a legitimate full-screen app)
-            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Meaningful title '{window_title}' - filtering out (returning False)")
-            return False
+            # If we get here, it's a borderless popup window that is full-screen and topmost
+            # This is HIGHLY suspicious - screen blanking overlays can have any title (or no title)
+            # The title doesn't matter because the user can't see it anyway when the screen is blanked
+            # A borderless + full-screen + topmost window is inherently a screen blanking overlay
+            self._log(f"[OVERLAY_DEBUG] HWND={hwnd}: Borderless + full-screen + topmost detected - treating as overlay (title: '{window_title}')")
+            return True
 
         except Exception as e:
             self._log(f"[OVERLAY] Error checking if screen blanking overlay: {e}")
