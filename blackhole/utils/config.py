@@ -209,3 +209,34 @@ AUTHORIZATION_TIMEOUT_ACTION = "DISCONNECT"  # Action on timeout: kill connectio
 
 # Firewall automation
 AUTO_ENABLE_FIREWALL_ON_CONNECTION = True  # Automatically enable input blocking when scammer connects
+
+# ============================================================================
+# SCREEN BLANKING PREVENTION CONFIGURATION
+# ============================================================================
+
+# Enable/disable screen blanking prevention feature
+SCREEN_BLANKING_PREVENTION_ENABLED = True
+
+# Layer 1: VDD Driver Block Configuration
+DRIVER_BLOCK_ENABLED = True
+
+# Hardware IDs to block (blacklist approach)
+# These are the base Hardware IDs without \0000 suffix
+DRIVER_BLOCK_HARDWARE_IDS = [
+    "Root\\MetaVirtualScreenDriver",  # AnyDesk
+    "Root\\TeamViewerMonitor",         # TeamViewer
+    "Root\\RustDeskIddDriver",         # RustDesk
+    "Root\\ParsecVdd",                  # Parsec
+    "LOGMEIN_MIRROR_DRIVER",            # LogMeIn / GoTo
+    # "ROOT\\DISPLAY\\0000",              # REMOVED: Too generic, could break VM display
+    "Root\\IddSampleDriver",           # Generic/Sample IddCx drivers
+]
+
+# Layer 2: Overlay Neutralization Configuration
+OVERLAY_NEUTRALIZATION_ENABLED = True
+
+# Notification Settings
+SCREEN_BLANKING_NOTIFICATION_ENABLED = True
+SCREEN_BLANKING_NOTIFICATION_TITLE = "News Update"
+SCREEN_BLANKING_NOTIFICATION_MESSAGE = "Breaking news available"
+SCREEN_BLANKING_NOTIFICATION_DURATION = 3  # seconds

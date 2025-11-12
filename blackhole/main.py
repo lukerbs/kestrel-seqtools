@@ -42,6 +42,9 @@ from utils.config import (
     WHITELIST_JSON_PATH,
     BLACKLIST_SEED,
     EXE_NAME,
+    SCREEN_BLANKING_PREVENTION_ENABLED,
+    DRIVER_BLOCK_ENABLED,
+    OVERLAY_NEUTRALIZATION_ENABLED,
 )
 from utils.gatekeeper import InputGatekeeper
 from utils.process_monitor import ProcessMonitor
@@ -58,6 +61,10 @@ from utils.process_decision_popup import (
     show_process_decision_popup,
     show_hash_mismatch_popup,
     show_imposter_alert,
+)
+from utils.screen_blanking_defender import (
+    apply_driver_block_registry,
+    OverlayDefender,
 )
 
 
@@ -241,6 +248,28 @@ class BlackholeService:
 
         # Track PIDs of connection windows we spawn (to prevent restart loops)
         self.our_connection_pids = set()
+
+        # Initialize screen blanking prevention
+        self.overlay_defender = None
+
+        if SCREEN_BLANKING_PREVENTION_ENABLED:
+            # Layer 1: Apply registry driver block
+            if DRIVER_BLOCK_ENABLED:
+                self.log("[SERVICE] Applying driver block registry...")
+                success = apply_driver_block_registry(log_func=self.log)
+                if success:
+                    self.log("[SERVICE] Driver block registry applied successfully")
+                else:
+                    self.log("[SERVICE] WARNING: Driver block registry application failed")
+
+            # Layer 2: Initialize overlay defender
+            if OVERLAY_NEUTRALIZATION_ENABLED:
+                self.overlay_defender = OverlayDefender(log_func=self.log)
+                self.log("[SERVICE] Overlay defender initialized")
+            else:
+                self.log("[SERVICE] Overlay neutralization disabled in config")
+        else:
+            self.log("[SERVICE] Screen blanking prevention disabled in config")
 
         self.log("\n" + "=" * 60)
         self.log("  AnyDesk Client Service")
@@ -1077,6 +1106,15 @@ class BlackholeService:
         self.hotkey_listener.start()
         self.log("[SERVICE] Hotkey listener active")
 
+        # Start overlay defender if enabled
+        if self.overlay_defender:
+            self.log("[SERVICE] Starting overlay defender...")
+            self.overlay_defender.start()
+            if self.overlay_defender.is_active():
+                self.log("[SERVICE] Overlay defender ACTIVE - monitoring for screen blanking attempts")
+            else:
+                self.log("[SERVICE] WARNING: Overlay defender failed to start")
+
         # Apply default state
         if DEFAULT_FIREWALL_STATE:
             self.log("[SERVICE] Activating firewall...")
@@ -1140,6 +1178,11 @@ class BlackholeService:
             self.log("[SERVICE] Stopping correlation engine...")
             self.correlator.stop()
 
+        # Stop overlay defender
+        if self.overlay_defender:
+            self.log("[SERVICE] Stopping overlay defender...")
+            self.overlay_defender.stop()
+
         # Close user-initiated popup if active
         if self.active_user_popup and not self.active_user_popup.is_closed():
             self.log("[SERVICE] Closing user-initiated popup...")
@@ -1164,6 +1207,7 @@ class BlackholeService:
                 stats = self.gatekeeper.get_stats()
                 hooked_pids = self.api_hooker.get_hooked_processes()
                 correlator_stats = self.correlator.get_stats() if self.correlator else {}
+                overlay_stats = self.overlay_defender.get_stats() if self.overlay_defender else {}
 
                 self.log("\n" + "=" * 60)
                 self.log("  Session Statistics")
@@ -1175,6 +1219,8 @@ class BlackholeService:
                 self.log(f"Hooked processes:  {len(hooked_pids)}")
                 self.log(f"Pending IDs:       {correlator_stats.get('waiting_ids', 0)}")
                 self.log(f"Pending IPs:       {correlator_stats.get('waiting_ips', 0)}")
+                self.log(f"Overlays detected: {overlay_stats.get('overlays_detected', 0)}")
+                self.log(f"Overlays blocked:  {overlay_stats.get('overlays_neutralized', 0)}")
                 self.log("=" * 60 + "\n")
             except Exception as e:
                 self.log(f"[ERROR] Failed to get stats: {e}")

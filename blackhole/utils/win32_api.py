@@ -26,6 +26,7 @@ HINSTANCE = ctypes.c_void_p
 HICON = ctypes.c_void_p
 HCURSOR = ctypes.c_void_p
 HBRUSH = ctypes.c_void_p
+HMONITOR = wintypes.HANDLE
 
 # Platform-specific pointer-sized types
 IS_64BIT = ctypes.sizeof(ctypes.c_void_p) == 8
@@ -49,6 +50,7 @@ LPARAM = LONG_PTR
 WM_INPUT = 0x00FF
 WM_DESTROY = 0x0002
 WM_QUIT = 0x0012
+WM_PEEK_MESSAGE = 0x0001  # PM_REMOVE flag for PeekMessageW
 
 # Raw Input Device Info
 RIDI_DEVICENAME = 0x20000007
@@ -94,6 +96,26 @@ CS_HREDRAW = 0x0002
 CS_VREDRAW = 0x0001
 CW_USEDEFAULT = 0x80000000
 
+# WinEvent Hook Constants (for Layer 2 overlay detection)
+EVENT_OBJECT_SHOW = 0x8002
+OBJID_WINDOW = 0x00000000
+CHILDID_SELF = 0
+WINEVENT_OUTOFCONTEXT = 0x0000
+WINEVENT_SKIPOWNPROCESS = 0x0002
+
+# Window Extended Styles
+WS_EX_TOPMOST = 0x00000008
+GWL_EXSTYLE = -20
+
+# SetWindowPos Constants
+HWND_NOTOPMOST = -2
+SWP_NOMOVE = 0x0002
+SWP_NOSIZE = 0x0001
+SWP_NOACTIVATE = 0x0010
+
+# Monitor Constants
+MONITOR_DEFAULTTOPRIMARY = 0x00000001
+
 # ============================================================================
 # STRUCTURES
 # ============================================================================
@@ -101,6 +123,15 @@ CW_USEDEFAULT = 0x80000000
 
 class POINT(ctypes.Structure):
     _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+class RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", wintypes.LONG),
+        ("top", wintypes.LONG),
+        ("right", wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
 
 
 class MSG(ctypes.Structure):
@@ -212,12 +243,31 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", RECT),
+        ("rcWork", RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
 # ============================================================================
 # CALLBACK TYPES
 # ============================================================================
 
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.INT, WPARAM, LPARAM)
+WINEVENTPROC = ctypes.WINFUNCTYPE(
+    None,  # VOID return
+    wintypes.HANDLE,  # HWINEVENTHOOK hWinEventHook
+    wintypes.DWORD,   # DWORD event
+    wintypes.HWND,    # HWND hwnd
+    wintypes.LONG,    # LONG idObject
+    wintypes.LONG,    # LONG idChild
+    wintypes.DWORD,   # DWORD dwEventThread
+    wintypes.DWORD    # DWORD dwmsEventTime
+)
 
 # ============================================================================
 # LIBRARY HANDLES
@@ -263,6 +313,9 @@ user32.UnregisterClassW.restype = wintypes.BOOL
 # Message Loop
 user32.GetMessageW.argtypes = [ctypes.POINTER(MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
 user32.GetMessageW.restype = wintypes.BOOL
+
+user32.PeekMessageW.argtypes = [ctypes.POINTER(MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT, wintypes.UINT]
+user32.PeekMessageW.restype = wintypes.BOOL
 
 user32.TranslateMessage.argtypes = [ctypes.POINTER(MSG)]
 user32.TranslateMessage.restype = wintypes.BOOL
@@ -317,6 +370,48 @@ user32.UnhookWindowsHookEx.restype = wintypes.BOOL
 
 user32.CallNextHookEx.argtypes = [wintypes.HHOOK, wintypes.INT, WPARAM, LPARAM]
 user32.CallNextHookEx.restype = LRESULT
+
+# WinEvent Hooks (for Layer 2 overlay detection)
+user32.SetWinEventHook.argtypes = [
+    wintypes.DWORD,      # eventMin
+    wintypes.DWORD,      # eventMax
+    wintypes.HMODULE,    # hmodWinEventProc
+    WINEVENTPROC,        # lpfnWinEventProc
+    wintypes.DWORD,      # idProcess
+    wintypes.DWORD,      # idThread
+    wintypes.DWORD       # dwFlags
+]
+user32.SetWinEventHook.restype = wintypes.HANDLE
+
+user32.UnhookWinEvent.argtypes = [wintypes.HANDLE]
+user32.UnhookWinEvent.restype = wintypes.BOOL
+
+# Window Information Functions
+user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.GetWindowLongPtrW.restype = LONG_PTR
+
+user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+user32.GetWindowRect.restype = wintypes.BOOL
+
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = HMONITOR
+
+user32.GetMonitorInfoW.argtypes = [HMONITOR, ctypes.POINTER(MONITORINFO)]
+user32.GetMonitorInfoW.restype = wintypes.BOOL
+
+user32.SetWindowPos.argtypes = [
+    wintypes.HWND,      # hWnd
+    wintypes.HWND,      # hWndInsertAfter
+    ctypes.c_int,       # X
+    ctypes.c_int,       # Y
+    ctypes.c_int,       # cx
+    ctypes.c_int,       # cy
+    wintypes.UINT       # uFlags
+]
+user32.SetWindowPos.restype = wintypes.BOOL
+
+user32.IsWindow.argtypes = [wintypes.HWND]
+user32.IsWindow.restype = wintypes.BOOL
 
 # Kernel Functions
 kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
