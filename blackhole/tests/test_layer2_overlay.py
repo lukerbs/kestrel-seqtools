@@ -60,6 +60,7 @@ try:
         SWP_NOMOVE,
         SWP_NOSIZE,
         SWP_NOACTIVATE,
+        MSG,
     )
 except ImportError:
     print("ERROR: Could not import win32_api. Make sure you're running from the blackhole directory.")
@@ -192,6 +193,16 @@ def window_proc(hwnd, msg, wParam, lParam):
                     with _countdown_lock:
                         countdown = _overlay_countdowns.get(hwnd, None)
                     
+                    # Log paint messages (throttled - only when countdown changes by whole second)
+                    if countdown is not None:
+                        current_second = int(countdown)
+                        # Use a simple counter to throttle logging
+                        if not hasattr(window_proc, '_last_paint_log'):
+                            window_proc._last_paint_log = {}
+                        if hwnd not in window_proc._last_paint_log or window_proc._last_paint_log[hwnd] != current_second:
+                            print(f"[TEST] WM_PAINT received - drawing countdown: {countdown:.1f}s")
+                            window_proc._last_paint_log[hwnd] = current_second
+                    
                     if countdown is not None:
                         # Get client rect for centering
                         client_rect = RECT()
@@ -280,6 +291,8 @@ class OverlayTestWindow:
         self.cleanup_lock = threading.Lock()
         self.hotkey_listener = None  # pynput keyboard listener
         self.update_timer = None  # Timer for updating countdown display
+        self.last_log_time = 0  # For throttling log messages
+        self.paint_count = 0  # Count paint messages for logging
 
     def _get_screen_size(self):
         """Get primary screen dimensions"""
@@ -354,14 +367,17 @@ class OverlayTestWindow:
         )
 
         print(f"[TEST] Overlay window created: HWND={self.hwnd}, Size={width}x{height}")
+        print(f"[TEST] Window class: {self.class_name}, Style: WS_POPUP | WS_VISIBLE | WS_EX_TOPMOST")
         
         # Register window in countdown dictionary and trigger initial paint
         with _countdown_lock:
             _overlay_countdowns[self.hwnd] = float(self.timeout_seconds)
         
         # Trigger initial paint to display countdown immediately
+        print("[TEST] Triggering initial window paint...")
         user32.InvalidateRect(self.hwnd, None, True)
         user32.UpdateWindow(self.hwnd)
+        print("[TEST] Initial paint triggered - countdown should be visible")
 
     def _stop_hotkey_listener(self):
         """Stop the global hotkey listener"""
@@ -377,18 +393,24 @@ class OverlayTestWindow:
         try:
             with self.cleanup_lock:
                 if self.cleanup_done:
+                    print("[TEST] Cleanup already in progress - skipping")
                     return
                 self.cleanup_done = True
 
+            print("[TEST] ========== CLEANUP STARTED ==========")
+            
             # Stop hotkey listener first
+            print("[TEST] Stopping hotkey listener...")
             self._stop_hotkey_listener()
+            print("[TEST] Hotkey listener stopped")
 
             if self.hwnd and user32.IsWindow(self.hwnd):
-                print("[TEST] Cleaning up overlay window...")
+                print(f"[TEST] Cleaning up overlay window (HWND={self.hwnd})...")
 
                 # Try multiple cleanup methods
                 try:
                     # Method 1: Remove topmost style first (in case Blackhole didn't)
+                    print("[TEST] Step 1: Removing WS_EX_TOPMOST style...")
                     user32.SetWindowPos(
                         self.hwnd,
                         HWND_NOTOPMOST,
@@ -398,34 +420,42 @@ class OverlayTestWindow:
                         0,
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                     )
+                    print("[TEST] Step 1: Topmost style removed")
                 except Exception as e:
                     print(f"[TEST] WARNING: Failed to remove topmost style: {e}")
                     print(traceback.format_exc())
 
                 try:
                     # Method 2: Hide window
+                    print("[TEST] Step 2: Hiding window...")
                     user32.ShowWindow(self.hwnd, SW_HIDE)
+                    print("[TEST] Step 2: Window hidden")
                 except Exception as e:
                     print(f"[TEST] WARNING: Failed to hide window: {e}")
                     print(traceback.format_exc())
 
                 try:
                     # Method 3: Destroy window
+                    print("[TEST] Step 3: Destroying window...")
                     if not user32.DestroyWindow(self.hwnd):
                         error = kernel32.GetLastError()
                         print(f"[TEST] WARNING: DestroyWindow failed. Error: {error}")
                     else:
-                        print("[TEST] Window destroyed successfully")
+                        print("[TEST] Step 3: Window destroyed successfully")
                 except Exception as e:
                     print(f"[TEST] WARNING: Exception during DestroyWindow: {e}")
                     print(traceback.format_exc())
 
                 self.hwnd = None
+            else:
+                print("[TEST] Window handle is invalid or already destroyed")
 
             # Unregister window class
             try:
+                print("[TEST] Step 4: Unregistering window class...")
                 h_instance = kernel32.GetModuleHandleW(None)
                 user32.UnregisterClassW(self.class_name, h_instance)
+                print("[TEST] Step 4: Window class unregistered")
             except Exception as e:
                 print(f"[TEST] WARNING: Failed to unregister class: {e}")
                 print(traceback.format_exc())
@@ -433,6 +463,8 @@ class OverlayTestWindow:
             # Remove from countdown dictionary
             with _countdown_lock:
                 _overlay_countdowns.pop(self.hwnd, None)
+            
+            print("[TEST] ========== CLEANUP COMPLETE ==========")
         except Exception as e:
             print(f"[TEST] CRITICAL ERROR in _cleanup_window: {e}")
             print(traceback.format_exc())
@@ -472,24 +504,33 @@ class OverlayTestWindow:
 
     def _timeout_handler(self):
         """Timeout handler - automatically cleanup after timeout"""
+        print(f"[TEST] Timeout handler thread started - will trigger cleanup after {self.timeout_seconds}s")
         try:
             time.sleep(self.timeout_seconds)
             if not self.cleanup_done:
-                print(f"\n[TEST] TIMEOUT: {self.timeout_seconds} seconds elapsed. Auto-cleaning up...")
+                print(f"\n[TEST] ========== TIMEOUT TRIGGERED ==========")
+                print(f"[TEST] {self.timeout_seconds} seconds elapsed. Auto-cleaning up...")
                 self._cleanup_window()
+            else:
+                print("[TEST] Timeout handler: Cleanup already in progress, skipping")
         except Exception as e:
             print(f"[TEST] ERROR in timeout handler: {e}")
             print(traceback.format_exc())
             # Still try to cleanup on error
             if not self.cleanup_done:
+                print("[TEST] Timeout handler: Attempting emergency cleanup due to error")
                 self._cleanup_window()
 
     def _countdown_display(self):
         """Display countdown timer and update overlay window"""
+        print("[TEST] Countdown display thread started")
+        last_logged_second = -1
+        
         while not self.cleanup_done and self.start_time:
             try:
                 elapsed = time.time() - self.start_time
                 remaining = max(0, self.timeout_seconds - elapsed)
+                current_second = int(remaining)
 
                 if remaining > 0:
                     # Update countdown in dictionary
@@ -497,18 +538,22 @@ class OverlayTestWindow:
                         if self.hwnd:
                             _overlay_countdowns[self.hwnd] = remaining
                     
+                    # Log every second (not every 0.1s to avoid spam)
+                    if current_second != last_logged_second:
+                        print(f"[TEST] Countdown: {remaining:.1f}s remaining - updating overlay display")
+                        last_logged_second = current_second
+                    
                     # Invalidate window to trigger repaint
                     if self.hwnd and user32.IsWindow(self.hwnd):
                         try:
                             user32.InvalidateRect(self.hwnd, None, True)  # Invalidate entire window
                             user32.UpdateWindow(self.hwnd)  # Force immediate repaint
                         except Exception as e:
-                            # If invalidation fails, continue anyway
-                            pass
-                    
-                    print(f"\r[TEST] Overlay active. Time remaining: {remaining:.1f}s (Press Ctrl+C to stop)", end="", flush=True)
+                            # If invalidation fails, log it
+                            if current_second != last_logged_second:  # Only log once per second
+                                print(f"[TEST] WARNING: Failed to invalidate window: {e}")
                 else:
-                    print("\r[TEST] Timeout reached. Cleaning up...", end="", flush=True)
+                    print("\n[TEST] Countdown reached zero - timeout triggered")
                     break
 
                 time.sleep(0.1)  # Update 10 times per second
@@ -516,6 +561,42 @@ class OverlayTestWindow:
                 print(f"[TEST] ERROR in countdown display: {e}")
                 print(traceback.format_exc())
                 time.sleep(0.1)  # Continue even on error
+        
+        print("[TEST] Countdown display thread exiting")
+
+    def _message_loop(self):
+        """Window message loop - processes WM_PAINT and other messages"""
+        try:
+            msg = MSG()
+            # Process messages until window is destroyed or cleanup is done
+            # Use PeekMessage for non-blocking message processing
+            while not self.cleanup_done and self.hwnd and user32.IsWindow(self.hwnd):
+                # PeekMessage with PM_REMOVE to get and remove messages
+                # Filter by our window handle to only get messages for our window
+                result = user32.PeekMessageW(ctypes.byref(msg), self.hwnd, 0, 0, 0x0001)  # PM_REMOVE
+                if result:
+                    # Process the message
+                    if msg.message == WM_QUIT:
+                        break
+                    user32.TranslateMessage(ctypes.byref(msg))
+                    user32.DispatchMessageW(ctypes.byref(msg))
+                else:
+                    # Also check for messages in the thread queue (NULL HWND)
+                    # This helps catch messages that might be queued differently
+                    result = user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0x0001)  # PM_REMOVE
+                    if result:
+                        # Only process if it's for our window
+                        if msg.hwnd == self.hwnd:
+                            if msg.message == WM_QUIT:
+                                break
+                            user32.TranslateMessage(ctypes.byref(msg))
+                            user32.DispatchMessageW(ctypes.byref(msg))
+                    else:
+                        # No messages, sleep briefly to avoid busy-wait
+                        time.sleep(0.01)  # 10ms sleep
+        except Exception as e:
+            print(f"[TEST] ERROR in message loop: {e}")
+            print(traceback.format_exc())
 
     def run_test(self):
         """Run the overlay test with all safeguards"""
@@ -557,36 +638,71 @@ class OverlayTestWindow:
             print("[TEST] Watch for the window to be moved behind other windows.")
             print()
 
-            # Wait for timeout or manual stop
+            # Main loop: process window messages and wait for timeout
+            print("[TEST] Starting main message loop...")
+            msg = MSG()
+            message_count = 0
+            last_message_log_time = time.time()
+            
             while time.time() - self.start_time < self.timeout_seconds:
                 if self.cleanup_done:
+                    print("[TEST] Cleanup flag set - exiting main loop")
                     break
-                time.sleep(0.1)
+                
+                # Process window messages (non-blocking)
+                # This is required for WM_PAINT to be processed
+                messages_processed = 0
+                while user32.PeekMessageW(ctypes.byref(msg), self.hwnd, 0, 0, 0x0001):  # PM_REMOVE
+                    if msg.message == WM_QUIT:
+                        print("[TEST] WM_QUIT received - exiting message loop")
+                        break
+                    user32.TranslateMessage(ctypes.byref(msg))
+                    user32.DispatchMessageW(ctypes.byref(msg))
+                    messages_processed += 1
+                    message_count += 1
+                
+                # Log message processing stats every 5 seconds (throttled)
+                current_time = time.time()
+                if current_time - last_message_log_time >= 5.0:
+                    if messages_processed > 0:
+                        print(f"[TEST] Message loop active - processed {message_count} messages total")
+                    last_message_log_time = current_time
+                
+                time.sleep(0.05)  # 50ms sleep to avoid busy-wait
 
             print()  # New line after countdown
 
         except KeyboardInterrupt:
             # Failsafe #3: Keyboard interrupt
-            print("\n[TEST] Keyboard interrupt (Ctrl+C) detected. Cleaning up...")
+            print("\n[TEST] ========== KEYBOARD INTERRUPT ==========")
+            print("[TEST] Ctrl+C detected. Initiating cleanup...")
 
         except Exception as e:
             # Failsafe #4: Any unexpected error
-            print(f"\n[TEST] ERROR: Unexpected exception: {type(e).__name__}: {e}")
+            print(f"\n[TEST] ========== UNEXPECTED ERROR ==========")
+            print(f"[TEST] Exception type: {type(e).__name__}")
+            print(f"[TEST] Exception message: {e}")
             print("[TEST] Full traceback:")
             print(traceback.format_exc())
             print("[TEST] Emergency cleanup initiated...")
 
         finally:
             # Failsafe #5: Always cleanup in finally block
+            print("\n[TEST] ========== FINALLY BLOCK ==========")
+            print("[TEST] Ensuring cleanup is performed...")
             self._cleanup_window()
 
             # Wait for threads to finish
+            print("[TEST] Waiting for threads to finish...")
             if timeout_thread:
                 timeout_thread.join(timeout=1)
+                print("[TEST] Timeout thread joined")
             if countdown_thread:
                 countdown_thread.join(timeout=1)
+                print("[TEST] Countdown thread joined")
 
-            print("[TEST] Test complete. Screen should be restored.")
+            print("\n[TEST] ========== TEST COMPLETE ==========")
+            print("[TEST] Screen should be restored.")
             print("=" * 70)
 
 
