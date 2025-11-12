@@ -156,6 +156,10 @@ user32.GetClientRect.restype = wintypes.BOOL
 user32.InvalidateRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT), wintypes.BOOL]
 user32.InvalidateRect.restype = wintypes.BOOL
 
+# LoadCursorW - Load cursor resource
+user32.LoadCursorW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR]  # hInstance, lpCursorName
+user32.LoadCursorW.restype = wintypes.HANDLE  # HCURSOR
+
 # Constants
 FW_NORMAL = 400
 FW_BOLD = 700
@@ -171,6 +175,7 @@ DT_VCENTER = 0x00000004
 DT_SINGLELINE = 0x00000020
 RGB_WHITE = 0x00FFFFFF
 RGB_BLACK = 0x00000000
+IDC_ARROW = 32512  # Standard arrow cursor
 
 # Global dictionary to store countdown values per window
 _overlay_countdowns = {}
@@ -304,6 +309,10 @@ class OverlayTestWindow:
         """Register window class"""
         h_instance = kernel32.GetModuleHandleW(None)
 
+        # Load standard arrow cursor to keep normal cursor appearance
+        # For system cursors, we use MAKEINTRESOURCE (cast integer to LPCWSTR)
+        h_cursor = user32.LoadCursorW(None, ctypes.cast(IDC_ARROW, wintypes.LPCWSTR))
+
         wc = WNDCLASSEXW()
         wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
         wc.style = 0
@@ -312,7 +321,7 @@ class OverlayTestWindow:
         wc.cbWndExtra = 0
         wc.hInstance = h_instance
         wc.hIcon = None
-        wc.hCursor = None
+        wc.hCursor = h_cursor  # Use arrow cursor instead of None
         # Use black brush for screen blanking overlay (not white)
         wc.hbrBackground = user32.GetSysColorBrush(COLOR_BACKGROUND)
         wc.lpszMenuName = None
