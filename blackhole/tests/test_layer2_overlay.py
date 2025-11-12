@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import threading
+import traceback
 from ctypes import wintypes
 
 try:
@@ -39,25 +40,27 @@ parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
 try:
-    from utils.win32_api import (
-        user32,
-        kernel32,
-        HINSTANCE,
-        wintypes,
-        WNDPROC,
-        WNDCLASSEXW,
-        RECT,
-        LRESULT,
-        WPARAM,
-        LPARAM,
-        WS_EX_TOPMOST,
-        WM_DESTROY,
-        WM_QUIT,
-        HWND_NOTOPMOST,
-        SWP_NOMOVE,
-        SWP_NOSIZE,
-        SWP_NOACTIVATE,
-    )
+from utils.win32_api import (
+    user32,
+    kernel32,
+    HINSTANCE,
+    wintypes,
+    WNDPROC,
+    WNDCLASSEXW,
+    RECT,
+    LRESULT,
+    WPARAM,
+    LPARAM,
+    WS_EX_TOPMOST,
+    WM_DESTROY,
+    WM_QUIT,
+    WM_PAINT,
+    PAINTSTRUCT,
+    HWND_NOTOPMOST,
+    SWP_NOMOVE,
+    SWP_NOSIZE,
+    SWP_NOACTIVATE,
+)
 except ImportError:
     print("ERROR: Could not import win32_api. Make sure you're running from the blackhole directory.")
     sys.exit(1)
@@ -70,6 +73,7 @@ SW_HIDE = 0
 SM_CXSCREEN = 0
 SM_CYSCREEN = 1
 COLOR_WINDOW = 5
+COLOR_BACKGROUND = 1  # Black background for screen blanking
 HWND_TOPMOST = -1  # For SetWindowPos
 
 # ============================================================================
@@ -93,13 +97,171 @@ user32.UpdateWindow.restype = wintypes.BOOL
 user32.GetSysColorBrush.argtypes = [ctypes.c_int]
 user32.GetSysColorBrush.restype = wintypes.HBRUSH
 
+# GDI text drawing functions
+gdi32 = ctypes.windll.gdi32
+
+# CreateFontW - Create font
+gdi32.CreateFontW.argtypes = [
+    ctypes.c_int,  # nHeight
+    ctypes.c_int,  # nWidth
+    ctypes.c_int,  # nEscapement
+    ctypes.c_int,  # nOrientation
+    ctypes.c_int,  # fnWeight
+    wintypes.DWORD,  # fdwItalic
+    wintypes.DWORD,  # fdwUnderline
+    wintypes.DWORD,  # fdwStrikeOut
+    wintypes.DWORD,  # fdwCharSet
+    wintypes.DWORD,  # fdwOutputPrecision
+    wintypes.DWORD,  # fdwClipPrecision
+    wintypes.DWORD,  # fdwQuality
+    wintypes.DWORD,  # fdwPitchAndFamily
+    wintypes.LPCWSTR,  # lpszFace
+]
+gdi32.CreateFontW.restype = wintypes.HANDLE  # HFONT
+
+# SelectObject - Select font/brush into DC
+gdi32.SelectObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]  # HDC, HGDIOBJ
+gdi32.SelectObject.restype = wintypes.HANDLE
+
+# SetTextColor
+gdi32.SetTextColor.argtypes = [wintypes.HANDLE, wintypes.DWORD]  # HDC, COLORREF
+gdi32.SetTextColor.restype = wintypes.DWORD
+
+# SetBkColor
+gdi32.SetBkColor.argtypes = [wintypes.HANDLE, wintypes.DWORD]  # HDC, COLORREF
+gdi32.SetBkColor.restype = wintypes.DWORD
+
+# SetBkMode
+gdi32.SetBkMode.argtypes = [wintypes.HANDLE, ctypes.c_int]  # HDC, mode
+gdi32.SetBkMode.restype = ctypes.c_int
+
+# TextOutW - Draw text
+user32.TextOutW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.LPCWSTR, ctypes.c_int]
+user32.TextOutW.restype = wintypes.BOOL
+
+# DrawTextW - Draw formatted text
+user32.DrawTextW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(RECT), wintypes.UINT]
+user32.DrawTextW.restype = ctypes.c_int
+
+# DeleteObject - Delete font
+gdi32.DeleteObject.argtypes = [wintypes.HANDLE]
+gdi32.DeleteObject.restype = wintypes.BOOL
+
+# GetClientRect - Get window client area
+user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+user32.GetClientRect.restype = wintypes.BOOL
+
+# InvalidateRect - Invalidate window for repaint
+user32.InvalidateRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT), wintypes.BOOL]
+user32.InvalidateRect.restype = wintypes.BOOL
+
+# Constants
+FW_NORMAL = 400
+FW_BOLD = 700
+ANSI_CHARSET = 0
+OUT_DEFAULT_PRECIS = 0
+CLIP_DEFAULT_PRECIS = 0
+DEFAULT_QUALITY = 0
+DEFAULT_PITCH = 0
+FF_DONTCARE = 0
+TRANSPARENT = 1
+DT_CENTER = 0x00000001
+DT_VCENTER = 0x00000004
+DT_SINGLELINE = 0x00000020
+RGB_WHITE = 0x00FFFFFF
+RGB_BLACK = 0x00000000
+
+# Global dictionary to store countdown values per window
+_overlay_countdowns = {}
+_countdown_lock = threading.Lock()
+
 # Window procedure callback
 def window_proc(hwnd, msg, wParam, lParam):
-    """Simple window procedure that handles WM_DESTROY"""
-    if msg == WM_DESTROY:
-        user32.PostQuitMessage(0)
-        return 0
-    return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+    """Window procedure that handles WM_DESTROY and WM_PAINT"""
+    try:
+        if msg == WM_DESTROY:
+            user32.PostQuitMessage(0)
+            return 0
+        elif msg == WM_PAINT:
+            # Handle paint message and draw countdown
+            ps = PAINTSTRUCT()
+            hdc = user32.BeginPaint(hwnd, ctypes.byref(ps))
+            if hdc:
+                try:
+                    # Get countdown value
+                    with _countdown_lock:
+                        countdown = _overlay_countdowns.get(hwnd, None)
+                    
+                    if countdown is not None:
+                        # Get client rect for centering
+                        client_rect = RECT()
+                        user32.GetClientRect(hwnd, ctypes.byref(client_rect))
+                        
+                        # Create large font for countdown
+                        font_height = -120  # Negative for character height
+                        h_font = gdi32.CreateFontW(
+                            font_height,  # nHeight
+                            0,  # nWidth
+                            0,  # nEscapement
+                            0,  # nOrientation
+                            FW_BOLD,  # fnWeight
+                            0,  # fdwItalic
+                            0,  # fdwUnderline
+                            0,  # fdwStrikeOut
+                            ANSI_CHARSET,  # fdwCharSet
+                            OUT_DEFAULT_PRECIS,  # fdwOutputPrecision
+                            CLIP_DEFAULT_PRECIS,  # fdwClipPrecision
+                            DEFAULT_QUALITY,  # fdwQuality
+                            DEFAULT_PITCH | FF_DONTCARE,  # fdwPitchAndFamily
+                            "Arial"  # lpszFace
+                        )
+                        
+                        if h_font:
+                            # Select font into DC
+                            old_font = gdi32.SelectObject(hdc, h_font)
+                            
+                            # Set text color to white
+                            gdi32.SetTextColor(hdc, RGB_WHITE)
+                            
+                            # Set background mode to transparent
+                            gdi32.SetBkMode(hdc, TRANSPARENT)
+                            
+                            # Format countdown text (as Unicode string)
+                            countdown_text = f"{countdown:.1f}s"
+                            
+                            # Draw text centered
+                            draw_rect = RECT()
+                            draw_rect.left = client_rect.left
+                            draw_rect.top = client_rect.top
+                            draw_rect.right = client_rect.right
+                            draw_rect.bottom = client_rect.bottom
+                            
+                            # DrawTextW expects LPCWSTR (pointer to null-terminated wide string)
+                            text_buffer = ctypes.create_unicode_buffer(countdown_text)
+                            user32.DrawTextW(
+                                hdc,
+                                text_buffer,
+                                -1,  # -1 means null-terminated string
+                                ctypes.byref(draw_rect),
+                                DT_CENTER | DT_VCENTER | DT_SINGLELINE
+                            )
+                            
+                            # Restore old font
+                            gdi32.SelectObject(hdc, old_font)
+                            gdi32.DeleteObject(h_font)
+                except Exception as e:
+                    # Log error but don't break painting
+                    print(f"[TEST] ERROR drawing countdown: {e}")
+                    print(traceback.format_exc())
+                
+                user32.EndPaint(hwnd, ctypes.byref(ps))
+            return 0
+        return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+    except Exception as e:
+        # Log full traceback for window procedure errors
+        print(f"[TEST] ERROR in window_proc: {e}")
+        print(traceback.format_exc())
+        return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
 
 
 class OverlayTestWindow:
@@ -117,6 +279,7 @@ class OverlayTestWindow:
         self.start_time = None
         self.cleanup_lock = threading.Lock()
         self.hotkey_listener = None  # pynput keyboard listener
+        self.update_timer = None  # Timer for updating countdown display
 
     def _get_screen_size(self):
         """Get primary screen dimensions"""
@@ -137,7 +300,8 @@ class OverlayTestWindow:
         wc.hInstance = h_instance
         wc.hIcon = None
         wc.hCursor = None
-        wc.hbrBackground = user32.GetSysColorBrush(COLOR_WINDOW)
+        # Use black brush for screen blanking overlay (not white)
+        wc.hbrBackground = user32.GetSysColorBrush(COLOR_BACKGROUND)
         wc.lpszMenuName = None
         wc.lpszClassName = self.class_name
         wc.hIconSm = None
@@ -190,6 +354,10 @@ class OverlayTestWindow:
         )
 
         print(f"[TEST] Overlay window created: HWND={self.hwnd}, Size={width}x{height}")
+        
+        # Register window in countdown dictionary
+        with _countdown_lock:
+            _overlay_countdowns[self.hwnd] = float(self.timeout_seconds)
 
     def _stop_hotkey_listener(self):
         """Stop the global hotkey listener"""
@@ -202,56 +370,68 @@ class OverlayTestWindow:
 
     def _cleanup_window(self):
         """Safely destroy the overlay window"""
-        with self.cleanup_lock:
-            if self.cleanup_done:
-                return
-            self.cleanup_done = True
-
-        # Stop hotkey listener first
-        self._stop_hotkey_listener()
-
-        if self.hwnd and user32.IsWindow(self.hwnd):
-            print("[TEST] Cleaning up overlay window...")
-
-            # Try multiple cleanup methods
-            try:
-                # Method 1: Remove topmost style first (in case Blackhole didn't)
-                user32.SetWindowPos(
-                    self.hwnd,
-                    HWND_NOTOPMOST,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                )
-            except Exception as e:
-                print(f"[TEST] WARNING: Failed to remove topmost style: {e}")
-
-            try:
-                # Method 2: Hide window
-                user32.ShowWindow(self.hwnd, SW_HIDE)
-            except Exception as e:
-                print(f"[TEST] WARNING: Failed to hide window: {e}")
-
-            try:
-                # Method 3: Destroy window
-                if not user32.DestroyWindow(self.hwnd):
-                    error = kernel32.GetLastError()
-                    print(f"[TEST] WARNING: DestroyWindow failed. Error: {error}")
-                else:
-                    print("[TEST] Window destroyed successfully")
-            except Exception as e:
-                print(f"[TEST] WARNING: Exception during DestroyWindow: {e}")
-
-            self.hwnd = None
-
-        # Unregister window class
         try:
-            h_instance = kernel32.GetModuleHandleW(None)
-            user32.UnregisterClassW(self.class_name, h_instance)
+            with self.cleanup_lock:
+                if self.cleanup_done:
+                    return
+                self.cleanup_done = True
+
+            # Stop hotkey listener first
+            self._stop_hotkey_listener()
+
+            if self.hwnd and user32.IsWindow(self.hwnd):
+                print("[TEST] Cleaning up overlay window...")
+
+                # Try multiple cleanup methods
+                try:
+                    # Method 1: Remove topmost style first (in case Blackhole didn't)
+                    user32.SetWindowPos(
+                        self.hwnd,
+                        HWND_NOTOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    )
+                except Exception as e:
+                    print(f"[TEST] WARNING: Failed to remove topmost style: {e}")
+                    print(traceback.format_exc())
+
+                try:
+                    # Method 2: Hide window
+                    user32.ShowWindow(self.hwnd, SW_HIDE)
+                except Exception as e:
+                    print(f"[TEST] WARNING: Failed to hide window: {e}")
+                    print(traceback.format_exc())
+
+                try:
+                    # Method 3: Destroy window
+                    if not user32.DestroyWindow(self.hwnd):
+                        error = kernel32.GetLastError()
+                        print(f"[TEST] WARNING: DestroyWindow failed. Error: {error}")
+                    else:
+                        print("[TEST] Window destroyed successfully")
+                except Exception as e:
+                    print(f"[TEST] WARNING: Exception during DestroyWindow: {e}")
+                    print(traceback.format_exc())
+
+                self.hwnd = None
+
+            # Unregister window class
+            try:
+                h_instance = kernel32.GetModuleHandleW(None)
+                user32.UnregisterClassW(self.class_name, h_instance)
+            except Exception as e:
+                print(f"[TEST] WARNING: Failed to unregister class: {e}")
+                print(traceback.format_exc())
+            
+            # Remove from countdown dictionary
+            with _countdown_lock:
+                _overlay_countdowns.pop(self.hwnd, None)
         except Exception as e:
-            print(f"[TEST] WARNING: Failed to unregister class: {e}")
+            print(f"[TEST] CRITICAL ERROR in _cleanup_window: {e}")
+            print(traceback.format_exc())
 
     def _on_hotkey_press(self, key):
         """Handle global hotkey press (ESC key)"""
@@ -263,7 +443,9 @@ class OverlayTestWindow:
                     self._cleanup_window()
                     return False  # Stop listener after cleanup
         except Exception as e:
-            print(f"[TEST] WARNING: Error in hotkey handler: {e}")
+            # Log full traceback for hotkey errors (including pynput MSG structure issues)
+            print(f"[TEST] ERROR in hotkey handler: {e}")
+            print(traceback.format_exc())
         return True  # Continue listening for other keys
 
     def _start_hotkey_listener(self):
@@ -278,27 +460,54 @@ class OverlayTestWindow:
             print("[TEST] Global hotkey active: Press ESC to stop test (works even when screen is blanked)")
         except Exception as e:
             print(f"[TEST] WARNING: Failed to start hotkey listener: {e}")
+            print(traceback.format_exc())
 
     def _timeout_handler(self):
         """Timeout handler - automatically cleanup after timeout"""
-        time.sleep(self.timeout_seconds)
-        if not self.cleanup_done:
-            print(f"\n[TEST] TIMEOUT: {self.timeout_seconds} seconds elapsed. Auto-cleaning up...")
-            self._cleanup_window()
+        try:
+            time.sleep(self.timeout_seconds)
+            if not self.cleanup_done:
+                print(f"\n[TEST] TIMEOUT: {self.timeout_seconds} seconds elapsed. Auto-cleaning up...")
+                self._cleanup_window()
+        except Exception as e:
+            print(f"[TEST] ERROR in timeout handler: {e}")
+            print(traceback.format_exc())
+            # Still try to cleanup on error
+            if not self.cleanup_done:
+                self._cleanup_window()
 
     def _countdown_display(self):
-        """Display countdown timer (non-blocking)"""
+        """Display countdown timer and update overlay window"""
         while not self.cleanup_done and self.start_time:
-            elapsed = time.time() - self.start_time
-            remaining = max(0, self.timeout_seconds - elapsed)
+            try:
+                elapsed = time.time() - self.start_time
+                remaining = max(0, self.timeout_seconds - elapsed)
 
-            if remaining > 0:
-                print(f"\r[TEST] Overlay active. Time remaining: {remaining:.1f}s (Press Ctrl+C to stop)", end="", flush=True)
-            else:
-                print("\r[TEST] Timeout reached. Cleaning up...", end="", flush=True)
-                break
+                if remaining > 0:
+                    # Update countdown in dictionary
+                    with _countdown_lock:
+                        if self.hwnd:
+                            _overlay_countdowns[self.hwnd] = remaining
+                    
+                    # Invalidate window to trigger repaint
+                    if self.hwnd and user32.IsWindow(self.hwnd):
+                        try:
+                            user32.InvalidateRect(self.hwnd, None, True)  # Invalidate entire window
+                            user32.UpdateWindow(self.hwnd)  # Force immediate repaint
+                        except Exception as e:
+                            # If invalidation fails, continue anyway
+                            pass
+                    
+                    print(f"\r[TEST] Overlay active. Time remaining: {remaining:.1f}s (Press Ctrl+C to stop)", end="", flush=True)
+                else:
+                    print("\r[TEST] Timeout reached. Cleaning up...", end="", flush=True)
+                    break
 
-            time.sleep(0.1)
+                time.sleep(0.1)  # Update 10 times per second
+            except Exception as e:
+                print(f"[TEST] ERROR in countdown display: {e}")
+                print(traceback.format_exc())
+                time.sleep(0.1)  # Continue even on error
 
     def run_test(self):
         """Run the overlay test with all safeguards"""
@@ -355,6 +564,8 @@ class OverlayTestWindow:
         except Exception as e:
             # Failsafe #4: Any unexpected error
             print(f"\n[TEST] ERROR: Unexpected exception: {type(e).__name__}: {e}")
+            print("[TEST] Full traceback:")
+            print(traceback.format_exc())
             print("[TEST] Emergency cleanup initiated...")
 
         finally:

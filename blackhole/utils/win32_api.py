@@ -50,6 +50,7 @@ LPARAM = LONG_PTR
 WM_INPUT = 0x00FF
 WM_DESTROY = 0x0002
 WM_QUIT = 0x0012
+WM_PAINT = 0x000F
 WM_PEEK_MESSAGE = 0x0001  # PM_REMOVE flag for PeekMessageW
 
 # Raw Input Device Info
@@ -106,6 +107,17 @@ WINEVENT_SKIPOWNPROCESS = 0x0002
 # Window Extended Styles
 WS_EX_TOPMOST = 0x00000008
 GWL_EXSTYLE = -20
+
+# Window Styles (for filtering legitimate windows)
+WS_POPUP = 0x80000000
+WS_OVERLAPPED = 0x00000000
+WS_CAPTION = 0x00C00000
+WS_SYSMENU = 0x00080000
+WS_THICKFRAME = 0x00040000
+WS_MINIMIZEBOX = 0x00020000
+WS_MAXIMIZEBOX = 0x00010000
+WS_OVERLAPPEDWINDOW = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
+GWL_STYLE = -16
 
 # SetWindowPos Constants
 HWND_NOTOPMOST = -2
@@ -250,6 +262,21 @@ class MONITORINFO(ctypes.Structure):
         ("rcWork", RECT),
         ("dwFlags", wintypes.DWORD),
     ]
+
+
+class PAINTSTRUCT(ctypes.Structure):
+    """PAINTSTRUCT for WM_PAINT handling"""
+    _fields_ = [
+        ("hdc", wintypes.HANDLE),  # HDC
+        ("fErase", wintypes.BOOL),
+        ("rcPaint", RECT),
+        ("fRestore", wintypes.BOOL),
+        ("fIncUpdate", wintypes.BOOL),
+        ("rgbReserved", ctypes.c_char * 32),
+    ]
+
+
+HDC = wintypes.HANDLE
 
 
 # ============================================================================
@@ -413,6 +440,21 @@ user32.SetWindowPos.restype = wintypes.BOOL
 user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
 
+user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.GetWindowTextW.restype = ctypes.c_int
+
+user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.GetClassNameW.restype = ctypes.c_int
+
+user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+
+user32.BeginPaint.argtypes = [wintypes.HWND, ctypes.POINTER(PAINTSTRUCT)]
+user32.BeginPaint.restype = HDC
+
+user32.EndPaint.argtypes = [wintypes.HWND, ctypes.POINTER(PAINTSTRUCT)]
+user32.EndPaint.restype = wintypes.BOOL
+
 # Kernel Functions
 kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = HINSTANCE
@@ -422,6 +464,19 @@ kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
 kernel32.GetLastError.argtypes = []
 kernel32.GetLastError.restype = wintypes.DWORD
+
+kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+kernel32.OpenProcess.restype = wintypes.HANDLE
+
+kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+kernel32.CloseHandle.restype = wintypes.BOOL
+
+kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+
+# Process Access Rights
+PROCESS_QUERY_INFORMATION = 0x0400
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 kernel32.FormatMessageW.argtypes = [
     wintypes.DWORD,

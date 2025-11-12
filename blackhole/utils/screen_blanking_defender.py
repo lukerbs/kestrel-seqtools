@@ -6,8 +6,10 @@ Implements two-layer defense against screen blanking attacks:
 """
 
 import ctypes
+import os
 import threading
 import time
+import traceback
 from ctypes import wintypes
 
 from .config import (
@@ -30,6 +32,9 @@ from .win32_api import (
     WINEVENT_SKIPOWNPROCESS,
     WS_EX_TOPMOST,
     GWL_EXSTYLE,
+    WS_POPUP,
+    WS_CAPTION,
+    GWL_STYLE,
     HWND_NOTOPMOST,
     SWP_NOMOVE,
     SWP_NOSIZE,
@@ -39,6 +44,7 @@ from .win32_api import (
     MONITORINFO,
     MSG,
     WM_QUIT,
+    PROCESS_QUERY_LIMITED_INFORMATION,
 )
 
 
@@ -194,39 +200,49 @@ class OverlayDefender:
         WinEvent hook callback function.
         Called by Windows when EVENT_OBJECT_SHOW occurs.
         """
-        # Filter for the correct event type
-        if event != EVENT_OBJECT_SHOW or idObject != OBJID_WINDOW or idChild != CHILDID_SELF:
-            return
+        try:
+            # Filter for the correct event type
+            if event != EVENT_OBJECT_SHOW or idObject != OBJID_WINDOW or idChild != CHILDID_SELF:
+                return
 
-        # Validate HWND
-        if not user32.IsWindow(hwnd):
-            return
+            # Validate HWND
+            if not user32.IsWindow(hwnd):
+                return
 
-        # Check if window is topmost
-        ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-        if ex_style == 0:
-            return  # GetWindowLongPtrW failed
+            # Check if window is topmost
+            ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            if ex_style == 0:
+                return  # GetWindowLongPtrW failed
 
-        if not (ex_style & WS_EX_TOPMOST):
-            return  # Not a topmost window
+            if not (ex_style & WS_EX_TOPMOST):
+                return  # Not a topmost window
 
-        # Check if window is full-screen
-        if not self._is_fullscreen_topmost(hwnd):
-            return
+            # Check if window is full-screen
+            if not self._is_fullscreen_topmost(hwnd):
+                return
 
-        # Overlay detected - neutralize it
-        self.stats["overlays_detected"] += 1
-        self._log(f"[OVERLAY] Full-screen topmost overlay detected (HWND: {hwnd})")
+            # Additional filtering: Check if this is likely a screen blanking overlay
+            # vs. a legitimate maximized window (e.g., PowerShell, browser, etc.)
+            if not self._is_screen_blanking_overlay(hwnd):
+                return  # Not a screen blanking overlay, skip
 
-        if self._neutralize_overlay(hwnd):
-            self.stats["overlays_neutralized"] += 1
-            self._log(f"[OVERLAY] Overlay neutralized successfully")
+            # Overlay detected - neutralize it
+            self.stats["overlays_detected"] += 1
+            self._log(f"[OVERLAY] Full-screen topmost overlay detected (HWND: {hwnd})")
 
-            # Notify operator
-            if SCREEN_BLANKING_NOTIFICATION_ENABLED:
-                self._notify_operator()
-        else:
-            self._log(f"[OVERLAY] WARNING: Failed to neutralize overlay")
+            if self._neutralize_overlay(hwnd):
+                self.stats["overlays_neutralized"] += 1
+                self._log(f"[OVERLAY] Overlay neutralized successfully")
+
+                # Notify operator
+                if SCREEN_BLANKING_NOTIFICATION_ENABLED:
+                    self._notify_operator()
+            else:
+                self._log(f"[OVERLAY] WARNING: Failed to neutralize overlay")
+        except Exception as e:
+            # Log full traceback for callback errors
+            self._log(f"[OVERLAY] ERROR in _win_event_callback: {e}")
+            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
 
     def _is_fullscreen_topmost(self, hwnd):
         """
@@ -264,6 +280,105 @@ class OverlayDefender:
 
         except Exception as e:
             self._log(f"[OVERLAY] Error checking full-screen: {e}")
+            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            return False
+
+    def _is_screen_blanking_overlay(self, hwnd):
+        """
+        Determine if a window is likely a screen blanking overlay.
+        
+        Screen blanking overlays have these characteristics:
+        - Borderless (WS_POPUP, no WS_CAPTION)
+        - Blank or generic window title
+        - From RDP tool processes (optional check)
+        - No visible UI elements
+        
+        Legitimate maximized windows (PowerShell, browsers, etc.) have:
+        - Title bar (WS_CAPTION)
+        - Window controls (minimize, maximize, close)
+        - Meaningful window titles
+        
+        Args:
+            hwnd: Window handle
+            
+        Returns:
+            bool: True if likely a screen blanking overlay
+        """
+        try:
+            # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
+            style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
+            if style == 0:
+                return False  # Failed to get style
+            
+            # Legitimate windows have WS_CAPTION (title bar)
+            # Screen blanking overlays are WS_POPUP (borderless, no caption)
+            has_caption = bool(style & WS_CAPTION)
+            is_popup = bool(style & WS_POPUP)
+            
+            # If it has a caption bar, it's a legitimate window (PowerShell, browser, etc.)
+            if has_caption:
+                return False  # Not a screen blanking overlay
+            
+            # Must be popup style (borderless) to be considered
+            if not is_popup:
+                return False  # Not borderless, likely legitimate
+            
+            # Check 2: Window title - blank or very generic
+            title_buffer = ctypes.create_unicode_buffer(256)
+            title_length = user32.GetWindowTextW(hwnd, title_buffer, 256)
+            window_title = title_buffer.value if title_length > 0 else ""
+            
+            # Check 3: Window class name
+            class_buffer = ctypes.create_unicode_buffer(256)
+            class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
+            window_class = class_buffer.value if class_length > 0 else ""
+            
+            # Check 4: Process name (optional - helps identify RDP tools)
+            process_id = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
+            
+            if process_id.value:
+                try:
+                    h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id.value)
+                    if h_process:
+                        try:
+                            exe_path = ctypes.create_unicode_buffer(260)
+                            size = wintypes.DWORD(260)
+                            if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
+                                exe_name = os.path.basename(exe_path.value).lower()
+                                # Known RDP tools that might create overlays
+                                rdp_tools = ['anydesk.exe', 'teamviewer.exe', 'teamviewer_service.exe',
+                                            'ultraviewer.exe', 'ultraviewer_service.exe',
+                                            'rustdesk.exe', 'parsec.exe', 'logmein.exe',
+                                            'gotomeeting.exe', 'gotomypc.exe']
+                                if any(tool in exe_name for tool in rdp_tools):
+                                    # More likely to be a screen blanking overlay from RDP tool
+                                    return True
+                        finally:
+                            kernel32.CloseHandle(h_process)
+                except Exception:
+                    pass  # If we can't check process, continue with other filters
+            
+            # If we get here, it's a borderless popup window
+            # This could be a screen blanking overlay, but we need to be cautious
+            # Only flag if title is blank or very generic
+            if not window_title or len(window_title.strip()) == 0:
+                # Blank title + borderless + full-screen + topmost = likely overlay
+                return True
+            
+            # Generic titles that might indicate overlays
+            generic_titles = ['', 'window', 'overlay', 'blank']
+            if window_title.lower().strip() in generic_titles:
+                return True
+            
+            # If it has a meaningful title, it's probably not a screen blanking overlay
+            # (even if borderless, it might be a legitimate full-screen app)
+            return False
+
+        except Exception as e:
+            self._log(f"[OVERLAY] Error checking if screen blanking overlay: {e}")
+            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
+            # On error, be conservative - don't neutralize
             return False
 
     def _neutralize_overlay(self, hwnd):
@@ -292,6 +407,7 @@ class OverlayDefender:
 
         except Exception as e:
             self._log(f"[OVERLAY] Error neutralizing overlay: {e}")
+            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
             return False
 
     def _notify_operator(self):
@@ -315,8 +431,9 @@ class OverlayDefender:
         except ImportError:
             self._log(f"[NOTIFICATION] WARNING: win10toast not available")
         except Exception as e:
-            # Silent failure - don't break service if notification fails
+            # Log full traceback for notification errors (including win10toast WNDPROC issues)
             self._log(f"[NOTIFICATION] Error: {e}")
+            self._log(f"[NOTIFICATION] Full traceback:\n{traceback.format_exc()}")
 
     def _hook_thread_func(self):
         """
@@ -368,6 +485,7 @@ class OverlayDefender:
 
         except Exception as e:
             self._log(f"[OVERLAY] Error in hook thread: {e}")
+            self._log(f"[OVERLAY] Full traceback:\n{traceback.format_exc()}")
 
         finally:
             # Cleanup hook
