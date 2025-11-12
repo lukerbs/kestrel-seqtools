@@ -40,27 +40,27 @@ parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
 try:
-from utils.win32_api import (
-    user32,
-    kernel32,
-    HINSTANCE,
-    wintypes,
-    WNDPROC,
-    WNDCLASSEXW,
-    RECT,
-    LRESULT,
-    WPARAM,
-    LPARAM,
-    WS_EX_TOPMOST,
-    WM_DESTROY,
-    WM_QUIT,
-    WM_PAINT,
-    PAINTSTRUCT,
-    HWND_NOTOPMOST,
-    SWP_NOMOVE,
-    SWP_NOSIZE,
-    SWP_NOACTIVATE,
-)
+    from utils.win32_api import (
+        user32,
+        kernel32,
+        HINSTANCE,
+        wintypes,
+        WNDPROC,
+        WNDCLASSEXW,
+        RECT,
+        LRESULT,
+        WPARAM,
+        LPARAM,
+        WS_EX_TOPMOST,
+        WM_DESTROY,
+        WM_QUIT,
+        WM_PAINT,
+        PAINTSTRUCT,
+        HWND_NOTOPMOST,
+        SWP_NOMOVE,
+        SWP_NOSIZE,
+        SWP_NOACTIVATE,
+    )
 except ImportError:
     print("ERROR: Could not import win32_api. Make sure you're running from the blackhole directory.")
     sys.exit(1)
