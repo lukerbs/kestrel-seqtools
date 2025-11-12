@@ -515,7 +515,7 @@ kernel32.FormatMessageW.restype = wintypes.DWORD
 # COM Initialization
 ole32 = ctypes.windll.ole32
 ole32.CoInitialize.argtypes = [ctypes.c_void_p]
-ole32.CoInitialize.restype = wintypes.HRESULT
+ole32.CoInitialize.restype = wintypes.LONG  # HRESULT is a 32-bit signed integer
 ole32.CoUninitialize.argtypes = []
 ole32.CoUninitialize.restype = None
 
