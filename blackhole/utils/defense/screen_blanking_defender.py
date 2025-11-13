@@ -195,9 +195,16 @@ class OverlayDefender:
         self._wnd_proc_ref = None  # Prevent GC of WNDPROC callback
         self._helper_class_name = "BlackholeHelperWindow"
         
-        # Custom window messages
+        # Track windows for duration-based filtering
+        self._tracked_windows = {}  # HWND -> first_detection_timestamp
+        self._tracking_lock = threading.Lock()
+                # Custom window messages
         self.WM_APP_NEUTRALIZE = WM_APP + 0x0001
         self.WM_APP_VERIFY = WM_APP + 0x0002
+        self.WM_APP_PERSISTENCE_CHECK = WM_APP + 0x0003
+        
+        # Duration threshold (seconds) - windows must remain suspicious for this long
+        self.PERSISTENCE_THRESHOLD = 1.0
 
         # Statistics
         self.stats = {
@@ -228,6 +235,16 @@ class OverlayDefender:
                     args=(overlay_hwnd,),
                     daemon=True,
                     name="NeutralizationVerifier"
+                ).start()
+                return 0
+
+            if msg == self.WM_APP_PERSISTENCE_CHECK:
+                overlay_hwnd = lParam
+                threading.Thread(
+                    target=self._verify_overlay_persistence,
+                    args=(overlay_hwnd,),
+                    daemon=True,
+                    name="OverlayPersistenceCheck"
                 ).start()
                 return 0
 
@@ -370,19 +387,30 @@ class OverlayDefender:
             if not self._is_screen_blanking_overlay(hwnd):
                 return  # Not a screen blanking overlay, skip
 
-            # Overlay detected - post message for thread-safe neutralization
-            self.stats["overlays_detected"] += 1
-            self._log(f"[SCREEN BLANK] Full-screen topmost overlay detected (HWND: {hwnd})")
+            # CRITICAL: Only neutralize visible windows - invisible windows can't blank the screen
+            # If window is invisible, log it but don't neutralize
+            if not user32.IsWindowVisible(hwnd):
+                self._log(f"[SCREEN BLANK] Invisible full-screen window detected (HWND: {hwnd}, Title: '{window_title}', Class: '{window_class}') - not neutralizing")
+                return  # Don't neutralize invisible windows
 
-            # Post message to helper window instead of directly calling neutralization
+            # Check if we're already tracking this window
+            with self._tracking_lock:
+                if hwnd in self._tracked_windows:
+                    return  # Already tracking, ignore duplicate detection
+                
+                # Record first detection time
+                self._tracked_windows[hwnd] = time.time()
+
+            # Schedule delayed persistence check instead of immediate neutralization
             if self._helper_hwnd:
-                if user32.PostMessageW(self._helper_hwnd, self.WM_APP_NEUTRALIZE, 0, hwnd):
-                    self._log(f"[SCREEN BLANK] Overlay detected, neutralization request posted (HWND: {hwnd})")
-                else:
+                if not user32.PostMessageW(self._helper_hwnd, self.WM_APP_PERSISTENCE_CHECK, 0, hwnd):
                     error_code = kernel32.GetLastError()
-                    self._log(f"[SCREEN BLANK] WARNING: Failed to post neutralization message. Error: {error_code}")
+                    self._log(f"[SCREEN BLANK] WARNING: Failed to schedule persistence check. Error: {error_code}")
+                    with self._tracking_lock:
+                        self._tracked_windows.pop(hwnd, None)
             else:
-                self._log(f"[SCREEN BLANK] WARNING: Helper window not available, cannot neutralize overlay")
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
         except Exception as e:
             # Log full traceback for callback errors
             self._log(f"[SCREEN BLANK] ERROR in _win_event_callback: {e}")
@@ -548,6 +576,67 @@ class OverlayDefender:
             self._log(f"[SCREEN BLANK] Error neutralizing overlay: {e}")
             self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
             return False
+
+    def _verify_overlay_persistence(self, hwnd):
+        """
+        Verify that an overlay window persists for the required duration before neutralizing.
+        Filters out brief transitions and animations.
+        """
+        try:
+            # Wait for the persistence threshold
+            time.sleep(self.PERSISTENCE_THRESHOLD)
+            
+            # Check if window still exists
+            if not user32.IsWindow(hwnd):
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
+                return  # Window no longer exists
+            
+            # Re-verify all criteria silently
+            if not user32.IsWindowVisible(hwnd):
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
+                return
+            
+            ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            if ex_style == 0 or not (ex_style & WS_EX_TOPMOST):
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
+                return
+            
+            if not self._is_fullscreen_topmost(hwnd):
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
+                return
+            
+            if not self._is_screen_blanking_overlay(hwnd):
+                with self._tracking_lock:
+                    self._tracked_windows.pop(hwnd, None)
+                return
+            
+            # Window has persisted - this is a real threat
+            with self._tracking_lock:
+                first_detected = self._tracked_windows.pop(hwnd, None)
+            
+            if first_detected:
+                duration = time.time() - first_detected
+                self._log(f"[SCREEN BLANK] Overlay persisted for {duration:.2f}s - neutralizing (HWND: {hwnd})")
+            
+            self.stats["overlays_detected"] += 1
+            
+            # Post neutralization message
+            if self._helper_hwnd:
+                if user32.PostMessageW(self._helper_hwnd, self.WM_APP_NEUTRALIZE, 0, hwnd):
+                    self._log(f"[SCREEN BLANK] Neutralization request posted (HWND: {hwnd})")
+                else:
+                    error_code = kernel32.GetLastError()
+                    self._log(f"[SCREEN BLANK] WARNING: Failed to post neutralization message. Error: {error_code}")
+            
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] ERROR in _verify_overlay_persistence: {e}")
+            self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
+            with self._tracking_lock:
+                self._tracked_windows.pop(hwnd, None)
 
     def _verify_neutralization(self, hwnd):
         """
