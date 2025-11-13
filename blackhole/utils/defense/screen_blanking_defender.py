@@ -7,6 +7,7 @@ Implements two-layer defense against screen blanking attacks:
 
 import ctypes
 import os
+import subprocess
 import threading
 import time
 import traceback
@@ -454,6 +455,47 @@ class OverlayDefender:
         except Exception:
             return (None, None)
 
+    def _is_microsoft_signed(self, exe_path):
+        """
+        Check if an executable is digitally signed by Microsoft Corporation.
+        This is the FIRST and most reliable check to filter out legitimate Windows components.
+        
+        Args:
+            exe_path: Full path to the executable
+            
+        Returns:
+            bool: True if signed by Microsoft, False otherwise
+        """
+        if not exe_path:
+            return False
+        
+        try:
+            cmd = [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                f"(Get-AuthenticodeSignature '{exe_path}').SignerCertificate.Subject",
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=0.5,  # Short timeout to avoid blocking
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            
+            if result.returncode == 0:
+                subject = result.stdout.strip()
+                if "Microsoft Corporation" in subject or "Microsoft Windows" in subject:
+                    return True
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, Exception):
+            # On any error, assume not Microsoft-signed (fail secure)
+            pass
+        
+        return False
+
     def _is_fullscreen_topmost(self, hwnd):
         """
         Check if a window is full-screen (covers entire monitor).
@@ -515,6 +557,24 @@ class OverlayDefender:
             bool: True if likely a screen blanking overlay
         """
         try:
+            # CHECK 0: Microsoft signature verification (FIRST CHECK - most reliable)
+            # If the process is Microsoft-signed, it's a legitimate Windows component
+            # This eliminates false positives from explorer.exe and other shell components
+            process_id = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
+            
+            if not process_id.value:
+                # Can't get process info, continue with other checks
+                exe_path = None
+                exe_name = None
+            else:
+                # Get process executable path
+                exe_path, exe_name = self._get_window_process_info(hwnd)
+                
+                # FIRST CHECK: Is this Microsoft-signed?
+                if exe_path and self._is_microsoft_signed(exe_path):
+                    return False  # Microsoft-signed = legitimate Windows component, not a screen blanking overlay
+            
             # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
             style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
             if style == 0:
@@ -544,31 +604,16 @@ class OverlayDefender:
             window_class = class_buffer.value if class_length > 0 else ""
             
             # Check 4: Process name (optional - helps identify RDP tools)
-            process_id = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
-            
-            exe_name = None
-            if process_id.value:
-                try:
-                    h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id.value)
-                    if h_process:
-                        try:
-                            exe_path = ctypes.create_unicode_buffer(260)
-                            size = wintypes.DWORD(260)
-                            if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
-                                exe_name = os.path.basename(exe_path.value).lower()
-                                # Known RDP tools that might create overlays
-                                rdp_tools = ['anydesk.exe', 'teamviewer.exe', 'teamviewer_service.exe',
-                                            'ultraviewer.exe', 'ultraviewer_service.exe',
-                                            'rustdesk.exe', 'parsec.exe', 'logmein.exe',
-                                            'gotomeeting.exe', 'gotomypc.exe']
-                                if any(tool in exe_name for tool in rdp_tools):
-                                    # More likely to be a screen blanking overlay from RDP tool
-                                    return True
-                        finally:
-                            kernel32.CloseHandle(h_process)
-                except Exception as e:
-                    pass  # If we can't check process, continue with other filters
+            # Use process info we already got from the signature check above
+            if exe_name:
+                # Known RDP tools that might create overlays
+                rdp_tools = ['anydesk.exe', 'teamviewer.exe', 'teamviewer_service.exe',
+                            'ultraviewer.exe', 'ultraviewer_service.exe',
+                            'rustdesk.exe', 'parsec.exe', 'logmein.exe',
+                            'gotomeeting.exe', 'gotomypc.exe']
+                if any(tool in exe_name for tool in rdp_tools):
+                    # More likely to be a screen blanking overlay from RDP tool
+                    return True
             
             # If we get here, it's a borderless popup window that is full-screen and topmost
             # This is HIGHLY suspicious - screen blanking overlays can have any title (or no title)
