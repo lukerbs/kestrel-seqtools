@@ -7,8 +7,8 @@ import ctypes
 from ctypes import wintypes
 import threading
 
-from .config import MAGIC_TAG
-from .win32_api import (
+from ..config import MAGIC_TAG
+from ..system.win32_api import (
     user32,
     kernel32,
     HOOKPROC,

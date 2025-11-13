@@ -6,7 +6,7 @@ import frida
 import sys
 import os
 
-from .config import MAGIC_TAG
+from ..config import MAGIC_TAG
 
 
 def _load_frida_script():
@@ -19,10 +19,11 @@ def _load_frida_script():
     # Check if running as a PyInstaller bundle
     if getattr(sys, "frozen", False):
         # Running as compiled executable - use PyInstaller's _MEIPASS
-        script_dir = os.path.join(sys._MEIPASS, "utils")
+        script_dir = os.path.join(sys._MEIPASS, "utils", "scripts")
     else:
         # Running as .py script - use the directory where this file is located
-        script_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up two levels (core -> utils) then into scripts
+        script_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
 
     script_path = os.path.join(script_dir, "frida_hook.js")
 

@@ -40,7 +40,7 @@ parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
 try:
-    from utils.win32_api import (
+    from utils.system.win32_api import (
         user32,
         kernel32,
         HINSTANCE,

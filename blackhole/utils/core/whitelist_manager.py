@@ -15,7 +15,7 @@ from datetime import datetime
 import psutil
 from tqdm import tqdm
 
-from utils.config import BASELINE_SCAN_DIRECTORIES, BASELINE_SKIP_DIRS
+from ..config import BASELINE_SCAN_DIRECTORIES, BASELINE_SKIP_DIRS
 
 
 class WhitelistManager:

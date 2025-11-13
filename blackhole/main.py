@@ -46,23 +46,23 @@ from utils.config import (
     DRIVER_BLOCK_ENABLED,
     OVERLAY_NEUTRALIZATION_ENABLED,
 )
-from utils.gatekeeper import InputGatekeeper
-from utils.process_monitor import ProcessMonitor
-from utils.api_hooker import APIHooker
-from utils.hotkeys import HotkeyListener
-from utils.notifications import show_driver_error
-from utils.log_monitor import LogMonitor
-from utils.connection_correlator import ConnectionCorrelator
-from utils.anydesk_controller import AnyDeskController
-from utils.user_initiated_popup import UserInitiatedPopup
-from utils.c2_client import C2Client
-from utils.whitelist_manager import WhitelistManager
-from utils.process_decision_popup import (
+from utils.core.gatekeeper import InputGatekeeper
+from utils.core.process_monitor import ProcessMonitor
+from utils.core.api_hooker import APIHooker
+from utils.core.whitelist_manager import WhitelistManager
+from utils.system.hotkeys import HotkeyListener
+from utils.ui.notifications import show_driver_error
+from utils.reverse_connection.log_monitor import LogMonitor
+from utils.reverse_connection.connection_correlator import ConnectionCorrelator
+from utils.reverse_connection.anydesk_controller import AnyDeskController
+from utils.reverse_connection.c2_client import C2Client
+from utils.ui.user_initiated_popup import UserInitiatedPopup
+from utils.ui.process_decision_popup import (
     show_process_decision_popup,
     show_hash_mismatch_popup,
     show_imposter_alert,
 )
-from utils.screen_blanking_defender import (
+from utils.defense.screen_blanking_defender import (
     apply_driver_block_registry,
     OverlayDefender,
 )

@@ -12,7 +12,7 @@ import time
 import traceback
 from ctypes import wintypes
 
-from .config import (
+from ..config import (
     DRIVER_BLOCK_ENABLED,
     DRIVER_BLOCK_HARDWARE_IDS,
     OVERLAY_NEUTRALIZATION_ENABLED,
@@ -21,7 +21,7 @@ from .config import (
     SCREEN_BLANKING_NOTIFICATION_MESSAGE,
     SCREEN_BLANKING_NOTIFICATION_DURATION,
 )
-from .win32_api import (
+from ..system.win32_api import (
     user32,
     kernel32,
     ole32,

@@ -6,7 +6,7 @@ import psutil
 import time
 import threading
 
-from .config import PROCESS_SCAN_INTERVAL
+from ..config import PROCESS_SCAN_INTERVAL
 
 
 class ProcessMonitor:

