@@ -100,20 +100,19 @@ def _ensure_popup_thread():
 
 def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     """
-    Show the fake Microsoft Defender dialog (called from popup worker thread).
+    Show the fake Microsoft Defender SmartScreen dialog (called from popup worker thread).
 
-    Three button options:
-    - "Install & Restart" -> Whitelist (scammer won't click - takes too long)
-    - "Postpone" -> Blacklist (scammer WILL click this)
-    - "Learn more" -> Kill process + Delete exe (you can quickly click this)
+    Button options (inverse button mapping):
+    - "Run anyway" (primary) -> Blacklist (scammer clicks this, thinking it runs the app - but blocks their input)
+    - "Don't run" (secondary) -> Whitelist (scammer won't click - allows legitimate apps)
+    - "More info" -> Kill process + Delete exe (you can quickly click this to nuke malware)
     """
     log = log_func if log_func else lambda msg, **kwargs: None
 
     # Create custom dialog window (not using messagebox)
     dialog = tk.Toplevel(root)
-    dialog.title("Microsoft Defender")
-    # Increased height to ensure buttons are visible (was 380, now 450)
-    dialog.geometry("520x450")
+    dialog.title("Windows Security")
+    dialog.geometry("500x320")
     dialog.resizable(False, False)
 
     # Set window icon to defender.ico
@@ -129,9 +128,9 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
 
     # Center on screen
     dialog.update_idletasks()
-    x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
-    y = (dialog.winfo_screenheight() // 2) - (450 // 2)
-    dialog.geometry(f"520x450+{x}+{y}")
+    x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+    y = (dialog.winfo_screenheight() // 2) - (320 // 2)
+    dialog.geometry(f"500x320+{x}+{y}")
 
     # Make it always on top
     dialog.attributes("-topmost", True)
@@ -140,22 +139,22 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     # Result storage
     result = {"decision": None}
 
-    def on_install():
-        """Install & Restart button -> Whitelist"""
-        result["decision"] = "whitelist"
-        log(f"[POPUP] User clicked 'Install & Restart' - whitelisting {process_name}")
-        dialog.destroy()
-
-    def on_postpone():
-        """Postpone button -> Blacklist"""
+    def on_run_anyway():
+        """Run anyway button -> Blacklist (blocks scammer input)"""
         result["decision"] = "blacklist"
-        log(f"[POPUP] User clicked 'Postpone' - blacklisting {process_name}")
+        log(f"[POPUP] User clicked 'Run anyway' - blacklisting {process_name}")
         dialog.destroy()
 
-    def on_learn_more():
-        """Learn more button -> Kill process + Delete exe"""
+    def on_dont_run():
+        """Don't run button -> Whitelist (allows legitimate apps)"""
+        result["decision"] = "whitelist"
+        log(f"[POPUP] User clicked 'Don't run' - whitelisting {process_name}")
+        dialog.destroy()
+
+    def on_more_info():
+        """More info button -> Kill process + Delete exe"""
         result["decision"] = "kill_and_delete"
-        log(f"[POPUP] User clicked 'Learn more' - killing and deleting {process_name}")
+        log(f"[POPUP] User clicked 'More info' - killing and deleting {process_name}")
 
         # Kill all instances of this process
         try:
@@ -191,16 +190,29 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
     content_frame = tk.Frame(dialog, bg="#f0f0f0")
     content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-    # Title
+    # Main title
     title_label = tk.Label(
         content_frame,
-        text="Microsoft Defender has detected a potential security concern with this application.",
-        font=("Segoe UI", 10),
+        text="Windows protected your PC",
+        font=("Segoe UI", 11, "bold"),
         bg="#f0f0f0",
-        wraplength=480,
+        fg="#1a1a1a",
+        wraplength=460,
         justify=tk.LEFT,
     )
-    title_label.pack(anchor=tk.W, pady=(0, 15))
+    title_label.pack(anchor=tk.W, pady=(0, 10))
+
+    # Main message
+    message_label = tk.Label(
+        content_frame,
+        text="Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.",
+        font=("Segoe UI", 9),
+        bg="#f0f0f0",
+        fg="#333333",
+        wraplength=460,
+        justify=tk.LEFT,
+    )
+    message_label.pack(anchor=tk.W, pady=(0, 15))
 
     # Application info
     app_info = tk.Label(
@@ -209,89 +221,61 @@ def _show_decision_dialog(root, process_name, exe_path, callback, log_func):
         font=("Segoe UI", 9),
         bg="#f0f0f0",
         fg="#333333",
-        wraplength=480,
+        wraplength=460,
         justify=tk.LEFT,
     )
-    app_info.pack(anchor=tk.W, pady=(0, 15))
-
-    # Explanation
-    explanation = tk.Label(
-        content_frame,
-        text="This application requires additional security verification. Microsoft Defender\n"
-        "needs to perform a system scan and update security definitions to ensure\n"
-        "this application is safe to run.\n\n"
-        "Without this security update, the application may be blocked for your protection.",
-        font=("Segoe UI", 9),
-        bg="#f0f0f0",
-        wraplength=480,
-        justify=tk.LEFT,
-    )
-    explanation.pack(anchor=tk.W, pady=(0, 15))
-
-    # Update details
-    update_details = tk.Label(
-        content_frame,
-        text="Microsoft Defender Security Update\n"
-        "Update size: 15.5 GB\n"
-        "Estimated time: 3h 46m\n"
-        "Your PC will restart to complete installation.",
-        font=("Segoe UI", 9, "bold"),
-        bg="#f0f0f0",
-        wraplength=480,
-        justify=tk.LEFT,
-    )
-    update_details.pack(anchor=tk.W, pady=(0, 20))
+    app_info.pack(anchor=tk.W, pady=(0, 20))
 
     # Buttons frame
     button_frame = tk.Frame(dialog, bg="#f0f0f0")
     button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
 
-    # "Learn more" button (left side)
-    learn_more_btn = tk.Button(
+    # "More info" button (left side)
+    more_info_btn = tk.Button(
         button_frame,
-        text="Learn more",
-        command=on_learn_more,
+        text="More info",
+        command=on_more_info,
         font=("Segoe UI", 9),
-        width=15,
+        width=12,
         relief=tk.FLAT,
         bg="#e1e1e1",
         activebackground="#d0d0d0",
     )
-    learn_more_btn.pack(side=tk.LEFT)
+    more_info_btn.pack(side=tk.LEFT)
 
     # Spacer
     tk.Frame(button_frame, bg="#f0f0f0").pack(side=tk.LEFT, expand=True)
 
-    # "Postpone" button (right side)
-    postpone_btn = tk.Button(
+    # "Don't run" button (right side, secondary)
+    dont_run_btn = tk.Button(
         button_frame,
-        text="Postpone",
-        command=on_postpone,
+        text="Don't run",
+        command=on_dont_run,
         font=("Segoe UI", 9),
-        width=15,
+        width=12,
         relief=tk.FLAT,
         bg="#e1e1e1",
         activebackground="#d0d0d0",
     )
-    postpone_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    dont_run_btn.pack(side=tk.RIGHT, padx=(5, 0))
 
-    # "Install & Restart" button (right side, primary)
-    install_btn = tk.Button(
+    # "Run anyway" button (right side, primary - blue)
+    run_anyway_btn = tk.Button(
         button_frame,
-        text="Install & Restart",
-        command=on_install,
+        text="Run anyway",
+        command=on_run_anyway,
         font=("Segoe UI", 9),
-        width=15,
+        width=12,
         relief=tk.FLAT,
         bg="#0078d4",
         fg="white",
         activebackground="#005a9e",
         activeforeground="white",
     )
-    install_btn.pack(side=tk.RIGHT)
+    run_anyway_btn.pack(side=tk.RIGHT)
 
-    # Handle window close (treat as postpone)
-    dialog.protocol("WM_DELETE_WINDOW", on_postpone)
+    # Handle window close (treat as "Don't run" - safer default)
+    dialog.protocol("WM_DELETE_WINDOW", on_dont_run)
 
     # Wait for dialog to close
     dialog.wait_window()
