@@ -390,7 +390,11 @@ class OverlayDefender:
             # CRITICAL: Only neutralize visible windows - invisible windows can't blank the screen
             # If window is invisible, log it but don't neutralize
             if not user32.IsWindowVisible(hwnd):
-                self._log(f"[SCREEN BLANK] Invisible full-screen window detected (HWND: {hwnd}, Title: '{window_title}', Class: '{window_class}') - not neutralizing")
+                exe_path, exe_name = self._get_window_process_info(hwnd)
+                if exe_path:
+                    self._log(f"[SCREEN BLANK] Invisible full-screen window detected (HWND: {hwnd}, Process: {exe_name}, Path: {exe_path}, Title: '{window_title}', Class: '{window_class}') - not neutralizing")
+                else:
+                    self._log(f"[SCREEN BLANK] Invisible full-screen window detected (HWND: {hwnd}, Title: '{window_title}', Class: '{window_class}') - unable to get process info - not neutralizing")
                 return  # Don't neutralize invisible windows
 
             # Check if we're already tracking this window
@@ -415,6 +419,40 @@ class OverlayDefender:
             # Log full traceback for callback errors
             self._log(f"[SCREEN BLANK] ERROR in _win_event_callback: {e}")
             self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
+
+    def _get_window_process_info(self, hwnd):
+        """
+        Get process information for a window handle.
+        
+        Args:
+            hwnd: Window handle
+            
+        Returns:
+            tuple: (exe_path, exe_name) or (None, None) if unable to get info
+        """
+        try:
+            process_id = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
+            
+            if not process_id.value:
+                return (None, None)
+            
+            h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id.value)
+            if not h_process:
+                return (None, None)
+            
+            try:
+                exe_path = ctypes.create_unicode_buffer(260)
+                size = wintypes.DWORD(260)
+                if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
+                    full_path = exe_path.value
+                    exe_name = os.path.basename(full_path)
+                    return (full_path, exe_name)
+                return (None, None)
+            finally:
+                kernel32.CloseHandle(h_process)
+        except Exception:
+            return (None, None)
 
     def _is_fullscreen_topmost(self, hwnd):
         """
@@ -618,9 +656,15 @@ class OverlayDefender:
             with self._tracking_lock:
                 first_detected = self._tracked_windows.pop(hwnd, None)
             
+            # Get process info for logging
+            exe_path, exe_name = self._get_window_process_info(hwnd)
+            
             if first_detected:
                 duration = time.time() - first_detected
-                self._log(f"[SCREEN BLANK] Overlay persisted for {duration:.2f}s - neutralizing (HWND: {hwnd})")
+                if exe_path:
+                    self._log(f"[SCREEN BLANK] Overlay persisted for {duration:.2f}s - neutralizing (HWND: {hwnd}, Process: {exe_name}, Path: {exe_path})")
+                else:
+                    self._log(f"[SCREEN BLANK] Overlay persisted for {duration:.2f}s - neutralizing (HWND: {hwnd}) - unable to get process info")
             
             self.stats["overlays_detected"] += 1
             
