@@ -249,11 +249,21 @@ class OverlayDefender:
                 ).start()
                 return 0
 
-            return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+            # Ensure wParam and lParam are valid integers (handle None case)
+            safe_wParam = wParam if wParam is not None else 0
+            safe_lParam = lParam if lParam is not None else 0
+            return user32.DefWindowProcW(hwnd, msg, safe_wParam, safe_lParam)
         except Exception as e:
             self._log(f"[SCREEN BLANK] ERROR in _wnd_proc_callback: {e}")
             self._log(f"[SCREEN BLANK] Full traceback:\n{traceback.format_exc()}")
-            return user32.DefWindowProcW(hwnd, msg, wParam, lParam)
+            # Ensure wParam and lParam are valid integers (handle None case)
+            safe_wParam = wParam if wParam is not None else 0
+            safe_lParam = lParam if lParam is not None else 0
+            try:
+                return user32.DefWindowProcW(hwnd, msg, safe_wParam, safe_lParam)
+            except Exception:
+                # Last resort: return 0 if DefWindowProcW also fails
+                return 0
 
     def _create_helper_window(self):
         """
@@ -473,9 +483,11 @@ class OverlayDefender:
             bool: True if signed by Microsoft, False otherwise
         """
         if not exe_path:
+            self._log(f"[SCREEN BLANK] Signature check: No exe_path provided")
             return False
         
         try:
+            self._log(f"[SCREEN BLANK] Checking Microsoft signature for: {exe_path}")
             cmd = [
                 "powershell.exe",
                 "-NoProfile",
@@ -488,17 +500,27 @@ class OverlayDefender:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=0.5,  # Short timeout to avoid blocking
+                timeout=1.0,  # Increased timeout to 1 second
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
             
             if result.returncode == 0:
                 subject = result.stdout.strip()
+                self._log(f"[SCREEN BLANK] Signature check result for {os.path.basename(exe_path)}: Subject='{subject}'")
+                
                 if "Microsoft Corporation" in subject or "Microsoft Windows" in subject:
+                    self._log(f"[SCREEN BLANK] ✓ Microsoft-signed executable detected: {os.path.basename(exe_path)}")
                     return True
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, Exception):
-            # On any error, assume not Microsoft-signed (fail secure)
-            pass
+                else:
+                    self._log(f"[SCREEN BLANK] ✗ Not Microsoft-signed: {os.path.basename(exe_path)} (Subject: '{subject}')")
+            else:
+                self._log(f"[SCREEN BLANK] PowerShell signature check failed for {os.path.basename(exe_path)}: returncode={result.returncode}, stderr='{result.stderr.strip()}'")
+        except subprocess.TimeoutExpired:
+            self._log(f"[SCREEN BLANK] Signature check TIMEOUT for {os.path.basename(exe_path)} (PowerShell took >1s)")
+        except subprocess.SubprocessError as e:
+            self._log(f"[SCREEN BLANK] Signature check subprocess error for {os.path.basename(exe_path)}: {e}")
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] Signature check exception for {os.path.basename(exe_path)}: {e}")
         
         return False
 
@@ -580,10 +602,14 @@ class OverlayDefender:
                 
                 if not exe_path:
                     self._log(f"[SCREEN BLANK] Unable to get process executable path (HWND: {hwnd}, PID: {process_id.value}) - continuing with other checks")
-                
-                # FIRST CHECK: Is this Microsoft-signed?
-                if exe_path and self._is_microsoft_signed(exe_path):
-                    return False  # Microsoft-signed = legitimate Windows component, not a screen blanking overlay
+                else:
+                    # FIRST CHECK: Is this Microsoft-signed?
+                    self._log(f"[SCREEN BLANK] Running Microsoft signature check for window (HWND: {hwnd}, Process: {exe_name})")
+                    if self._is_microsoft_signed(exe_path):
+                        self._log(f"[SCREEN BLANK] ✓ Window filtered out: Microsoft-signed process (HWND: {hwnd}, Process: {exe_name})")
+                        return False  # Microsoft-signed = legitimate Windows component, not a screen blanking overlay
+                    else:
+                        self._log(f"[SCREEN BLANK] ✗ Not Microsoft-signed, continuing checks (HWND: {hwnd}, Process: {exe_name})")
             
             # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
             style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
