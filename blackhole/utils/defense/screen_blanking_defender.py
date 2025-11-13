@@ -353,31 +353,31 @@ class OverlayDefender:
             class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
             window_class = class_buffer.value if class_length > 0 else ""
             
-            self._log(f"[SCREEN BLANK_DEBUG] {event_name}: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
+            self._log(f"[SCREEN BLANK] {event_name}: HWND={hwnd}, Title='{window_title}', Class='{window_class}'")
 
             # Check if window is topmost
             ex_style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
             if ex_style == 0:
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: GetWindowLongPtrW failed (ex_style=0)")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: GetWindowLongPtrW failed (ex_style=0)")
                 return  # GetWindowLongPtrW failed
 
             if not (ex_style & WS_EX_TOPMOST):
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Not topmost (ex_style=0x{ex_style:x})")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Not topmost (ex_style=0x{ex_style:x})")
                 return  # Not a topmost window
 
-            self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Is topmost (ex_style=0x{ex_style:x})")
+            self._log(f"[SCREEN BLANK] HWND={hwnd}: Is topmost (ex_style=0x{ex_style:x})")
 
             # Check if window is full-screen
             if not self._is_fullscreen_topmost(hwnd):
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Not full-screen")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Not full-screen")
                 return
 
-            self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Is full-screen topmost")
+            self._log(f"[SCREEN BLANK] HWND={hwnd}: Is full-screen topmost")
 
             # Additional filtering: Check if this is likely a screen blanking overlay
             # vs. a legitimate maximized window (e.g., PowerShell, browser, etc.)
             if not self._is_screen_blanking_overlay(hwnd):
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Filtered out by _is_screen_blanking_overlay")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Filtered out by _is_screen_blanking_overlay")
                 return  # Not a screen blanking overlay, skip
 
             # Overlay detected - post message for thread-safe neutralization
@@ -412,7 +412,7 @@ class OverlayDefender:
             # Get window rectangle
             wnd_rect = RECT()
             if not user32.GetWindowRect(hwnd, ctypes.byref(wnd_rect)):
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: GetWindowRect failed")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: GetWindowRect failed")
                 return False
 
             # Get monitor information
@@ -421,7 +421,7 @@ class OverlayDefender:
             mon_info.cbSize = ctypes.sizeof(MONITORINFO)
 
             if not user32.GetMonitorInfoW(h_monitor, ctypes.byref(mon_info)):
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: GetMonitorInfoW failed")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: GetMonitorInfoW failed")
                 return False
 
             # Compare window rect to monitor rect
@@ -433,7 +433,7 @@ class OverlayDefender:
             )
 
             if not is_fullscreen:
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Not full-screen - Window: ({wnd_rect.left},{wnd_rect.top})-({wnd_rect.right},{wnd_rect.bottom}), Monitor: ({mon_info.rcMonitor.left},{mon_info.rcMonitor.top})-({mon_info.rcMonitor.right},{mon_info.rcMonitor.bottom})")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Not full-screen - Window: ({wnd_rect.left},{wnd_rect.top})-({wnd_rect.right},{wnd_rect.bottom}), Monitor: ({mon_info.rcMonitor.left},{mon_info.rcMonitor.top})-({mon_info.rcMonitor.right},{mon_info.rcMonitor.bottom})")
 
             return is_fullscreen
 
@@ -467,7 +467,7 @@ class OverlayDefender:
             # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
             style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
             if style == 0:
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: GetWindowLongPtrW(GWL_STYLE) failed (style=0)")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: GetWindowLongPtrW(GWL_STYLE) failed (style=0)")
                 return False  # Failed to get style
             
             # Legitimate windows have WS_CAPTION (title bar)
@@ -475,16 +475,16 @@ class OverlayDefender:
             has_caption = bool(style & WS_CAPTION)
             is_popup = bool(style & WS_POPUP)
             
-            self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Style check - style=0x{style:x}, has_caption={has_caption}, is_popup={is_popup}")
+            self._log(f"[SCREEN BLANK] HWND={hwnd}: Style check - style=0x{style:x}, has_caption={has_caption}, is_popup={is_popup}")
             
             # If it has a caption bar, it's a legitimate window (PowerShell, browser, etc.)
             if has_caption:
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Has caption bar - filtering out")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Has caption bar - filtering out")
                 return False  # Not a screen blanking overlay
             
             # Must be popup style (borderless) to be considered
             if not is_popup:
-                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Not WS_POPUP style - filtering out")
+                self._log(f"[SCREEN BLANK] HWND={hwnd}: Not WS_POPUP style - filtering out")
                 return False  # Not borderless, likely legitimate
             
             # Check 2: Window title - blank or very generic
@@ -497,7 +497,7 @@ class OverlayDefender:
             class_length = user32.GetClassNameW(hwnd, class_buffer, 256)
             window_class = class_buffer.value if class_length > 0 else ""
             
-            self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Title='{window_title}', Class='{window_class}'")
+            self._log(f"[SCREEN BLANK] HWND={hwnd}: Title='{window_title}', Class='{window_class}'")
             
             # Check 4: Process name (optional - helps identify RDP tools)
             process_id = wintypes.DWORD()
@@ -513,7 +513,7 @@ class OverlayDefender:
                             size = wintypes.DWORD(260)
                             if kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
                                 exe_name = os.path.basename(exe_path.value).lower()
-                                self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Process: {exe_name} (PID: {process_id.value})")
+                                self._log(f"[SCREEN BLANK] HWND={hwnd}: Process: {exe_name} (PID: {process_id.value})")
                                 # Known RDP tools that might create overlays
                                 rdp_tools = ['anydesk.exe', 'teamviewer.exe', 'teamviewer_service.exe',
                                             'ultraviewer.exe', 'ultraviewer_service.exe',
@@ -521,19 +521,19 @@ class OverlayDefender:
                                             'gotomeeting.exe', 'gotomypc.exe']
                                 if any(tool in exe_name for tool in rdp_tools):
                                     # More likely to be a screen blanking overlay from RDP tool
-                                    self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Matched RDP tool process - returning True")
+                                    self._log(f"[SCREEN BLANK] HWND={hwnd}: Matched RDP tool process - returning True")
                                     return True
                         finally:
                             kernel32.CloseHandle(h_process)
                 except Exception as e:
-                    self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Error checking process: {e}")
+                    self._log(f"[SCREEN BLANK] HWND={hwnd}: Error checking process: {e}")
                     pass  # If we can't check process, continue with other filters
             
             # If we get here, it's a borderless popup window that is full-screen and topmost
             # This is HIGHLY suspicious - screen blanking overlays can have any title (or no title)
             # The title doesn't matter because the user can't see it anyway when the screen is blanked
             # A borderless + full-screen + topmost window is inherently a screen blanking overlay
-            self._log(f"[SCREEN BLANK_DEBUG] HWND={hwnd}: Borderless + full-screen + topmost detected - treating as overlay (title: '{window_title}')")
+            self._log(f"[SCREEN BLANK] HWND={hwnd}: Borderless + full-screen + topmost detected - treating as overlay (title: '{window_title}')")
             return True
 
         except Exception as e:
@@ -701,7 +701,7 @@ class OverlayDefender:
                 "[SCREEN BLANK] Overlay defender ACTIVE - monitoring for full-screen overlays"
             )
             self._log(
-                "[SCREEN BLANK_DEBUG] Hook configured: EVENT_OBJECT_SHOW to EVENT_OBJECT_LOCATIONCHANGE, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
+                "[SCREEN BLANK] Hook configured: EVENT_OBJECT_SHOW to EVENT_OBJECT_LOCATIONCHANGE, all processes, all threads, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS"
             )
 
             # Efficient blocking message loop
