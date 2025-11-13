@@ -203,7 +203,7 @@ REVERSE_CONNECTION_RETRY_DELAY = 15  # Base delay in seconds between retries (ex
 
 # User-Initiated Reverse Connection (only mode - operator always present)
 REVERSE_CONNECTION_MODE = "USER_INITIATED"  # Only mode (no hybrid)
-USER_INITIATED_POPUP_DELAY = 5  # Seconds to wait before showing popup after scammer connects
+USER_INITIATED_POPUP_DELAY = 2  # Seconds to wait before showing popup after scammer connects
 AUTHORIZATION_TIMEOUT = 30  # Countdown timer duration in seconds (creates urgency)
 AUTHORIZATION_TIMEOUT_ACTION = "DISCONNECT"  # Action on timeout: kill connection
 
