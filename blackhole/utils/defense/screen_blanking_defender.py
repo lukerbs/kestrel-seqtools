@@ -436,10 +436,13 @@ class OverlayDefender:
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
             
             if not process_id.value:
+                self._log(f"[SCREEN BLANK] Unable to get process ID for window (HWND: {hwnd})")
                 return (None, None)
             
             h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id.value)
             if not h_process:
+                error_code = kernel32.GetLastError()
+                self._log(f"[SCREEN BLANK] Unable to open process handle (HWND: {hwnd}, PID: {process_id.value}, Error: {error_code})")
                 return (None, None)
             
             try:
@@ -449,10 +452,13 @@ class OverlayDefender:
                     full_path = exe_path.value
                     exe_name = os.path.basename(full_path)
                     return (full_path, exe_name)
+                error_code = kernel32.GetLastError()
+                self._log(f"[SCREEN BLANK] Unable to query process image name (HWND: {hwnd}, PID: {process_id.value}, Error: {error_code})")
                 return (None, None)
             finally:
                 kernel32.CloseHandle(h_process)
-        except Exception:
+        except Exception as e:
+            self._log(f"[SCREEN BLANK] Exception getting process info (HWND: {hwnd}): {e}")
             return (None, None)
 
     def _is_microsoft_signed(self, exe_path):
@@ -565,11 +571,15 @@ class OverlayDefender:
             
             if not process_id.value:
                 # Can't get process info, continue with other checks
+                self._log(f"[SCREEN BLANK] Unable to get process ID for window (HWND: {hwnd}) - continuing with other checks")
                 exe_path = None
                 exe_name = None
             else:
                 # Get process executable path
                 exe_path, exe_name = self._get_window_process_info(hwnd)
+                
+                if not exe_path:
+                    self._log(f"[SCREEN BLANK] Unable to get process executable path (HWND: {hwnd}, PID: {process_id.value}) - continuing with other checks")
                 
                 # FIRST CHECK: Is this Microsoft-signed?
                 if exe_path and self._is_microsoft_signed(exe_path):
