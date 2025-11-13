@@ -264,7 +264,7 @@ class BlackholeService:
 
             # Layer 2: Initialize overlay defender
             if OVERLAY_NEUTRALIZATION_ENABLED:
-                self.overlay_defender = OverlayDefender(log_func=self.log)
+                self.overlay_defender = OverlayDefender(log_func=self.log, whitelist_manager=self.whitelist_manager)
                 self.log("[SERVICE] Overlay defender initialized")
             else:
                 self.log("[SERVICE] Overlay neutralization disabled in config")

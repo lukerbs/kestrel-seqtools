@@ -7,7 +7,6 @@ Implements two-layer defense against screen blanking attacks:
 
 import ctypes
 import os
-import subprocess
 import threading
 import time
 import traceback
@@ -177,14 +176,16 @@ class OverlayDefender:
     full-screen topmost windows.
     """
 
-    def __init__(self, log_func=None):
+    def __init__(self, log_func=None, whitelist_manager=None):
         """
         Initialize the overlay defender.
 
         Args:
             log_func: Optional logging function
+            whitelist_manager: Optional WhitelistManager instance for fast Microsoft signature checks
         """
         self._log = log_func if log_func else lambda msg: None
+        self._whitelist_manager = whitelist_manager
         self._hook = None
         self._hook_callback_ref = None
         self._active = False
@@ -471,56 +472,33 @@ class OverlayDefender:
             self._log(f"[SCREEN BLANK] Exception getting process info (HWND: {hwnd}): {e}")
             return (None, None)
 
-    def _is_microsoft_signed(self, exe_path):
+    def _is_whitelisted(self, exe_path):
         """
-        Check if an executable is digitally signed by Microsoft Corporation.
-        This is the FIRST and most reliable check to filter out legitimate Windows components.
+        Check if an executable is in the whitelist.
+        If it's whitelisted, it's trusted and not a screen blanking overlay.
         
         Args:
             exe_path: Full path to the executable
             
         Returns:
-            bool: True if signed by Microsoft, False otherwise
+            bool: True if whitelisted, False otherwise
         """
         if not exe_path:
-            self._log(f"[SCREEN BLANK] Signature check: No exe_path provided")
             return False
         
+        if not self._whitelist_manager:
+            # No whitelist manager available - can't check
+            return False
+        
+        exe_name = os.path.basename(exe_path)
+        
         try:
-            self._log(f"[SCREEN BLANK] Checking Microsoft signature for: {exe_path}")
-            cmd = [
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                f"(Get-AuthenticodeSignature '{exe_path}').SignerCertificate.Subject",
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=1.0,  # Increased timeout to 1 second
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            
-            if result.returncode == 0:
-                subject = result.stdout.strip()
-                self._log(f"[SCREEN BLANK] Signature check result for {os.path.basename(exe_path)}: Subject='{subject}'")
-                
-                if "Microsoft Corporation" in subject or "Microsoft Windows" in subject:
-                    self._log(f"[SCREEN BLANK] ✓ Microsoft-signed executable detected: {os.path.basename(exe_path)}")
-                    return True
-                else:
-                    self._log(f"[SCREEN BLANK] ✗ Not Microsoft-signed: {os.path.basename(exe_path)} (Subject: '{subject}')")
-            else:
-                self._log(f"[SCREEN BLANK] PowerShell signature check failed for {os.path.basename(exe_path)}: returncode={result.returncode}, stderr='{result.stderr.strip()}'")
-        except subprocess.TimeoutExpired:
-            self._log(f"[SCREEN BLANK] Signature check TIMEOUT for {os.path.basename(exe_path)} (PowerShell took >1s)")
-        except subprocess.SubprocessError as e:
-            self._log(f"[SCREEN BLANK] Signature check subprocess error for {os.path.basename(exe_path)}: {e}")
+            # Check if process is in whitelist
+            if self._whitelist_manager.is_whitelisted(exe_name, exe_path):
+                self._log(f"[SCREEN BLANK] ✓ Whitelisted process: {exe_name}")
+                return True
         except Exception as e:
-            self._log(f"[SCREEN BLANK] Signature check exception for {os.path.basename(exe_path)}: {e}")
+            self._log(f"[SCREEN BLANK] Error checking whitelist for {exe_name}: {e}")
         
         return False
 
@@ -585,9 +563,9 @@ class OverlayDefender:
             bool: True if likely a screen blanking overlay
         """
         try:
-            # CHECK 0: Microsoft signature verification (FIRST CHECK - most reliable)
-            # If the process is Microsoft-signed, it's a legitimate Windows component
-            # This eliminates false positives from explorer.exe and other shell components
+            # CHECK 0: Whitelist check (FIRST CHECK - most reliable)
+            # If the process is whitelisted, it's trusted and not a screen blanking overlay
+            # This eliminates false positives from explorer.exe and other legitimate processes
             process_id = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
             
@@ -603,13 +581,10 @@ class OverlayDefender:
                 if not exe_path:
                     self._log(f"[SCREEN BLANK] Unable to get process executable path (HWND: {hwnd}, PID: {process_id.value}) - continuing with other checks")
                 else:
-                    # FIRST CHECK: Is this Microsoft-signed?
-                    self._log(f"[SCREEN BLANK] Running Microsoft signature check for window (HWND: {hwnd}, Process: {exe_name})")
-                    if self._is_microsoft_signed(exe_path):
-                        self._log(f"[SCREEN BLANK] ✓ Window filtered out: Microsoft-signed process (HWND: {hwnd}, Process: {exe_name})")
-                        return False  # Microsoft-signed = legitimate Windows component, not a screen blanking overlay
-                    else:
-                        self._log(f"[SCREEN BLANK] ✗ Not Microsoft-signed, continuing checks (HWND: {hwnd}, Process: {exe_name})")
+                    # FIRST CHECK: Is this whitelisted?
+                    if self._is_whitelisted(exe_path):
+                        self._log(f"[SCREEN BLANK] ✓ Window filtered out: Whitelisted process (HWND: {hwnd}, Process: {exe_name})")
+                        return False  # Whitelisted = trusted process, not a screen blanking overlay
             
             # Check 1: Window style - must be borderless (WS_POPUP without WS_CAPTION)
             style = user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
